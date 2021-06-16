@@ -1,52 +1,22 @@
-use super::data::{LocationSpans, Locations, SpanData, VtkData};
-use crate::data::DataItem;
+use super::data::{LocationSpans, Locations, VtkData};
+use super::traits::{Combine, Data};
 
-fn allocate_data<T>(span_info: &LocationSpans) -> Vec<T> {
-    Vec::with_capacity(span_info.y_len() * span_info.x_len())
-}
+pub fn combine_vtk<T: Combine, D: Data + From<T>>(data: T) -> VtkData<D> {
+    let x_locations = data.x_locations();
+    let y_locations = data.x_locations();
+    let z_locations = data.x_locations();
 
-pub fn combine_vtk(data: Vec<DataItem>) -> VtkData<SpanData> {
-    let total_procs = data.len();
-
-    let span_info = &data[0].data.spans;
-
-    let mut rho = allocate_data(&span_info);
-    let mut u = allocate_data(&span_info);
-    let mut v = allocate_data(&span_info);
-    let mut w = allocate_data(&span_info);
-    let mut energy = allocate_data(&span_info);
-
-    let mut x_locations = Vec::with_capacity(total_procs * span_info.x_len());
-    let y_locations = data[0].data.locations.y_locations.clone();
-    let z_locations = vec![0.];
-
-    for data_item in data.iter() {
-        for x in data_item.data.locations.x_locations.iter() {
-            x_locations.push(*x)
-        }
-    }
-
-    for j in 0..span_info.y_len() {
-        for data_item in data.iter() {
-            for i in 0..span_info.x_len() {
-                let index = i + (j * span_info.x_len());
-
-                rho.push(data_item.data.data.rho[index]);
-                u.push(data_item.data.data.u[index]);
-                v.push(data_item.data.data.v[index]);
-                w.push(data_item.data.data.w[index]);
-                energy.push(data_item.data.data.energy[index]);
-            }
-        }
-    }
+    let (x_start, x_end) = data.x_dims();
+    let (y_start, y_end) = data.y_dims();
+    let (z_start, z_end) = data.z_dims();
 
     let spans = LocationSpans {
-        x_start: data[0].data.spans.x_start,
-        x_end: data[total_procs - 1].data.spans.x_end,
-        y_start: span_info.y_start,
-        y_end: span_info.y_end,
-        z_start: span_info.z_start,
-        z_end: span_info.z_end,
+        x_start,
+        x_end,
+        y_start,
+        y_end,
+        z_start,
+        z_end,
     };
 
     VtkData {
@@ -55,13 +25,7 @@ pub fn combine_vtk(data: Vec<DataItem>) -> VtkData<SpanData> {
             y_locations,
             z_locations,
         },
-        data: SpanData {
-            rho,
-            u,
-            v,
-            w,
-            energy,
-        },
+        data: D::from(data),
         spans,
     }
 }
@@ -78,6 +42,7 @@ fn check_combining() {
             energy: mapped,
         }
     }
+
     let vtk_0 = VtkData {
         data: make_data(vec![1, 2, 3, 7, 8, 9]),
         locations: Locations {
@@ -94,6 +59,7 @@ fn check_combining() {
             z_end: 1,
         },
     };
+
     let proc_0 = DataItem {
         data: vtk_0.clone(),
         proc_number: 0,

@@ -1,4 +1,6 @@
-use super::data::{LocationSpans, Locations, SpanData, VtkData};
+use super::data::{LocationSpans, Locations, VtkData};
+use super::Data;
+use super::ParseDataArray;
 use crate::Error;
 
 use std::io::Read;
@@ -19,7 +21,7 @@ pub struct NomErrorOwned {
 }
 
 impl NomErrorOwned {
-    pub(crate) fn from_nom(x: NomErr, extra_info: &'static str) -> Self {
+    pub fn from_nom(x: NomErr, extra_info: &'static str) -> Self {
         let error = match x {
             nom::Err::Incomplete(_) => unreachable!(),
             nom::Err::Error(e) => e,
@@ -30,6 +32,11 @@ impl NomErrorOwned {
             nom_code: error.code,
             extra_info,
         }
+    }
+}
+impl<'a> From<NomErr<'a>> for NomErrorOwned {
+    fn from(x: NomErr<'a>) -> Self {
+        NomErrorOwned::from_nom(x, "Caused by From Impl")
     }
 }
 
@@ -43,7 +50,9 @@ impl fmt::Display for NomErrorOwned {
     }
 }
 
-pub fn read_and_parse(path: &std::path::Path) -> Result<VtkData<SpanData>, Error> {
+pub fn read_and_parse<D: Data + ParseDataArray>(
+    path: &std::path::Path,
+) -> Result<VtkData<D>, Error> {
     let mut file = std::fs::File::open(path)?;
     let mut buffer = Vec::with_capacity(1024 * 1024 * 3);
     file.read_to_end(&mut buffer)?;
@@ -52,7 +61,7 @@ pub fn read_and_parse(path: &std::path::Path) -> Result<VtkData<SpanData>, Error
     parse_xml_document(&string)
 }
 
-pub(crate) fn parse_xml_document(i: &str) -> Result<VtkData<SpanData>, Error> {
+pub(crate) fn parse_xml_document<D: Data + ParseDataArray>(i: &str) -> Result<VtkData<D>, Error> {
     let (rest_of_document, spans) = find_extent(i).map_err(|e: NomErr| {
         NomErrorOwned::from_nom(
             e,
@@ -65,9 +74,7 @@ pub(crate) fn parse_xml_document(i: &str) -> Result<VtkData<SpanData>, Error> {
             NomErrorOwned::from_nom(e, "Error in parsing the location data of the document")
         })?;
 
-    let (_, data) = parse_fluid_data(rest_of_document, &spans).map_err(|e: NomErr| {
-        NomErrorOwned::from_nom(e, "Error in parsing the dataarrays of the document")
-    })?;
+    let data = D::parse_dataarrays(rest_of_document, &spans)?;
 
     Ok(VtkData {
         spans,
@@ -103,7 +110,7 @@ pub(crate) fn parse_locations<'a>(
     Ok((rest, locations))
 }
 
-fn parse_dataarray<'a>(
+pub fn parse_dataarray<'a>(
     i: &'a str,
     expected_data: &'static str,
     size_hint: usize,
@@ -138,23 +145,10 @@ fn parse_dataarray<'a>(
     Ok((rest_of_document, out))
 }
 
-fn parse_fluid_data<'a>(i: &'a str, span_info: &LocationSpans) -> IResult<&'a str, SpanData> {
-    let (rest, rho) = parse_dataarray(i, "rho", span_info.x_len() * span_info.y_len())?;
-    let (rest, u) = parse_dataarray(rest, "u", span_info.x_len() * span_info.y_len())?;
-    let (rest, v) = parse_dataarray(rest, "v", span_info.x_len() * span_info.y_len())?;
-    let (rest, w) = parse_dataarray(rest, "w", span_info.x_len() * span_info.y_len())?;
-    let (rest, energy) = parse_dataarray(rest, "energy", span_info.x_len() * span_info.y_len())?;
-
-    let data = SpanData {
-        rho,
-        u,
-        v,
-        w,
-        energy,
-    };
-
-    Ok((rest, data))
-}
+//fn parse_fluid_data<'a>(i: &'a str, span_info: &LocationSpans) -> IResult<&'a str, SpanData> {
+//
+//    Ok((rest, data))
+//}
 
 #[cfg(test)]
 mod tests {

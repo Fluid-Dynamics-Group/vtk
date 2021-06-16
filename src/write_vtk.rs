@@ -10,10 +10,8 @@ use xml::name::Name;
 use xml::namespace::Namespace;
 use xml::writer::{EventWriter, XmlEvent};
 
-pub fn vtk_to_file<W: Write, D: Data + DataArray>(
-    writer: W,
-    data: VtkData<D>,
-) -> Result<(), Error> {
+/// Write a given vtk file to a `Writer`
+pub fn write_vtk<W: Write, D: Data + DataArray>(writer: W, data: VtkData<D>) -> Result<(), Error> {
     let mut writer = EventWriter::new(writer);
 
     let version = xml::common::XmlVersion::Version10;
