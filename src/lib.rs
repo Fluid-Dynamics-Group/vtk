@@ -14,6 +14,8 @@ pub use write_vtk::write_vtk;
 pub use xml_parse::read_and_parse as read_vtk;
 pub use xml_parse::NomErrorOwned;
 
+pub use xml::EventWriter;
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("An io error occured: `{0}`")]

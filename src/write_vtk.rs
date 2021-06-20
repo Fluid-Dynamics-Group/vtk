@@ -52,9 +52,9 @@ pub fn write_vtk<W: Write, D: Data + DataArray>(writer: W, data: VtkData<D>) -> 
         namespace: Cow::Owned(Namespace::empty()),
     })?;
 
-    write_dataarray(&mut writer, data.locations.x_locations, "X", true)?;
-    write_dataarray(&mut writer, data.locations.y_locations, "Y", true)?;
-    write_dataarray(&mut writer, data.locations.z_locations, "Z", true)?;
+    write_dataarray(&mut writer, &data.locations.x_locations, "X", true)?;
+    write_dataarray(&mut writer, &data.locations.y_locations, "Y", true)?;
+    write_dataarray(&mut writer, &data.locations.z_locations, "Z", true)?;
 
     writer.write(XmlEvent::EndElement {
         name: Some(Name::from("Coordinates")),
@@ -88,7 +88,7 @@ pub fn write_vtk<W: Write, D: Data + DataArray>(writer: W, data: VtkData<D>) -> 
 
 pub fn write_dataarray<W: Write>(
     writer: &mut EventWriter<W>,
-    data: Vec<f64>,
+    data: &[f64],
     name: &str,
     is_short_precision: bool,
 ) -> Result<(), Error> {
@@ -111,7 +111,7 @@ pub fn write_dataarray<W: Write>(
         data.into_iter()
             .map(|x| {
                 let mut buffer = ryu::Buffer::new();
-                let mut num = buffer.format(x).to_string();
+                let mut num = buffer.format(*x).to_string();
                 num.push(' ');
                 num
             })
