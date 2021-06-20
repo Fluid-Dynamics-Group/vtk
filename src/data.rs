@@ -1,35 +1,16 @@
 use super::iter::VtkIterator;
-use super::Data;
 use std::ops::{Add, Div, Sub, SubAssign};
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct VtkData<D: Data> {
+pub struct VtkData<D> {
     pub data: D,
     pub locations: Locations,
     pub spans: LocationSpans,
 }
 
-//impl VtkData<SpanData> {
-//    //pub fn into_array(self) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
-//    pub fn extend_all(
-//        self,
-//        rho: &mut Vec<f64>,
-//        u: &mut Vec<f64>,
-//        v: &mut Vec<f64>,
-//        w: &mut Vec<f64>,
-//        energy: &mut Vec<f64>,
-//    ) {
-//        rho.extend(self.data.rho);
-//        u.extend(self.data.u);
-//        v.extend(self.data.v);
-//        w.extend(self.data.w);
-//        energy.extend(self.data.energy);
-//    }
-//}
-
 impl<D> Add for VtkData<D>
 where
-    D: Add<Output = D> + Data,
+    D: Add<Output = D>,
 {
     type Output = Self;
 
@@ -41,7 +22,7 @@ where
 
 impl<D> Div<f64> for VtkData<D>
 where
-    D: Div<f64, Output = D> + Data,
+    D: Div<f64, Output = D>,
 {
     type Output = Self;
 
@@ -53,7 +34,7 @@ where
 
 impl<D> Sub for VtkData<D>
 where
-    D: Sub<Output = D> + Data,
+    D: Sub<Output = D>,
 {
     type Output = Self;
 
@@ -65,7 +46,7 @@ where
 
 impl<D> SubAssign for VtkData<D>
 where
-    D: Data + Sub<Output = D>,
+    D: Sub<Output = D> + Clone,
 {
     fn sub_assign(&mut self, other: Self) {
         self.data = self.data.clone() - other.data;
@@ -75,7 +56,7 @@ where
 // TODO: make this function + iterator generic at some point
 impl<D> std::iter::Sum for VtkData<D>
 where
-    D: Data,
+    D: Default,
     VtkData<D>: Add<Output = Self>,
 {
     fn sum<I: Iterator<Item = VtkData<D>>>(iter: I) -> Self {
@@ -92,7 +73,7 @@ where
 
 impl<D> std::iter::IntoIterator for VtkData<D>
 where
-    D: Data + super::traits::PointData,
+    D: super::traits::PointData,
 {
     type Item = D::PointData;
     type IntoIter = VtkIterator<D>;
@@ -118,6 +99,7 @@ pub struct LocationSpans {
     pub z_start: usize,
     pub z_end: usize,
 }
+
 impl LocationSpans {
     pub fn new(span_string: &str) -> Self {
         let mut split = span_string.split_ascii_whitespace();

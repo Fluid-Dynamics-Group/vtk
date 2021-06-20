@@ -1,7 +1,7 @@
 use super::data::{LocationSpans, Locations, VtkData};
-use super::traits::{Combine, Data};
+use super::traits::Combine;
 
-pub fn combine_vtk<T: Combine, D: Data + From<T>>(data: T) -> VtkData<D> {
+pub fn combine_vtk<T: Combine, D: From<T>>(data: T) -> VtkData<D> {
     let x_locations = data.x_locations();
     let y_locations = data.x_locations();
     let z_locations = data.x_locations();

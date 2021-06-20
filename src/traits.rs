@@ -49,11 +49,22 @@ pub trait ParseDataArray {
         Self: Sized;
 }
 
-pub trait Data: std::fmt::Debug + Default + Clone + PartialEq {}
+//pub trait Data: std::fmt::Debug + Default + Clone + PartialEq {}
 
 #[cfg(feature = "derive")]
 #[derive(vtk_derive::DataArray)]
 struct Info<'a> {
     a: Vec<f64>,
     b: &'a [f64],
+}
+
+#[cfg(feature = "derive")]
+#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
+struct Parse {
+    #[allow(dead_code)]
+    a: Vec<f64>,
+    #[allow(dead_code)]
+    b: Vec<f64>,
+    #[allow(dead_code)]
+    c: Vec<f64>,
 }

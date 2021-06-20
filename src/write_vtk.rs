@@ -1,5 +1,5 @@
 use super::data::VtkData;
-use super::{Data, DataArray};
+use super::DataArray;
 use crate::Error;
 
 use std::borrow::Cow;
@@ -11,7 +11,7 @@ use xml::namespace::Namespace;
 use xml::writer::{EventWriter, XmlEvent};
 
 /// Write a given vtk file to a `Writer`
-pub fn write_vtk<W: Write, D: Data + DataArray>(writer: W, data: VtkData<D>) -> Result<(), Error> {
+pub fn write_vtk<W: Write, D: DataArray>(writer: W, data: VtkData<D>) -> Result<(), Error> {
     let mut writer = EventWriter::new(writer);
 
     let version = xml::common::XmlVersion::Version10;

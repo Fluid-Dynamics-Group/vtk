@@ -5,7 +5,7 @@ pub mod traits;
 mod write_vtk;
 pub mod xml_parse;
 
-pub(crate) use traits::{Data, DataArray, ParseDataArray};
+pub(crate) use traits::{DataArray, ParseDataArray};
 
 pub use combine_vtk::combine_vtk;
 pub use data::{LocationSpans, Locations, VtkData};

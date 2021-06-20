@@ -1,5 +1,4 @@
 use super::data::{LocationSpans, Locations, VtkData};
-use super::Data;
 use super::ParseDataArray;
 use crate::Error;
 
@@ -50,9 +49,7 @@ impl fmt::Display for NomErrorOwned {
     }
 }
 
-pub fn read_and_parse<D: Data + ParseDataArray>(
-    path: &std::path::Path,
-) -> Result<VtkData<D>, Error> {
+pub fn read_and_parse<D: ParseDataArray>(path: &std::path::Path) -> Result<VtkData<D>, Error> {
     let mut file = std::fs::File::open(path)?;
     let mut buffer = Vec::with_capacity(1024 * 1024 * 3);
     file.read_to_end(&mut buffer)?;
@@ -61,7 +58,7 @@ pub fn read_and_parse<D: Data + ParseDataArray>(
     parse_xml_document(&string)
 }
 
-pub(crate) fn parse_xml_document<D: Data + ParseDataArray>(i: &str) -> Result<VtkData<D>, Error> {
+pub(crate) fn parse_xml_document<D: ParseDataArray>(i: &str) -> Result<VtkData<D>, Error> {
     let (rest_of_document, spans) = find_extent(i).map_err(|e: NomErr| {
         NomErrorOwned::from_nom(
             e,
