@@ -49,8 +49,6 @@ pub trait ParseDataArray {
         Self: Sized;
 }
 
-//pub trait Data: std::fmt::Debug + Default + Clone + PartialEq {}
-
 #[cfg(feature = "derive")]
 #[derive(vtk_derive::DataArray)]
 struct Info<'a> {
