@@ -132,24 +132,6 @@ pub fn write_dataarray<W: Write>(
         data.into_iter()
             .for_each(|float| byte_data.extend_from_slice(&float.to_le_bytes()));
 
-        // let mut compressed_bytes = Vec::new();
-
-        // // compress the bytes with LZ4
-        // let mut compressor = lz4::EncoderBuilder::new()
-        //     .level(3)
-        //     .build(&mut compressed_bytes)
-        //     .unwrap();
-
-        // compressor.write_all(&byte_data)?;
-        // // this should not panic becasue writing to the vector will not panic
-        // compressor.finish().1.unwrap();
-        // println!("finished compression");
-
-        // println!("original length: {} compressed length: {}", byte_data.len(), compressed_bytes.len());
-
-        // // encode the bytes as base64
-        // base64::encode(compressed_bytes.as_slice())
-
         base64::encode(byte_data.as_slice())
     };
 
