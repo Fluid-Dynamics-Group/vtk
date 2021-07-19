@@ -90,24 +90,22 @@ pub fn write_dataarray<W: Write>(
     writer: &mut EventWriter<W>,
     data: &[f64],
     name: &str,
-    is_short_precision: bool,
+    make_ascii: bool,
 ) -> Result<(), Error> {
-    writer.write(XmlEvent::StartElement {
-        name: Name::from("DataArray"),
-        attributes: vec![
-            make_att("type", "Float64"),
-            make_att("NumberOfComponents", "1"),
-            make_att("Name", name),
-            make_att("format", "ascii"),
-        ]
-        .into(),
-        namespace: Cow::Owned(Namespace::empty()),
-    })?;
+    let data = if make_ascii {
+        writer.write(XmlEvent::StartElement {
+            name: Name::from("DataArray"),
+            attributes: vec![
+                make_att("type", "Float64"),
+                make_att("NumberOfComponents", "1"),
+                make_att("Name", name),
+                make_att("format", "ascii"),
+            ]
+            .into(),
+            namespace: Cow::Owned(Namespace::empty()),
+        })?;
 
-    // write out all numbers with 12 points of precision
-    let data_string: String = if is_short_precision {
-        data.into_iter().map(|x| format!("{:.10} ", x)).collect()
-    } else {
+        // write out all numbers with 12 points of precision
         data.into_iter()
             .map(|x| {
                 let mut buffer = ryu::Buffer::new();
@@ -116,9 +114,46 @@ pub fn write_dataarray<W: Write>(
                 num
             })
             .collect()
+    } else {
+        writer.write(XmlEvent::StartElement {
+            name: Name::from("DataArray"),
+            attributes: vec![
+                make_att("type", "Float64"),
+                make_att("NumberOfComponents", "1"),
+                make_att("Name", name),
+                make_att("format", "binary"),
+            ]
+            .into(),
+            namespace: Cow::Owned(Namespace::empty()),
+        })?;
+
+        // convert the floats into LE bytes
+        let mut byte_data = Vec::with_capacity(data.len() * 8);
+        data.into_iter()
+            .for_each(|float| byte_data.extend_from_slice(&float.to_le_bytes()));
+
+        // let mut compressed_bytes = Vec::new();
+
+        // // compress the bytes with LZ4
+        // let mut compressor = lz4::EncoderBuilder::new()
+        //     .level(3)
+        //     .build(&mut compressed_bytes)
+        //     .unwrap();
+
+        // compressor.write_all(&byte_data)?;
+        // // this should not panic becasue writing to the vector will not panic
+        // compressor.finish().1.unwrap();
+        // println!("finished compression");
+
+        // println!("original length: {} compressed length: {}", byte_data.len(), compressed_bytes.len());
+
+        // // encode the bytes as base64
+        // base64::encode(compressed_bytes.as_slice())
+
+        base64::encode(byte_data.as_slice())
     };
 
-    writer.write(XmlEvent::Characters(&data_string))?;
+    writer.write(XmlEvent::Characters(&data))?;
 
     writer.write(XmlEvent::EndElement {
         name: Some(Name::from("DataArray")),

@@ -11,6 +11,7 @@ pub trait DataArray {
 
 pub trait Extender {
     type Extender;
+
     fn extend_all(self, extender: &mut Self::Extender);
 }
 

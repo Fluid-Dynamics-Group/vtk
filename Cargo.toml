@@ -12,9 +12,10 @@ nom = "6.1.2"
 ryu = "1.0.5"
 thiserror = "1.0.25"
 xml-rs = "0.8.3"
+base64 = "0.13.0"
 
 vtk-derive = {path="./derive", optional=true}
-
+lz4 = "1.23.2"
 
 [features]
 derive = ["vtk-derive"]
