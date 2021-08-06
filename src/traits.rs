@@ -6,7 +6,24 @@ use xml::EventWriter;
 
 /// describes how to write the data to a vtk file
 pub trait DataArray {
-    fn write_dataarray<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error>;
+    fn write_inline_dataarrays<W: Write>(
+        &self,
+        #[allow(unused_variables)] writer: &mut EventWriter<W>,
+    ) -> Result<(), crate::Error> {
+        Ok(())
+    }
+    fn is_appended_array() -> bool {
+        true
+    }
+    fn write_appended_dataarray_headers<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        starting_offset: i64
+    ) -> Result<(), crate::Error>;
+    fn write_appended_dataarrays<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+    ) -> Result<(), crate::Error>;
 }
 
 pub trait Extender {

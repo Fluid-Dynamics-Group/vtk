@@ -123,7 +123,7 @@ pub fn parse_dataarray<'a>(
     let (brace_then_location_data, _unusable) = take_till(|c| c == '>')(rest)?;
     let (location_data_and_rest, _whitespace) = tuple((
         tag(">"),
-        take_till(|c: char| c.is_ascii_digit() || c == '.'),
+        take_till(|c: char| c.is_ascii_digit() || c == '.' || c == '-'),
     ))(brace_then_location_data)?;
     let (rest_of_document, location_data) = take_till(|c| c == '<')(location_data_and_rest)?;
 

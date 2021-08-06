@@ -13,23 +13,40 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
     let struct_type = input.ident;
 
     let mut body = quote! {};
+    let mut headers_body = quote! {};
 
-    for field in fields {
+    for field in &fields {
+
+        body = quote! {
+            #body
+            vtk::write_appended_dataarray(writer, &self.#field)?;
+        }
+    }
+
+
+    for field in &fields {
         // convert the field identifier to a string literal
         // so `write_dataarray` understands it
         let lit = syn::LitStr::new(&field.to_string(), proc_macro2::Span::call_site());
 
-        body = quote! {
-            #body
-            vtk::write_dataarray(writer, &self.#field, #lit, false)?;
+        headers_body = quote! {
+            #headers_body
+
+            vtk::write_appended_dataarray_header(writer, #lit, offset)?;
+            offset += (std::mem::size_of::<f64>() * self.#field.len()) as i64;
         }
     }
 
     // declare the whole trait
     let expanded = quote! {
         impl #generics vtk::traits::DataArray for #struct_type #generics {
-            fn write_dataarray<W: std::io::Write>(&self, writer: &mut vtk::EventWriter<W>) -> Result<(), vtk::Error> {
+            fn write_appended_dataarrays<W: std::io::Write>(&self, writer: &mut vtk::EventWriter<W>) -> Result<(), vtk::Error> {
                 #body
+
+                Ok(())
+            }
+            fn write_appended_dataarray_headers<W:std::io::Write>(&self, writer: &mut vtk::EventWriter<W>, mut offset: i64) -> Result<(), vtk::Error> {
+                #headers_body
 
                 Ok(())
             }
