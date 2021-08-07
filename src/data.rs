@@ -83,6 +83,7 @@ where
     }
 }
 
+/// The X/Y/Z point data locations for the data points in the field
 #[derive(Debug, Clone, Default, derive_builder::Builder, PartialEq)]
 pub struct Locations {
     pub x_locations: Vec<f64>,
@@ -90,6 +91,7 @@ pub struct Locations {
     pub z_locations: Vec<f64>,
 }
 
+/// The local locations
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct LocationSpans {
     pub x_start: usize,
@@ -101,6 +103,19 @@ pub struct LocationSpans {
 }
 
 impl LocationSpans {
+    /// simple constructor used to generate a `LocationSpans` from a string
+    /// you would find in a vtk file. The expeceted input is in the form
+    /// `"x_start x_end y_start y_end z_start z_end"`
+    ///
+    /// # Example
+    /// ```
+    /// LocationSpans::new("0 10 0 20 0 10")
+    /// ```
+    ///
+    /// ## Panics
+    ///
+    /// This function panics if there are not 6 `usize` values
+    /// separated by a single space each
     pub fn new(span_string: &str) -> Self {
         let mut split = span_string.split_ascii_whitespace();
 
@@ -114,19 +129,26 @@ impl LocationSpans {
         }
     }
 
+    /// Get the total length in the X direction for this
+    /// local segment as paraview would interpret it
     pub fn x_len(&self) -> usize {
         self.x_end - self.x_start + 1
     }
 
+    /// Get the total length in the Y direction for this
+    /// local segment as paraview would interpret it
     pub fn y_len(&self) -> usize {
         self.y_end - self.y_start + 1
     }
 
+    /// Get the total length in the Z direction for this
+    /// local segment as paraview would interpret it
     pub fn z_len(&self) -> usize {
         self.z_end - self.z_start + 1
     }
 
-    pub fn to_string(&self) -> String {
+    /// Format the spans into a string that would be written to a vtk file
+    pub(crate) fn to_string(&self) -> String {
         format!(
             "{} {} {} {} {} {}",
             self.x_start, self.x_end, self.y_start, self.y_end, self.z_start, self.z_end
@@ -137,29 +159,18 @@ impl LocationSpans {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::helpers::SpanData;
 
     #[test]
     fn data_add() {
         let data = SpanData {
             rho: vec![0., 1., 2.],
-            u: vec![0., 1., 2.],
-            v: vec![0., 1., 2.],
-            w: vec![0., 1., 2.],
-            energy: vec![0., 1., 2.],
         };
         let data_2 = SpanData {
             rho: vec![0., 0., 1.],
-            u: vec![0., 0., 1.],
-            v: vec![0., 0., 1.],
-            w: vec![0., 0., 1.],
-            energy: vec![0., 0., 1.],
         };
         let expected = SpanData {
             rho: vec![0., 1., 3.],
-            u: vec![0., 1., 3.],
-            v: vec![0., 1., 3.],
-            w: vec![0., 1., 3.],
-            energy: vec![0., 1., 3.],
         };
 
         assert_eq!(data + data_2, expected)
@@ -169,17 +180,9 @@ mod tests {
     fn data_div() {
         let data = SpanData {
             rho: vec![3., 3., 3.],
-            u: vec![3., 3., 3.],
-            v: vec![3., 3., 3.],
-            w: vec![3., 3., 3.],
-            energy: vec![3., 3., 3.],
         };
         let expected = SpanData {
             rho: vec![1., 1., 1.],
-            u: vec![1., 1., 1.],
-            v: vec![1., 1., 1.],
-            w: vec![1., 1., 1.],
-            energy: vec![1., 1., 1.],
         };
 
         assert_eq!(data / 3., expected)

@@ -1,3 +1,10 @@
+//! # Traits
+//!
+//! These are general purpose traits that are required to work with reading, writing, and 
+//! combining vtk files. With the `derive` feature, the two most important traits
+//! `ParseDataArray` and `DataArray` can be derived for you automatically. There are
+//! some limitations to this, be sure to refer to each trait's documentation.
+//!
 #[cfg(feature = "derive")]
 use crate as vtk;
 
@@ -5,6 +12,88 @@ use std::io::Write;
 use xml::EventWriter;
 
 /// describes how to write the data to a vtk file
+///
+/// There are two main ways to write data to a vtk file. Either you can write the data inline
+/// within the `DataArray` attribute or you can write the data as binary to an appended section 
+/// with a specified offset. Writing the data inline, while more clear, requires either an ascii or
+/// base64 encoding which uses significantly more space than the appended data.
+///
+/// If you want to write the data inline (base64 / ascii), you need to implement the
+/// `write_inline_dataarrays` and `is_appended_dataarray_headers` functions: 
+///
+/// ```
+/// struct FlowData { 
+///     u: Vec<f64>,
+///     v: Vec<f64>,
+///     w: Vec<f64>,
+/// }
+///
+/// impl vtk::traits::DataArray for FlowData {
+///     fn write_dataarray<W: Write>( &self, writer: &mut EventWriter<W>) -> Result<(), vtk::Error> {
+///         vtk::write_inline_dataarray(writer, &self.u, "u", vtk::Encoding::Base64)?;
+///         vtk::write_inline_dataarray(writer, &self.v, "v", vtk::Encoding::Base64)?;
+///         vtk::write_inline_dataarray(writer, &self.w, "w", vtk::Encoding::Base64)?;
+///         Ok(())
+///     }
+///
+///     fn is_appended_array() -> bool {
+///         false
+///     }
+///
+///     // just return anything from these functions, they will not be called
+///     fn write_appended_dataarray_headers<W: Write>(
+///         &self,
+///         writer: &mut EventWriter<W>,
+///         starting_offset: i64,
+///     ) -> Result<(), crate::Error> {
+///         Ok(())
+///     }
+///
+///     // just return anything from these functions, they will not be called
+///     fn write_appended_dataarrays<W: Write>(
+///         &self,
+///         writer: &mut EventWriter<W>,
+///     ) -> Result<(), crate::Error> {
+///         Ok(())
+///     }
+/// }
+/// ```
+/// 
+/// If you intend on writing the data as binary in the appended section, you can simply derive the
+/// trait. This is the most painless method:
+///
+/// ```
+/// #[derive(vtk::DataArray)]
+/// struct FlowData {
+///     u: Vec<f64>,
+///     v: Vec<f64>,
+///     w: Vec<f64>,
+/// }
+/// ```
+///
+/// a VTK file will be automatically generated with the following format:
+///
+/// ```
+/// <?xml version="1.0" encoding="UTF-8"?>
+/// <VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
+///     <RectilinearGrid WholeExtent="0 63 0 63 0 63">
+///         <Piece Extent="0 63 0 63 0 63">
+///             <Coordinates>
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="X" format="appended" offset="-8" />
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="Y" format="appended" offset="504" />
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="Z" format="appended" offset="1016" />
+///             </Coordinates>
+///             <PointData>
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="u" format="appended" offset="1528" />
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="v" format="appended" offset="2098680" />
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="w" format="appended" offset="4195832" />
+///             </PointData>
+///         </Piece>
+///     </RectilinearGrid>
+///     <AppendedData encoding="raw">
+///         _binary data here
+///     </AppendedData>
+/// </VTKFile>
 pub trait DataArray {
     fn write_inline_dataarrays<W: Write>(
         &self,
@@ -18,7 +107,7 @@ pub trait DataArray {
     fn write_appended_dataarray_headers<W: Write>(
         &self,
         writer: &mut EventWriter<W>,
-        starting_offset: i64
+        starting_offset: i64,
     ) -> Result<(), crate::Error>;
     fn write_appended_dataarrays<W: Write>(
         &self,
@@ -26,13 +115,10 @@ pub trait DataArray {
     ) -> Result<(), crate::Error>;
 }
 
-pub trait Extender {
-    type Extender;
-
-    fn extend_all(self, extender: &mut Self::Extender);
-}
-
 /// helper trait to work with an iterator over a vtk
+///
+/// Defines a way to get the data for a single point in a flowfield
+/// by a linear index
 pub trait PointData {
     /// if Data contains a field of Vec<T>, this is just the T
     type PointData;
@@ -58,11 +144,48 @@ pub trait Combine {
 }
 
 /// Describes how to read in a vtk file's data
+///
+/// The built-in routines for parsing DataArrays only account for ascii data stored 
+/// in an inline element. If your data is base64 encoded or appended as binary in the final
+/// section then this parsing will not work for you.
+///
+/// This trait can be derived with the `vtk::ParseDataArray` proc macro:
+///
+/// ```
+/// #[derive(vtk::ParseDataArray)]
+/// struct FlowData {
+///     u: Vec<f64>,
+///     v: Vec<f64>,
+///     w: Vec<f64>,
+/// }
+/// ```
+///
+/// will automatically parse a vtk file in the following format
+///
+/// ```
+/// <?xml version="1.0" encoding="UTF-8"?>
+/// <VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
+///     <RectilinearGrid WholeExtent="0 63 0 63 0 63">
+///         <Piece Extent="0 63 0 63 0 63">
+///             <Coordinates>
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="X" format="appended" offset="-8" />
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="Y" format="appended" offset="504" />
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="Z" format="appended" offset="1016" />
+///             </Coordinates>
+///             <PointData>
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="u" format="appended" offset="1528" />
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="v" format="appended" offset="2098680" />
+///                 <DataArray type="Float64" NumberOfComponents="1" Name="w" format="appended" offset="4195832" />
+///             </PointData>
+///         </Piece>
+///     </RectilinearGrid>
+/// </VTKFile>
+/// ```
 pub trait ParseDataArray {
     fn parse_dataarrays(
         data: &str,
         span_info: &super::LocationSpans,
-    ) -> Result<Self, super::xml_parse::NomErrorOwned>
+    ) -> Result<Self, super::xml_parse::ParseError>
     where
         Self: Sized;
 }

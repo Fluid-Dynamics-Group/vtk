@@ -4,7 +4,6 @@
 
  Library for reading and writing vtk files
 
-
 ## Supported Features
 
 * writing XML Rectilinear grids
@@ -71,11 +70,29 @@ written to a file. We can use the built-in `vtk::write_dataarray` function for a
 
 ```rust
 impl vtk::DataArray for VelocityField {
-    fn write_dataarray<W: Write>( &self, writer: &mut EventWriter<W>) -> Result<(), vtk::Error> {
-        vtk::write_dataarray(writer, &self.u, "u", false)?;
-        vtk::write_dataarray(writer, &self.v, "v", false)?;
-        vtk::write_dataarray(writer, &self.w, "w", false)?;
-	Ok(())
+    fn write_inline_dataarrays<W: Write>(
+        &self,
+    ) -> Result<(), crate::Error> {
+        vtk::write_inline_dataarray(writer, &self.u, "u", vtk::Encoding::Base64)?;
+        vtk::write_inline_dataarray(writer, &self.v, "v", vtk::Encoding::Base64)?;
+        vtk::write_inline_dataarray(writer, &self.w, "w", vtk::Encoding::Base64)?;
+        Ok(())
+    }
+    fn is_appended_array() -> bool {
+        false
+    }
+    fn write_appended_dataarray_headers<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        starting_offset: i64,
+    ) -> Result<(), crate::Error> {
+    	Ok(())
+    }
+    fn write_appended_dataarrays<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+    ) -> Result<(), crate::Error> {
+    	Ok(())
     }
 }
 ```
@@ -114,13 +131,26 @@ and the following code is automatically generated:
 
 ```rust
 impl vtk::traits::DataArray for Data {
-    fn write_dataarray<W: std::io::Write>(
+    fn write_appended_dataarrays<W: std::io::Write>(
         &self,
         writer: &mut vtk::EventWriter<W>,
     ) -> Result<(), vtk::Error> {
-        vtk::write_dataarray(writer, &self.u, "u", false)?;
-        vtk::write_dataarray(writer, &self.v, "v", false)?;
-        vtk::write_dataarray(writer, &self.w, "w", false)?;
+        vtk::write_appended_dataarray(writer, &self.u)?;
+        vtk::write_appended_dataarray(writer, &self.v)?;
+        vtk::write_appended_dataarray(writer, &self.w)?;
+        Ok(())
+    }
+    fn write_appended_dataarray_headers<W: std::io::Write>(
+        &self,
+        writer: &mut vtk::EventWriter<W>,
+        mut offset: i64,
+    ) -> Result<(), vtk::Error> {
+        vtk::write_appended_dataarray_header(writer, "u", offset)?;
+        offset += (std::mem::size_of::<f64>() * self.u.len()) as i64;
+        vtk::write_appended_dataarray_header(writer, "v", offset)?;
+        offset += (std::mem::size_of::<f64>() * self.v.len()) as i64;
+        vtk::write_appended_dataarray_header(writer, "w", offset)?;
+        offset += (std::mem::size_of::<f64>() * self.w.len()) as i64;
         Ok(())
     }
 }
@@ -128,17 +158,18 @@ impl vtk::traits::ParseDataArray for Data {
     fn parse_dataarrays(
         data: &str,
         span_info: &vtk::LocationSpans,
-    ) -> Result<Self, vtk::NomErrorOwned> {
+    ) -> Result<Self, vtk::ParseError> {
         let len = span_info.x_len() * span_info.y_len() * span_info.z_len();
         #[allow(unused_variables)]
-        let (data, u) = vtk::xml_parse::parse_dataarray(&data, "u", len)?;
+        let (data, u) = vtk::parse_dataarray(&data, "u", len)?;
         #[allow(unused_variables)]
-        let (data, v) = vtk::xml_parse::parse_dataarray(&data, "v", len)?;
+        let (data, v) = vtk::parse_dataarray(&data, "v", len)?;
         #[allow(unused_variables)]
-        let (data, w) = vtk::xml_parse::parse_dataarray(&data, "w", len)?;
+        let (data, w) = vtk::parse_dataarray(&data, "w", len)?;
         Ok(Self { w, v, u })
     }
 }
+
 ```
 
 ## A note on ordering of data

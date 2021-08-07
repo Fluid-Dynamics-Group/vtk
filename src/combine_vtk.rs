@@ -1,6 +1,8 @@
 use super::data::{LocationSpans, Locations, VtkData};
 use super::traits::Combine;
 
+/// utility function for combining vtk information from different subsections
+/// of a flowfield.
 pub fn combine_vtk<T: Combine, D: From<T>>(data: T) -> VtkData<D> {
     let x_locations = data.x_locations();
     let y_locations = data.x_locations();
@@ -32,14 +34,10 @@ pub fn combine_vtk<T: Combine, D: From<T>>(data: T) -> VtkData<D> {
 
 #[test]
 fn check_combining() {
-    fn make_data(i: Vec<usize>) -> SpanData {
+    fn make_data(i: Vec<usize>) -> crate::helpers::SpanData {
         let mapped: Vec<f64> = i.into_iter().map(|x| x as f64).collect();
-        SpanData {
+        crate::helpers::SpanData {
             rho: mapped.clone(),
-            u: mapped.clone(),
-            v: mapped.clone(),
-            w: mapped.clone(),
-            energy: mapped,
         }
     }
 
@@ -60,7 +58,7 @@ fn check_combining() {
         },
     };
 
-    let proc_0 = DataItem {
+    let proc_0 = crate::helpers::DataItem {
         data: vtk_0.clone(),
         proc_number: 0,
         step_number: 1,
@@ -82,13 +80,14 @@ fn check_combining() {
             z_end: 1,
         },
     };
-    let proc_1 = DataItem {
+    let proc_1 = crate::helpers::DataItem {
         data: vtk_1.clone(),
-        proc_number: 0,
+        proc_number: 1,
         step_number: 1,
     };
 
-    let out_vtk = combine_vtk(vec![proc_0, proc_1]);
+    let out_vtk: VtkData<crate::helpers::SpanData> = combine_vtk(vec![proc_0, proc_1]);
+
     let expected = VtkData {
         locations: Locations {
             x_locations: vec![1., 2., 3., 4., 5., 6.],

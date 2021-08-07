@@ -60,7 +60,7 @@ pub fn write_vtk<W: Write, D: DataArray>(
     // here or write only the headers w/ offsets and write the data as binary later
     let starting_offset = if !append_coordinates {
         ascii_coordinates_inline(&mut writer, &data.locations)?;
-        // this is some funky hack to includethe first value in the data array that 
+        // this is some funky hack to includethe first value in the data array that
         // paraview somehow skips over - not sure if this will ever be fixed on their end
         -8
     } else {
@@ -85,7 +85,8 @@ pub fn write_vtk<W: Write, D: DataArray>(
         // call the data element of VtkData to write itself out
         data.data.write_inline_dataarrays(&mut writer)?;
     } else {
-        data.data.write_appended_dataarray_headers(&mut writer, starting_offset)?;
+        data.data
+            .write_appended_dataarray_headers(&mut writer, starting_offset)?;
     }
 
     writer.write(XmlEvent::EndElement {
@@ -98,7 +99,6 @@ pub fn write_vtk<W: Write, D: DataArray>(
     writer.write(XmlEvent::EndElement {
         name: Some(Name::from("RectilinearGrid")),
     })?;
-
 
     // if we are doing _any_ sort of appending of data
     if append_coordinates || D::is_appended_array() {
@@ -126,6 +126,7 @@ pub fn write_vtk<W: Write, D: DataArray>(
     Ok(())
 }
 
+/// the encoding to use when writing an inline dataarray
 pub enum Encoding {
     Ascii,
     Base64,
@@ -225,7 +226,7 @@ pub fn write_appended_dataarray_header<W: Write>(
     Ok(())
 }
 
-/// write the file data to the file in binary form.
+/// write the file data to the file to the appended section in binary form
 ///
 /// You must ensure that you have called `write_appended_dataarray_header` with
 /// the correct offset before calling this function.
@@ -264,7 +265,7 @@ fn ascii_coordinates_inline<W: Write>(
     Ok(())
 }
 
-/// write the headers for the coordinates assuming that we are going to write 
+/// write the headers for the coordinates assuming that we are going to write
 /// the raw data for the headers in the appended section later
 ///
 /// does not write the data inline
@@ -273,7 +274,6 @@ fn coordinate_headers_appended<W: Write>(
     writer: &mut EventWriter<W>,
     locations: &super::Locations,
 ) -> Result<i64, Error> {
-
     let mut offset = -8;
 
     write_appended_dataarray_header(writer, "X", offset)?;
@@ -292,7 +292,10 @@ fn coordinate_headers_appended<W: Write>(
 ///
 /// this is only here to make the main `write_vtk` function more readable
 #[inline]
-fn appended_coordinate_dataarrays<W: Write>(writer: &mut EventWriter<W>, locations: &super::Locations) -> Result<(), Error> {
+fn appended_coordinate_dataarrays<W: Write>(
+    writer: &mut EventWriter<W>,
+    locations: &super::Locations,
+) -> Result<(), Error> {
     write_appended_dataarray(writer, &locations.x_locations)?;
     write_appended_dataarray(writer, &locations.y_locations)?;
     write_appended_dataarray(writer, &locations.z_locations)?;

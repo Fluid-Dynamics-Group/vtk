@@ -27,7 +27,7 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
         body = quote! {
             #body
             #[allow(unused_variables)]
-            let (data, #field) = vtk::xml_parse::parse_dataarray(&data, #lit, len)?;
+            let (data, #field) = vtk::parse_dataarray(&data, #lit, len)?;
         };
 
         // do it in this order because the first item will be
@@ -44,7 +44,7 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
     // declare the whole trait
     let expanded = quote! {
         impl #generics vtk::traits::ParseDataArray for #struct_type #generics {
-            fn parse_dataarrays(data:&str, span_info: &vtk::LocationSpans) -> Result<Self, vtk::NomErrorOwned> {
+            fn parse_dataarrays(data:&str, span_info: &vtk::LocationSpans) -> Result<Self, vtk::ParseError> {
                 #body
 
                 Ok(

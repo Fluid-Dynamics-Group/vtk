@@ -12,14 +12,15 @@ use std::fmt;
 
 type NomErr<'a> = nom::Err<nom::error::Error<&'a str>>;
 
+/// An error caused from parsing the vtk files
 #[derive(Debug, thiserror::Error)]
-pub struct NomErrorOwned {
+pub struct ParseError {
     nom_reason: String,
     nom_code: nom::error::ErrorKind,
     extra_info: &'static str,
 }
 
-impl NomErrorOwned {
+impl ParseError{
     pub fn from_nom(x: NomErr, extra_info: &'static str) -> Self {
         let error = match x {
             nom::Err::Incomplete(_) => unreachable!(),
@@ -33,13 +34,13 @@ impl NomErrorOwned {
         }
     }
 }
-impl<'a> From<NomErr<'a>> for NomErrorOwned {
+impl<'a> From<NomErr<'a>> for ParseError {
     fn from(x: NomErr<'a>) -> Self {
-        NomErrorOwned::from_nom(x, "Caused by From Impl")
+        ParseError::from_nom(x, "Caused by From Impl")
     }
 }
 
-impl fmt::Display for NomErrorOwned {
+impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -49,6 +50,7 @@ impl fmt::Display for NomErrorOwned {
     }
 }
 
+/// read in and parse an entire vtk file for a given path
 pub fn read_and_parse<D: ParseDataArray>(path: &std::path::Path) -> Result<VtkData<D>, Error> {
     let mut file = std::fs::File::open(path)?;
     let mut buffer = Vec::with_capacity(1024 * 1024 * 3);
@@ -60,7 +62,7 @@ pub fn read_and_parse<D: ParseDataArray>(path: &std::path::Path) -> Result<VtkDa
 
 pub(crate) fn parse_xml_document<D: ParseDataArray>(i: &str) -> Result<VtkData<D>, Error> {
     let (rest_of_document, spans) = find_extent(i).map_err(|e: NomErr| {
-        NomErrorOwned::from_nom(
+        ParseError::from_nom(
             e,
             "Error in parsing find_extent for the WholeExtent span information",
         )
@@ -68,7 +70,7 @@ pub(crate) fn parse_xml_document<D: ParseDataArray>(i: &str) -> Result<VtkData<D
 
     let (rest_of_document, locations) =
         parse_locations(rest_of_document, &spans).map_err(|e: NomErr| {
-            NomErrorOwned::from_nom(e, "Error in parsing the location data of the document")
+            ParseError::from_nom(e, "Error in parsing the location data of the document")
         })?;
 
     let data = D::parse_dataarrays(rest_of_document, &spans)?;
@@ -107,12 +109,36 @@ pub(crate) fn parse_locations<'a>(
     Ok((rest, locations))
 }
 
+/// parse the the values for a single inline DataArray. 
+///
+/// Most useful in a `traits::ParseDataArray`
+/// implementation.
+///
+/// ### `xml_bytes` 
+///
+/// is the string slice that starts with the dataarray information. This bytes slice
+/// may contain more information after the dataarray, which is returned from this function
+///
+/// ### `exptected_data` 
+///
+/// is the name of the field that you expect to be present for that dataarray
+///
+/// ### `size_hint` 
+///
+/// is the numbner of elements that will be pre-allocated to a vector. If you have an 
+/// estimate of the approximate size of the data use this value to provide a small 
+/// optimization.
+///
+/// ## Returns
+///
+/// A tuple of the remaining data in the string (not parsed) and the floating point data that
+/// was contained in the DataArray
 pub fn parse_dataarray<'a>(
-    i: &'a str,
-    expected_data: &'static str,
+    xml_bytes: &'a str,
+    expected_data: &str,
     size_hint: usize,
 ) -> IResult<&'a str, Vec<f64>> {
-    let (rest, _unusable) = take_until("<DataArray")(i)?;
+    let (rest, _unusable) = take_until("<DataArray")(xml_bytes)?;
     // TODO: update streams code so that we can just write Name here. The z data has a lowercase N
     let (name_start, _unusable) = take_until("ame=")(rest)?;
     let (name_start, _unusable) = tag("ame=\"")(name_start)?;
@@ -210,6 +236,6 @@ mod tests {
     fn full_vtk() {
         let out = read_and_parse(std::path::Path::new("./static/sample_vtk_file.vtk"));
         dbg!(&out);
-        let out = out.unwrap();
+        let out: crate::VtkData<crate::helpers::SpanData> = out.unwrap();
     }
 }
