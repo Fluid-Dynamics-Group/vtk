@@ -20,7 +20,7 @@ pub struct ParseError {
     extra_info: &'static str,
 }
 
-impl ParseError{
+impl ParseError {
     pub fn from_nom(x: NomErr, extra_info: &'static str) -> Self {
         let error = match x {
             nom::Err::Incomplete(_) => unreachable!(),
@@ -109,24 +109,24 @@ pub(crate) fn parse_locations<'a>(
     Ok((rest, locations))
 }
 
-/// parse the the values for a single inline DataArray. 
+/// parse the the values for a single inline DataArray.
 ///
 /// Most useful in a `traits::ParseDataArray`
 /// implementation.
 ///
-/// ### `xml_bytes` 
+/// ### `xml_bytes`
 ///
 /// is the string slice that starts with the dataarray information. This bytes slice
 /// may contain more information after the dataarray, which is returned from this function
 ///
-/// ### `exptected_data` 
+/// ### `exptected_data`
 ///
 /// is the name of the field that you expect to be present for that dataarray
 ///
-/// ### `size_hint` 
+/// ### `size_hint`
 ///
-/// is the numbner of elements that will be pre-allocated to a vector. If you have an 
-/// estimate of the approximate size of the data use this value to provide a small 
+/// is the numbner of elements that will be pre-allocated to a vector. If you have an
+/// estimate of the approximate size of the data use this value to provide a small
 /// optimization.
 ///
 /// ## Returns

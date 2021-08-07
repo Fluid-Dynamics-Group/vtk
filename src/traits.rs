@@ -1,6 +1,6 @@
 //! # Traits
 //!
-//! These are general purpose traits that are required to work with reading, writing, and 
+//! These are general purpose traits that are required to work with reading, writing, and
 //! combining vtk files. With the `derive` feature, the two most important traits
 //! `ParseDataArray` and `DataArray` can be derived for you automatically. There are
 //! some limitations to this, be sure to refer to each trait's documentation.
@@ -14,15 +14,15 @@ use xml::EventWriter;
 /// describes how to write the data to a vtk file
 ///
 /// There are two main ways to write data to a vtk file. Either you can write the data inline
-/// within the `DataArray` attribute or you can write the data as binary to an appended section 
+/// within the `DataArray` attribute or you can write the data as binary to an appended section
 /// with a specified offset. Writing the data inline, while more clear, requires either an ascii or
 /// base64 encoding which uses significantly more space than the appended data.
 ///
 /// If you want to write the data inline (base64 / ascii), you need to implement the
-/// `write_inline_dataarrays` and `is_appended_dataarray_headers` functions: 
+/// `write_inline_dataarrays` and `is_appended_dataarray_headers` functions:
 ///
 /// ```
-/// struct FlowData { 
+/// struct FlowData {
 ///     u: Vec<f64>,
 ///     v: Vec<f64>,
 ///     w: Vec<f64>,
@@ -58,12 +58,16 @@ use xml::EventWriter;
 ///     }
 /// }
 /// ```
-/// 
-/// If you intend on writing the data as binary in the appended section, you can simply derive the
-/// trait. This is the most painless method:
+///
+/// The recommended way of using this trait is deriving. You can encoding into `"binary"`
+/// (default), `"ascii"`, or `"base64"`:
 ///
 /// ```
+/// // uncommend different encodings to see output file sizes
 /// #[derive(vtk::DataArray)]
+/// // #[vtk(encoding = "binary") // enabled by default
+/// // #[vtk(encoding = "base64")
+/// // #[vtk(encoding = "ascii")
 /// struct FlowData {
 ///     u: Vec<f64>,
 ///     v: Vec<f64>,
@@ -71,7 +75,7 @@ use xml::EventWriter;
 /// }
 /// ```
 ///
-/// a VTK file will be automatically generated with the following format:
+/// a VTK file will be automatically generated with the following format (the default binary):
 ///
 /// ```
 /// <?xml version="1.0" encoding="UTF-8"?>
@@ -145,7 +149,7 @@ pub trait Combine {
 
 /// Describes how to read in a vtk file's data
 ///
-/// The built-in routines for parsing DataArrays only account for ascii data stored 
+/// The built-in routines for parsing DataArrays only account for ascii data stored
 /// in an inline element. If your data is base64 encoded or appended as binary in the final
 /// section then this parsing will not work for you.
 ///

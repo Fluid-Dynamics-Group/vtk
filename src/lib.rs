@@ -13,18 +13,18 @@ pub use combine_vtk::combine_vtk;
 pub use data::{LocationSpans, Locations, VtkData};
 pub use write_vtk::write_vtk;
 pub use write_vtk::{
-    write_appended_dataarray, write_appended_dataarray_header, write_inline_dataarray, Encoding
+    write_appended_dataarray, write_appended_dataarray_header, write_inline_dataarray, Encoding,
 };
 
-pub use xml_parse::read_and_parse as read_vtk;
 pub use xml_parse::parse_dataarray;
+pub use xml_parse::read_and_parse as read_vtk;
 pub use xml_parse::ParseError;
 
 #[cfg(feature = "derive")]
 pub use vtk_derive::{DataArray, ParseDataArray};
 
 pub use xml::EventWriter;
- 
+
 /// general purpose error enumeration for possible causes of failure.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

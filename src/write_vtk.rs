@@ -240,7 +240,6 @@ pub fn write_appended_dataarray<W: Write>(
     data.into_iter()
         .for_each(|float| bytes.extend(float.to_le_bytes()));
 
-    dbg!(bytes.len());
     writer.write_all(&bytes)?;
 
     Ok(())

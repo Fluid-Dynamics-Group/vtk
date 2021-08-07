@@ -115,11 +115,12 @@ vtk::write_vtk(file, vtk_file).unwrap()
 
 ### Deriving
 The implementation for `DataArray` on all your types can be tedious. If you add a new member to your data struct
-you must also remember to add an additional call to `write_dataarray`. Instead, you can add the `derive` feature
-to your crate and this trait (along with `vtk::traits::ParseDataArray`) can be automatically generated:
+you must also remember to add an additional call to `write_dataarray`.  Instead, you can add the `derive` feature
+to your crate and this trait (along with `vtk::traits::ParseDataArray`) can be automatically generated. 
 
 ```rust
 #[derive(vtk::DataArray, vtk::ParseDataArray)]
+#[vtk(encoding="base64")] // could also be "binary" (default) and "ascii"
 struct VelocityField {
     u: Vec<f64>,
     v: Vec<f64>,
@@ -131,26 +132,29 @@ and the following code is automatically generated:
 
 ```rust
 impl vtk::traits::DataArray for Data {
-    fn write_appended_dataarrays<W: std::io::Write>(
+    fn write_inline_dataarrays<W: std::io::Write>(
         &self,
         writer: &mut vtk::EventWriter<W>,
     ) -> Result<(), vtk::Error> {
-        vtk::write_appended_dataarray(writer, &self.u)?;
-        vtk::write_appended_dataarray(writer, &self.v)?;
-        vtk::write_appended_dataarray(writer, &self.w)?;
+        vtk::write_inline_dataarray(writer, &self.u, "u", vtk::Encoding::Base64)?;
+        vtk::write_inline_dataarray(writer, &self.v, "v", vtk::Encoding::Base64)?;
+        vtk::write_inline_dataarray(writer, &self.w, "w", vtk::Encoding::Base64)?;
         Ok(())
+    }
+    fn is_appended_array() -> bool {
+        false
     }
     fn write_appended_dataarray_headers<W: std::io::Write>(
         &self,
         writer: &mut vtk::EventWriter<W>,
         mut offset: i64,
     ) -> Result<(), vtk::Error> {
-        vtk::write_appended_dataarray_header(writer, "u", offset)?;
-        offset += (std::mem::size_of::<f64>() * self.u.len()) as i64;
-        vtk::write_appended_dataarray_header(writer, "v", offset)?;
-        offset += (std::mem::size_of::<f64>() * self.v.len()) as i64;
-        vtk::write_appended_dataarray_header(writer, "w", offset)?;
-        offset += (std::mem::size_of::<f64>() * self.w.len()) as i64;
+        Ok(())
+    }
+    fn write_appended_dataarrays<W: std::io::Write>(
+        &self,
+        writer: &mut vtk::EventWriter<W>,
+    ) -> Result<(), vtk::Error> {
         Ok(())
     }
 }
@@ -160,17 +164,27 @@ impl vtk::traits::ParseDataArray for Data {
         span_info: &vtk::LocationSpans,
     ) -> Result<Self, vtk::ParseError> {
         let len = span_info.x_len() * span_info.y_len() * span_info.z_len();
-        #[allow(unused_variables)]
         let (data, u) = vtk::parse_dataarray(&data, "u", len)?;
-        #[allow(unused_variables)]
         let (data, v) = vtk::parse_dataarray(&data, "v", len)?;
-        #[allow(unused_variables)]
         let (data, w) = vtk::parse_dataarray(&data, "w", len)?;
         Ok(Self { w, v, u })
     }
 }
 
 ```
+
+## Encoding Sizes
+
+The following describes the VTK file size for a base case of 6.0 megabytes of data. The binary
+format has the lowest overhead while ascii has the highest. Conversely, the ascii files
+are the most human readable while the base64 / binary files are not.
+
+| Encoding Type        | Size (MB) | % increase |
+|----------------------|-----------|------------|
+| Raw Data (base case) | 6.0       | -          |
+| Binary               | 6.1       | 1.67       |
+| Base64               | 8.1       | 35.00      |
+| Ascii                | 10.0      | 66.67      |
 
 ## A note on ordering of data
 
