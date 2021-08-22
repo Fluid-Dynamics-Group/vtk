@@ -16,7 +16,8 @@ pub use write_vtk::{
     write_appended_dataarray, write_appended_dataarray_header, write_inline_dataarray, Encoding,
 };
 
-pub use xml_parse::parse_dataarray;
+pub use xml_parse::parse_ascii_inner_dataarray;
+pub use xml_parse::parse_base64_inner_dataarray;
 pub use xml_parse::read_and_parse as read_vtk;
 pub use xml_parse::ParseError;
 
@@ -84,9 +85,15 @@ mod helpers {
         fn parse_dataarrays(
             rest: &str,
             span_info: &crate::LocationSpans,
-        ) -> Result<Self, crate::xml_parse::ParseError> {
-            let (rest, rho) = crate::xml_parse::parse_dataarray(rest, "rho", 1000)?;
-            Ok(Self { rho })
+            partial: crate::xml_parse::LocationsPartial
+        ) -> Result<(Self, crate::Locations), crate::xml_parse::ParseError> {
+            let (rest, rho) = crate::xml_parse::parse_dataarray_or_lazy(rest, "rho", 1000)?;
+            let locations = crate::Locations {
+                x_locations: partial.x.unwrap_parsed(),
+                y_locations: partial.y.unwrap_parsed(),
+                z_locations: partial.z.unwrap_parsed(),
+            };
+            Ok((Self { rho: rho.unwrap_parsed() }, locations))
         }
     }
 

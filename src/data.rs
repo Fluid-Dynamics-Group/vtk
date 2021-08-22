@@ -109,7 +109,7 @@ impl LocationSpans {
     ///
     /// # Example
     /// ```
-    /// LocationSpans::new("0 10 0 20 0 10")
+    /// vtk::LocationSpans::new("0 10 0 20 0 10");
     /// ```
     ///
     /// ## Panics

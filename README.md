@@ -15,7 +15,7 @@
 
 Lets say you have the following struct that you have read in from some CSV file:
 
-```rust
+```rust,ignore
 struct VelocityField {
     u: Vec<f64>,
     v: Vec<f64>,
@@ -27,7 +27,7 @@ Lets say we know this data has come from a X/Y/Z grid of 100/100/400 in size, wi
 in each direction. We need to tell `vtk` about the locations of each cell so that they can be 
 plotted correctly. We can create, for example, the x locations with a dx of X/1000:
 
-```rust
+```rust,ignore
 let x_total = 100.;
 let x_divisions = 1000.;
 let dx = x_total / x_divisions;
@@ -41,7 +41,7 @@ let x_locations: Vec<f64> = std::iter::repeat(0)
 
 Once we know all the locations in the x, y, and z directions we map it into a `vtk::Locations`:
 
-```rust
+```rust,ignore
 let global_locations = vtk::Locations {
     x_locations: x_locations,
     y_locations: y_locations,
@@ -54,7 +54,7 @@ is because vtk can combine several different "spans" of information (`LocationSp
 flow field. Since we already know the X/Y/Z maximums, and are only making a singular `.vtk` file,
 the spans are easy:
 
-```rust
+```rust,ignore
 let location_spans = vtk::LocationSpans {
     x_start: 0,
     x_end: 100,
@@ -68,7 +68,7 @@ let location_spans = vtk::LocationSpans {
 Lastly, we need to describe to vtk how our `VelocityField` members are going to be actually
 written to a file. We can use the built-in `vtk::write_dataarray` function for all of our needs:
 
-```rust
+```rust,ignore
 impl vtk::DataArray for VelocityField {
     fn write_inline_dataarrays<W: Write>(
         &self,
@@ -99,7 +99,7 @@ impl vtk::DataArray for VelocityField {
 
 With this, we can combine our file into a `vtk::VtkData` and write it to a file to view in paraview!:
 
-```rust
+```rust,ignore
 let velocity_field : VelocityField = ...;
 
 let vtk_file = vtk::VtkData {
@@ -118,7 +118,7 @@ The implementation for `DataArray` on all your types can be tedious. If you add 
 you must also remember to add an additional call to `write_dataarray`.  Instead, you can add the `derive` feature
 to your crate and this trait (along with `vtk::traits::ParseDataArray`) can be automatically generated. 
 
-```rust
+```rust,ignore
 #[derive(vtk::DataArray, vtk::ParseDataArray)]
 #[vtk(encoding="base64")] // could also be "binary" (default) and "ascii"
 struct VelocityField {
@@ -130,7 +130,7 @@ struct VelocityField {
 
 and the following code is automatically generated:
 
-```rust
+```rust,ignore
 impl vtk::traits::DataArray for Data {
     fn write_inline_dataarrays<W: std::io::Write>(
         &self,
@@ -191,7 +191,7 @@ are the most human readable while the base64 / binary files are not.
 Since the data is usually ordered in a `Vec<_>` it is ambiguous how `vtk` expects the data to be inputted. This is 
 best illustrated code:
 
-```python
+```python,ignore
 data_to_write_vtk = []
 
 for k in range(0, NZ):

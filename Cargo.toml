@@ -17,4 +17,5 @@ base64 = "0.13.0"
 vtk-derive = {path="./derive", optional=true}
 
 [features]
+default = ["derive"]
 derive = ["vtk-derive"]

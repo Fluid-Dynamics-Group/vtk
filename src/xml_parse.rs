@@ -4,8 +4,7 @@ use crate::Error;
 
 use std::io::Read;
 
-use nom::bytes::complete::{tag, take_till, take_until};
-use nom::sequence::tuple;
+use nom::bytes::complete::{tag, take_till, take_until, take};
 use nom::IResult;
 
 use std::fmt;
@@ -73,13 +72,22 @@ pub(crate) fn parse_xml_document<D: ParseDataArray>(i: &str) -> Result<VtkData<D
             ParseError::from_nom(e, "Error in parsing the location data of the document")
         })?;
 
-    let data = D::parse_dataarrays(rest_of_document, &spans)?;
+    let (data, locations) = D::parse_dataarrays(rest_of_document, &spans, locations)?;
 
     Ok(VtkData {
         spans,
         locations,
         data,
     })
+}
+
+fn print_n_chars(i: &str, chars: usize)  {
+    if i.len() > chars {
+        let slice = i.get(0..chars).unwrap();
+        println!("{}", slice);
+    } else { 
+        println!("ommitting print since string is too short")
+    }
 }
 
 pub(crate) fn find_extent(i: &str) -> IResult<&str, LocationSpans> {
@@ -95,18 +103,135 @@ pub(crate) fn find_extent(i: &str) -> IResult<&str, LocationSpans> {
 pub(crate) fn parse_locations<'a>(
     i: &'a str,
     span_info: &LocationSpans,
-) -> IResult<&'a str, Locations> {
-    let (rest, x_locations) = parse_dataarray(i, "X", span_info.x_len())?;
-    let (rest, y_locations) = parse_dataarray(rest, "Y", span_info.y_len())?;
-    let (rest, z_locations) = parse_dataarray(rest, "Z", span_info.z_len())?;
+) -> IResult<&'a str, LocationsPartial> {
+    //println!("going to parse for x");
+    //print_n_chars(i, 200);
+    let (rest, x) = parse_dataarray_or_lazy(i, "X", span_info.x_len())?;
+    //println!("going to parse for y");
+    let (rest, y) = parse_dataarray_or_lazy(rest, "Y", span_info.y_len())?;
+    //println!("going to parse for z");
+    let (rest, z) = parse_dataarray_or_lazy(rest, "Z", span_info.z_len())?;
 
-    let locations = Locations {
-        x_locations,
-        y_locations,
-        z_locations,
-    };
+    let locations = LocationsPartial { x, y, z, };
 
     Ok((rest, locations))
+}
+
+pub fn parse_dataarray_or_lazy<'a>(xml_bytes: &'a str, expected_data: &str, size_hint: usize) -> IResult<&'a str, PartialDataArray> {
+    println!("in parse_dataarray_or_lazy with info:");
+    print_n_chars(xml_bytes, 160);
+    let (mut rest, header) = read_dataarray_header(xml_bytes, expected_data)?;
+    println!("after header with info:");
+    print_n_chars(rest, 150);
+    let lazy_array = match header {
+        DataArrayHeader::AppendedBinary{ offset} => PartialDataArray::AppendedBinary { offset },
+        DataArrayHeader::InlineAscii => {
+            let (after_dataarray, parsed_data) = parse_ascii_inner_dataarray(rest, size_hint)?;
+            rest = after_dataarray;
+            PartialDataArray::Parsed(parsed_data)
+        }
+        DataArrayHeader::InlineBase64=> {
+            let (after_dataarray, parsed_data) = parse_base64_inner_dataarray(rest, size_hint)?;
+            rest = after_dataarray;
+            PartialDataArray::Parsed(parsed_data)
+        }
+    };
+
+    Ok((rest, lazy_array))
+}
+
+/// all of the location data - either containing already parsed informatoin 
+/// or references to the offsets in the appended binary section
+pub struct LocationsPartial {
+    pub x: PartialDataArray,
+    pub y: PartialDataArray,
+    pub z: PartialDataArray,
+}
+
+/// read through a DataArray header and consume up to the ending `>` character of the
+/// header.
+///
+/// Currently expects the attributes of the header to be in this format:
+///
+/// ```ignore
+/// <DataArray name="name here" format="format here" offset="offset, if appended format"> ...
+/// ```
+///
+/// also assumes NumberOfComponents=1 and type=Float64
+pub fn read_dataarray_header<'a>(xml_bytes: &'a str, expected_data: &str) -> IResult<&'a str, DataArrayHeader> {
+    let (name_start, _) = take_until_consume(xml_bytes, "Name=")?;
+    let (after_quotes, name) = read_inside_quotes(name_start)?;
+
+    assert_eq!(name, expected_data);
+
+    let (format_start, _) = take_until_consume(after_quotes, "format=")?;
+    let (mut after_format, format_name) = read_inside_quotes(format_start)?;
+
+    let header = match format_name {
+        "appended" => {
+            // we also need the offset header so we know when to start reading
+            let (offset_start, _) = take_until_consume(after_format, "offset=")?;
+            let (rest, offset) = read_inside_quotes(offset_start)?;
+            after_format = rest;
+
+            // TODO: better error handling for this
+            let offset = offset.parse().expect(&format!("offset inside appended header for {} was not an integer", &expected_data));
+            DataArrayHeader::AppendedBinary { offset }
+        }
+        "binary" => {
+            // we have base64 encoded data here
+            DataArrayHeader::InlineBase64
+        }
+        "ascii" => {
+            // plain ascii data here
+            DataArrayHeader::InlineAscii
+        }
+        _ => {
+            // TODO: find a better way to make errors here
+            let (_, _ ) : (&str, &str) = tag("missing formatting header as appended/binary/ascii")("")?;
+            unreachable!()
+        }
+    };
+
+    let (rest, _) = take_until_consume(after_format, ">")?;
+
+    Ok((rest, header))
+}
+
+pub fn take_until_consume<'a>(input: &'a str, until_str: &str) -> IResult<&'a str, ()> {
+    let (non_consumed, _other) = take_until(until_str)(input)?;
+    let (consumed, _format_header) = tag(until_str)(non_consumed)?;
+    Ok((consumed, ()))
+}
+
+/// reads the data inside of two `"` characters, consuming the quotes in the process
+pub fn read_inside_quotes<'a>(i: &'a str) -> IResult<&'a str, &'a str> {
+    let (after_quote, _quote_char) = tag("\"")(i)?;
+    let (after_inner, inner_data) = take_till(|c| c=='"')(after_quote)?;
+    let (after_quote, _quote_char) = tag("\"")(after_inner)?;
+    Ok((after_quote, inner_data))
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum DataArrayHeader {
+    InlineAscii,
+    InlineBase64,
+    AppendedBinary { offset: usize }
+}
+
+#[derive(Debug)]
+pub enum PartialDataArray {
+    Parsed(Vec<f64>),
+    AppendedBinary { offset: usize }
+}
+
+impl PartialDataArray {
+    pub fn unwrap_parsed(self) -> Vec<f64> {
+        match self {
+            Self::Parsed(x) => x,
+            _ => panic!("called unwrap_parsed on a PartialDataArray::AppendedBinary")
+        }
+    }
 }
 
 /// parse the the values for a single inline DataArray.
@@ -116,12 +241,9 @@ pub(crate) fn parse_locations<'a>(
 ///
 /// ### `xml_bytes`
 ///
-/// is the string slice that starts with the dataarray information. This bytes slice
-/// may contain more information after the dataarray, which is returned from this function
-///
-/// ### `exptected_data`
-///
-/// is the name of the field that you expect to be present for that dataarray
+/// is the string slice that starts with the after the data array header information. This
+/// is most easily accomplished by a call to `read_dataarray_header`. This bytes slice
+/// may contain more information after the dataarray, which is returned from this function.
 ///
 /// ### `size_hint`
 ///
@@ -133,24 +255,15 @@ pub(crate) fn parse_locations<'a>(
 ///
 /// A tuple of the remaining data in the string (not parsed) and the floating point data that
 /// was contained in the DataArray
-pub fn parse_dataarray<'a>(
+pub fn parse_ascii_inner_dataarray<'a>(
     xml_bytes: &'a str,
-    expected_data: &str,
     size_hint: usize,
 ) -> IResult<&'a str, Vec<f64>> {
-    let (rest, _unusable) = take_until("<DataArray")(xml_bytes)?;
-    // TODO: update streams code so that we can just write Name here. The z data has a lowercase N
-    let (name_start, _unusable) = take_until("ame=")(rest)?;
-    let (name_start, _unusable) = tag("ame=\"")(name_start)?;
-    let (rest, name) = take_till(|c| c == '\"')(name_start)?;
+    println!("in parse_ascii inner");
+    print_n_chars(xml_bytes,100);
 
-    assert_eq!(name, expected_data);
 
-    let (brace_then_location_data, _unusable) = take_till(|c| c == '>')(rest)?;
-    let (location_data_and_rest, _whitespace) = tuple((
-        tag(">"),
-        take_till(|c: char| c.is_ascii_digit() || c == '.' || c == '-'),
-    ))(brace_then_location_data)?;
+    let (location_data_and_rest, _whitespace) = take_till(|c: char| c.is_ascii_digit() || c == '.' || c == '-')(xml_bytes)?;
     let (rest_of_document, location_data) = take_till(|c| c == '<')(location_data_and_rest)?;
 
     let mut out = Vec::with_capacity(size_hint);
@@ -168,15 +281,86 @@ pub fn parse_dataarray<'a>(
     Ok((rest_of_document, out))
 }
 
-//fn parse_fluid_data<'a>(i: &'a str, span_info: &LocationSpans) -> IResult<&'a str, SpanData> {
-//
-//    Ok((rest, data))
-//}
+pub fn parse_base64_inner_dataarray<'a>(
+    xml_bytes: &'a str,
+    size_hint: usize,
+) -> IResult<&'a str, Vec<f64>> {
+    let (rest_of_document, base64_encoded_bytes) = take_until("</D")(xml_bytes)?;
+    let mut out = Vec::with_capacity(size_hint);
+
+    let numerical_bytes = base64::decode(&base64_encoded_bytes).expect("could not decode base64 data array bytes");
+
+    let mut idx = 0;
+    let inc = 8;
+
+    loop {
+        dbg!(idx);
+        if let Some(byte_slice) = numerical_bytes.get(idx.. idx + inc) {
+            if byte_slice.len() != 8 {
+                break
+            }
+
+            let mut const_slice = [0;8];
+            // copy in the slice to a fixed size array
+            // could use unsafe here if we really wanted to
+            byte_slice.iter().enumerate().for_each(|(slice_index, value)| const_slice[slice_index] = *value);
+
+            let float = f64::from_le_bytes(const_slice);
+            out.push(float);
+        } else {
+            break
+        }
+
+        idx += inc;
+    }
+
+    Ok((rest_of_document, out))
+}
+
+/// skip to the appended data section so that we can read in the binary
+pub fn setup_appended_read<'a>(
+    xml_bytes: &str,
+) -> IResult<&str, ()> {
+    // TODO: make this function return the type of encoding used in the appended section
+    let (appended_data_section, _) = take_until_consume(xml_bytes, "AppendedData")?;
+    let (appended_start, _encoding_information) = take_until_consume(xml_bytes, ">")?;
+    Ok((appended_start, ()))
+}
+
+pub fn parse_appended_binary<'a>(
+    xml_bytes: &'a str,
+    length: usize
+) -> IResult<&'a str, Vec<f64>> {
+    let (rest_of_appended, current_bytes_slice) = take(length)(xml_bytes)?;
+    let bytes = current_bytes_slice.as_bytes();
+
+    let mut out = Vec::with_capacity(length);
+
+    let mut idx = 0;
+    let inc = 8;
+
+    loop {
+        if let Some(byte_slice) = bytes.get(idx..inc) {
+            let mut const_slice = [0;8];
+            // copy in the slice to a fixed size array
+            // could use unsafe here if we really wanted to
+            byte_slice.iter().enumerate().for_each(|(slice_index, value)| const_slice[slice_index] = *value);
+
+            let float = f64::from_le_bytes(const_slice);
+            out.push(float);
+        } else {
+            break
+        }
+
+        idx += inc;
+    }
+
+    Ok((rest_of_appended, out))
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Read;
 
     #[test]
     fn shred_to_extent() {
@@ -213,23 +397,25 @@ mod tests {
             "#;
         let out = parse_locations(input, &locations);
         let out = out.unwrap().1;
-        assert_eq!(out.x_locations.len(), 4);
-        assert_eq!(out.y_locations.len(), 4);
-        assert_eq!(out.z_locations.len(), 4);
+
+        assert_eq!(out.x.unwrap_parsed().len(), 4);
+        assert_eq!(out.y.unwrap_parsed().len(), 4);
+        assert_eq!(out.z.unwrap_parsed().len(), 4);
     }
 
     #[test]
-    fn single_loation() {
+    fn single_location() {
         let input = r#"
                 <DataArray type="Float64" NumberOfComponents="1" Name="X" format="ascii">
                     .0000000000E+00 .3981797497E-01 .7963594994E-01 .1194539249E+00
                 </DataArray>
             "#;
-        let out = parse_dataarray(input, "X", 4);
+        let out = parse_dataarray_or_lazy(input, "X", 4);
+        dbg!(&out);
         let out = out.unwrap();
         let expected = 4;
 
-        assert_eq!(out.1.len(), expected);
+        assert_eq!(out.1.unwrap_parsed().len(), expected);
     }
 
     #[test]
@@ -237,5 +423,99 @@ mod tests {
         let out = read_and_parse(std::path::Path::new("./static/sample_vtk_file.vtk"));
         dbg!(&out);
         let out: crate::VtkData<crate::helpers::SpanData> = out.unwrap();
+    }
+
+    #[test]
+    fn check_inside_quote() {
+        let data = r#""quote_data""#;
+        let out = read_inside_quotes(data);
+        dbg!(&out);
+        let (_, out) = out.unwrap();
+        assert_eq!(out, "quote_data");
+    }
+
+    #[test]
+    fn ascii_array_header() {
+        let header = r#"<DataArray type="Float64" NumberOfComponents="1" Name="X" format="ascii">"#;
+        let out = read_dataarray_header(header, "X");
+        dbg!(&out);
+        
+        let (rest, array_type) = out.unwrap();
+
+        assert_eq!(array_type, DataArrayHeader::InlineAscii);
+        assert_eq!(rest, "");
+    }
+
+    #[test]
+    fn base64_array_header() {
+        let header = r#"<DataArray type="Float64" NumberOfComponents="1" Name="X" format="binary">"#;
+        let out = read_dataarray_header(header, "X");
+        dbg!(&out);
+        
+        let (rest, array_type) = out.unwrap();
+
+        assert_eq!(array_type, DataArrayHeader::InlineBase64);
+        assert_eq!(rest, "");
+    }
+
+    #[test]
+    fn appended_array_header() {
+        let header = r#"<DataArray type="Float64" NumberOfComponents="1" Name="X" format="appended" offset="99">"#;
+        let out = read_dataarray_header(header, "X");
+        dbg!(&out);
+        
+        let (rest, array_type) = out.unwrap();
+
+        assert_eq!(array_type, DataArrayHeader::AppendedBinary {offset: 99 });
+        assert_eq!(rest, "");
+    }
+
+    #[test] 
+    fn base_64_encoded_array() {
+        let values = [1.0, 2.0, 3.0, 4.0];
+        let mut output = Vec::new();
+        let mut event_writer = crate::EventWriter::new(&mut output);
+        crate::write_inline_dataarray(&mut event_writer, &values, "X", crate::Encoding::Base64).unwrap();
+
+        let string = String::from_utf8(output).unwrap();
+        let parsed_result = parse_dataarray_or_lazy(&string, "X", 4);
+
+        dbg!(&parsed_result);
+
+        let out = parsed_result.unwrap();
+
+        assert_eq!(out.1.unwrap_parsed(), &values);
+    }
+
+    #[test]
+    fn appended_array() {
+        let values = [1.0, 2.0, 3.0, 4.0];
+        let values2 = [5.0, 6.0, 7.0, 8.0];
+
+        let mut output = Vec::new();
+        let mut event_writer = crate::EventWriter::new(&mut output);
+
+        let offset_1 = -8;
+        let offset_2 = -8 + (4*8);
+
+        crate::write_appended_dataarray_header(&mut event_writer, "X", offset_1).unwrap();
+        crate::write_appended_dataarray_header(&mut event_writer, "Y", offset_2).unwrap();
+
+        crate::write_appended_dataarray(&mut event_writer, &values).unwrap();
+        crate::write_appended_dataarray(&mut event_writer, &values2).unwrap();
+
+        let string = String::from_utf8(output).unwrap();
+
+        
+        let (rest, parsed_header_1) = parse_dataarray_or_lazy(&string, "X", 4).unwrap();
+        let (_, parsed_header_2)= parse_dataarray_or_lazy(&rest, "Y", 4).unwrap();
+
+        dbg!(&parsed_header_1, &parsed_header_2);
+
+        //let out = parsed_result.unwrap();
+
+        //assert_eq!(out.1.unwrap_parsed(), &values);
+
+        panic!()
     }
 }

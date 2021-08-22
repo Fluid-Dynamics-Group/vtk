@@ -21,7 +21,7 @@ use xml::EventWriter;
 /// If you want to write the data inline (base64 / ascii), you need to implement the
 /// `write_inline_dataarrays` and `is_appended_dataarray_headers` functions:
 ///
-/// ```
+/// ```ignore
 /// struct FlowData {
 ///     u: Vec<f64>,
 ///     v: Vec<f64>,
@@ -62,7 +62,7 @@ use xml::EventWriter;
 /// The recommended way of using this trait is deriving. You can encoding into `"binary"`
 /// (default), `"ascii"`, or `"base64"`:
 ///
-/// ```
+/// ```ignore
 /// // uncommend different encodings to see output file sizes
 /// #[derive(vtk::DataArray)]
 /// // #[vtk(encoding = "binary") // enabled by default
@@ -77,7 +77,7 @@ use xml::EventWriter;
 ///
 /// a VTK file will be automatically generated with the following format (the default binary):
 ///
-/// ```
+/// ```ignore
 /// <?xml version="1.0" encoding="UTF-8"?>
 /// <VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
 ///     <RectilinearGrid WholeExtent="0 63 0 63 0 63">
@@ -166,7 +166,7 @@ pub trait Combine {
 ///
 /// will automatically parse a vtk file in the following format
 ///
-/// ```
+/// ```ignore
 /// <?xml version="1.0" encoding="UTF-8"?>
 /// <VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
 ///     <RectilinearGrid WholeExtent="0 63 0 63 0 63">
@@ -189,7 +189,8 @@ pub trait ParseDataArray {
     fn parse_dataarrays(
         data: &str,
         span_info: &super::LocationSpans,
-    ) -> Result<Self, super::xml_parse::ParseError>
+        locations: super::xml_parse::LocationsPartial,
+    ) -> Result<(Self, super::Locations), super::xml_parse::ParseError>
     where
         Self: Sized;
 }
@@ -201,13 +202,13 @@ struct Info<'a> {
     b: &'a [f64],
 }
 
-#[cfg(feature = "derive")]
-#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
-struct Parse {
-    #[allow(dead_code)]
-    a: Vec<f64>,
-    #[allow(dead_code)]
-    b: Vec<f64>,
-    #[allow(dead_code)]
-    c: Vec<f64>,
-}
+//#[cfg(feature = "derive")]
+//#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
+//struct Parse {
+//    #[allow(dead_code)]
+//    a: Vec<f64>,
+//    #[allow(dead_code)]
+//    b: Vec<f64>,
+//    #[allow(dead_code)]
+//    c: Vec<f64>,
+//}
