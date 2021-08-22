@@ -187,7 +187,7 @@ pub trait Combine {
 /// ```
 pub trait ParseDataArray {
     fn parse_dataarrays(
-        data: &str,
+        data: &[u8],
         span_info: &super::LocationSpans,
         locations: super::xml_parse::LocationsPartial,
     ) -> Result<(Self, super::Locations), super::xml_parse::ParseError>

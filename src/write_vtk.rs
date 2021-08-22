@@ -102,8 +102,7 @@ pub fn write_vtk<W: Write, D: DataArray>(
 
     // if we are doing _any_ sort of appending of data
     if append_coordinates || D::is_appended_array() {
-        let inner = writer.inner_mut();
-        inner.write_all(b"<AppendedData encoding=\"raw\">_")?;
+        appended_binary_header_start(&mut writer)?;
 
         // write the appended point data here if required
         if append_coordinates {
@@ -115,8 +114,7 @@ pub fn write_vtk<W: Write, D: DataArray>(
             data.data.write_appended_dataarrays(&mut writer)?;
         }
 
-        let inner = writer.inner_mut();
-        inner.write_all(b"\n</AppendedData>")?;
+        appended_binary_header_end(&mut writer)?;
     }
 
     writer.write(XmlEvent::EndElement {
@@ -126,6 +124,17 @@ pub fn write_vtk<W: Write, D: DataArray>(
     Ok(())
 }
 
+pub(crate) fn appended_binary_header_start<W: Write>(writer: &mut EventWriter<W>) -> Result<(), xml::writer::Error> {
+    let inner = writer.inner_mut();
+    inner.write_all(b"<AppendedData encoding=\"raw\">_")?;
+    Ok(())
+}
+
+pub(crate) fn appended_binary_header_end<W: Write>(writer: &mut EventWriter<W>) -> Result<(), xml::writer::Error> {
+    let inner = writer.inner_mut();
+    inner.write_all(b"\n</AppendedData>")?;
+    Ok(())
+}
 /// the encoding to use when writing an inline dataarray
 pub enum Encoding {
     Ascii,
