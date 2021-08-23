@@ -21,7 +21,7 @@ use xml::EventWriter;
 /// If you want to write the data inline (base64 / ascii), you need to implement the
 /// `write_inline_dataarrays` and `is_appended_dataarray_headers` functions:
 ///
-/// ```
+/// ```ignore
 /// struct FlowData {
 ///     u: Vec<f64>,
 ///     v: Vec<f64>,
@@ -62,7 +62,7 @@ use xml::EventWriter;
 /// The recommended way of using this trait is deriving. You can encoding into `"binary"`
 /// (default), `"ascii"`, or `"base64"`:
 ///
-/// ```
+/// ```ignore
 /// // uncommend different encodings to see output file sizes
 /// #[derive(vtk::DataArray)]
 /// // #[vtk(encoding = "binary") // enabled by default
@@ -77,7 +77,7 @@ use xml::EventWriter;
 ///
 /// a VTK file will be automatically generated with the following format (the default binary):
 ///
-/// ```
+/// ```ignore
 /// <?xml version="1.0" encoding="UTF-8"?>
 /// <VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
 ///     <RectilinearGrid WholeExtent="0 63 0 63 0 63">
@@ -106,7 +106,7 @@ pub trait DataArray {
         Ok(())
     }
     fn is_appended_array() -> bool {
-        true
+        false 
     }
     fn write_appended_dataarray_headers<W: Write>(
         &self,
@@ -153,9 +153,15 @@ pub trait Combine {
 /// in an inline element. If your data is base64 encoded or appended as binary in the final
 /// section then this parsing will not work for you.
 ///
+/// If you are planning on skipping some of the data in the vtk (not parsing it), then you
+/// must ensure that there is no data associated with the `AppendedData` element in the vtk.
+/// If some fields are skipped, then the final variable read from `AppendedData` will over-run
+/// into data not intended to be parsed into that field. This behavior can 
+/// be modified by implementing the trait manually.
+///
 /// This trait can be derived with the `vtk::ParseDataArray` proc macro:
 ///
-/// ```
+/// ```ignore
 /// #[derive(vtk::ParseDataArray)]
 /// struct FlowData {
 ///     u: Vec<f64>,
@@ -166,7 +172,7 @@ pub trait Combine {
 ///
 /// will automatically parse a vtk file in the following format
 ///
-/// ```
+/// ```ignore
 /// <?xml version="1.0" encoding="UTF-8"?>
 /// <VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
 ///     <RectilinearGrid WholeExtent="0 63 0 63 0 63">
@@ -187,9 +193,10 @@ pub trait Combine {
 /// ```
 pub trait ParseDataArray {
     fn parse_dataarrays(
-        data: &str,
+        data: &[u8],
         span_info: &super::LocationSpans,
-    ) -> Result<Self, super::xml_parse::ParseError>
+        locations: super::parse::LocationsPartial,
+    ) -> Result<(Self, super::Locations), super::parse::ParseError>
     where
         Self: Sized;
 }
@@ -203,6 +210,7 @@ struct Info<'a> {
 
 #[cfg(feature = "derive")]
 #[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
+//#[derive(vtk_derive::DataArray)]
 struct Parse {
     #[allow(dead_code)]
     a: Vec<f64>,

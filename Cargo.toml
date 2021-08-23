@@ -1,6 +1,6 @@
 [package]
 name = "vtk"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["VanillaBrooks <brooks@karlik.org>"]
 edition = "2018"
 
@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 derive_builder = "0.10.2"
-nom = "6.1.2"
+nom = "7.0.0"
 ryu = "1.0.5"
 thiserror = "1.0.25"
 xml-rs = "0.8.3"
@@ -17,4 +17,5 @@ base64 = "0.13.0"
 vtk-derive = {path="./derive", optional=true}
 
 [features]
+default = ["derive"]
 derive = ["vtk-derive"]

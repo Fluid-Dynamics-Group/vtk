@@ -109,7 +109,7 @@ impl LocationSpans {
     ///
     /// # Example
     /// ```
-    /// LocationSpans::new("0 10 0 20 0 10")
+    /// vtk::LocationSpans::new("0 10 0 20 0 10");
     /// ```
     ///
     /// ## Panics
@@ -164,13 +164,13 @@ mod tests {
     #[test]
     fn data_add() {
         let data = SpanData {
-            rho: vec![0., 1., 2.],
+            u: vec![0., 1., 2.],
         };
         let data_2 = SpanData {
-            rho: vec![0., 0., 1.],
+            u: vec![0., 0., 1.],
         };
         let expected = SpanData {
-            rho: vec![0., 1., 3.],
+            u: vec![0., 1., 3.],
         };
 
         assert_eq!(data + data_2, expected)
@@ -179,10 +179,10 @@ mod tests {
     #[test]
     fn data_div() {
         let data = SpanData {
-            rho: vec![3., 3., 3.],
+            u: vec![3., 3., 3.],
         };
         let expected = SpanData {
-            rho: vec![1., 1., 1.],
+            u: vec![1., 1., 1.],
         };
 
         assert_eq!(data / 3., expected)
