@@ -106,7 +106,7 @@ pub trait DataArray {
         Ok(())
     }
     fn is_appended_array() -> bool {
-        true
+        false 
     }
     fn write_appended_dataarray_headers<W: Write>(
         &self,
@@ -153,6 +153,12 @@ pub trait Combine {
 /// in an inline element. If your data is base64 encoded or appended as binary in the final
 /// section then this parsing will not work for you.
 ///
+/// If you are planning on skipping some of the data in the vtk (not parsing it), then you
+/// must ensure that there is no data associated with the `AppendedData` element in the vtk.
+/// If some fields are skipped, then the final variable read from `AppendedData` will over-run
+/// into data not intended to be parsed into that field. This behavior can 
+/// be modified by implementing the trait manually.
+///
 /// This trait can be derived with the `vtk::ParseDataArray` proc macro:
 ///
 /// ```ignore
@@ -189,8 +195,8 @@ pub trait ParseDataArray {
     fn parse_dataarrays(
         data: &[u8],
         span_info: &super::LocationSpans,
-        locations: super::xml_parse::LocationsPartial,
-    ) -> Result<(Self, super::Locations), super::xml_parse::ParseError>
+        locations: super::parse::LocationsPartial,
+    ) -> Result<(Self, super::Locations), super::parse::ParseError>
     where
         Self: Sized;
 }

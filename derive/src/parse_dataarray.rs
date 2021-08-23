@@ -92,16 +92,16 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
             offset_buffers.sort_unstable();
 
             let mut iterator = offset_buffers.iter_mut().peekable();
-            let (mut appended_data, _) = crate::parse::setup_appended_read(data)?;
+            let (mut appended_data, _) = vtk::parse::setup_appended_read(data)?;
 
             loop {
                 if let Some(current_offset_buffer) = iterator.next() {
                     // get the number of bytes to read based on the next element's offset
                     let reading_offset = iterator.peek()
-                        .map(|offset_buffer|  crate::parse::AppendedArrayLength::Known((offset_buffer.offset - current_offset_buffer.offset) as usize))
-                        .unwrap_or(crate::parse::AppendedArrayLength::UntilEnd);
+                        .map(|offset_buffer|  vtk::parse::AppendedArrayLength::Known((offset_buffer.offset - current_offset_buffer.offset) as usize))
+                        .unwrap_or(vtk::parse::AppendedArrayLength::UntilEnd);
 
-                    let (remaining_appended_data, _) = crate::parse::parse_appended_binary(appended_data, reading_offset, &mut current_offset_buffer.buffer)?;
+                    let (remaining_appended_data, _) = vtk::parse::parse_appended_binary(appended_data, reading_offset, &mut current_offset_buffer.buffer)?;
                     appended_data = remaining_appended_data
                 } else {
                     // there are not more elements in the array - lets leave

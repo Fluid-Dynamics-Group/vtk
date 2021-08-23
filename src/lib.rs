@@ -6,9 +6,8 @@ mod iter;
 pub mod traits;
 mod utils;
 mod write_vtk;
-pub mod xml_parse;
+pub mod parse;
 
-pub use xml_parse as parse;
 
 pub(crate) use traits::{DataArray, ParseDataArray};
 
@@ -19,11 +18,15 @@ pub use write_vtk::{
     write_appended_dataarray, write_appended_dataarray_header, write_inline_dataarray, Encoding,
 };
 
-pub use xml_parse::read_and_parse as read_vtk;
-pub use xml_parse::ParseError;
+pub use parse::read_and_parse as read_vtk;
+pub use parse::ParseError;
 
 #[cfg(feature = "derive")]
 pub use vtk_derive::{DataArray, ParseDataArray};
+
+#[cfg(feature = "derive")]
+pub fn test_fn() {}
+
 
 pub use xml::EventWriter;
 
@@ -35,7 +38,7 @@ pub enum Error {
     #[error("The xml data inputted was malformed: `{0}`")]
     Xml(#[from] xml::reader::Error),
     #[error("Error when parsing the xml data: `{0}`")]
-    Nom(#[from] xml_parse::ParseError),
+    Nom(#[from] parse::ParseError),
     #[error("Could not convert file to uf8 encoding: `{0}`")]
     Utf8(#[from] std::string::FromUtf8Error),
     #[error("Could not write XML data to file: `{0}`")]
@@ -51,7 +54,7 @@ mod helpers {
 
     #[derive(Debug, Clone, Default, derive_builder::Builder, PartialEq)]
     pub struct SpanData {
-        pub rho: Vec<f64>,
+        pub u: Vec<f64>,
     }
 
     impl super::DataArray for SpanData {
@@ -59,7 +62,7 @@ mod helpers {
             &self,
             writer: &mut xml::EventWriter<W>,
         ) -> Result<(), crate::Error> {
-            super::write_vtk::write_inline_dataarray(writer, &self.rho, "rho", Encoding::Ascii)?;
+            super::write_vtk::write_inline_dataarray(writer, &self.u, "u", Encoding::Ascii)?;
             Ok(())
         }
 
@@ -86,9 +89,9 @@ mod helpers {
         fn parse_dataarrays(
             rest: &[u8],
             span_info: &crate::LocationSpans,
-            partial: crate::xml_parse::LocationsPartial,
-        ) -> Result<(Self, crate::Locations), crate::xml_parse::ParseError> {
-            let (rest, rho) = crate::xml_parse::parse_dataarray_or_lazy(rest, b"rho", 1000)?;
+            partial: crate::parse::LocationsPartial,
+        ) -> Result<(Self, crate::Locations), crate::parse::ParseError> {
+            let (rest, u) = crate::parse::parse_dataarray_or_lazy(rest, b"u", 1000)?;
             let locations = crate::Locations {
                 x_locations: partial.x.unwrap_parsed(),
                 y_locations: partial.y.unwrap_parsed(),
@@ -96,7 +99,7 @@ mod helpers {
             };
             Ok((
                 Self {
-                    rho: rho.unwrap_parsed(),
+                    u: u.unwrap_parsed(),
                 },
                 locations,
             ))
@@ -107,9 +110,9 @@ mod helpers {
         type Output = Self;
 
         fn add(mut self, other: Self) -> Self {
-            self.rho
+            self.u
                 .iter_mut()
-                .zip(other.rho.into_iter())
+                .zip(other.u.into_iter())
                 .for_each(|(s, o)| *s = *s + o);
             self
         }
@@ -119,7 +122,7 @@ mod helpers {
         type Output = Self;
 
         fn div(mut self, other: f64) -> Self::Output {
-            self.rho.iter_mut().for_each(|s| *s = *s / other);
+            self.u.iter_mut().for_each(|s| *s = *s / other);
             self
         }
     }
@@ -128,9 +131,9 @@ mod helpers {
         type Output = Self;
 
         fn sub(mut self, other: Self) -> Self {
-            self.rho
+            self.u
                 .iter_mut()
-                .zip(other.rho.into_iter())
+                .zip(other.u.into_iter())
                 .for_each(|(s, o)| *s = *s - o);
             self
         }
@@ -183,28 +186,27 @@ mod helpers {
     impl From<Vec<DataItem>> for SpanData {
         fn from(mut x: Vec<DataItem>) -> SpanData {
             x.sort_unstable_by_key(|x| x.proc_number);
-            let rho = x.into_iter().map(|x| x.data.data.rho).flatten().collect();
-            SpanData { rho }
+            let u = x.into_iter().map(|x| x.data.data.u).flatten().collect();
+            SpanData { u }
         }
     }
 
-    struct AppendedParse {
-        rho: Vec<f64>,
-        u: Vec<f64>,
-        v: Vec<f64>,
-        w: Vec<f64>,
+    #[derive(Debug)]
+    pub(crate) struct SpanDataBinary {
+        pub u: Vec<f64>,
+        pub v: Vec<f64>,
+        pub w: Vec<f64>,
     }
 
-    impl crate::traits::ParseDataArray for AppendedParse {
+    impl crate::traits::ParseDataArray for SpanDataBinary {
         fn parse_dataarrays(
             data: &[u8],
             span_info: &super::LocationSpans,
-            locations: super::xml_parse::LocationsPartial,
-        ) -> Result<(Self, super::Locations), super::xml_parse::ParseError> {
+            locations: super::parse::LocationsPartial,
+        ) -> Result<(Self, super::Locations), super::parse::ParseError> {
             let mut binary_info: Vec<&mut crate::parse::OffsetBuffer> = Vec::new();
             //
             let len = span_info.x_len() * span_info.y_len() * span_info.z_len();
-            let (data, rho) = crate::parse::parse_dataarray_or_lazy(data, b"rho", len)?;
             let (data, u) = crate::parse::parse_dataarray_or_lazy(data, b"u", len)?;
             let (data, v) = crate::parse::parse_dataarray_or_lazy(data, b"v", len)?;
             let (data, w) = crate::parse::parse_dataarray_or_lazy(data, b"w", len)?;
@@ -213,7 +215,6 @@ mod helpers {
             let mut locations_y__ = crate::parse::PartialDataArrayBuffered::new(locations.y, len);
             let mut locations_z__ = crate::parse::PartialDataArrayBuffered::new(locations.z, len);
 
-            let mut rho = crate::parse::PartialDataArrayBuffered::new(rho, len);
             let mut u = crate::parse::PartialDataArrayBuffered::new(u, len);
             let mut v = crate::parse::PartialDataArrayBuffered::new(v, len);
             let mut w = crate::parse::PartialDataArrayBuffered::new(w, len);
@@ -234,13 +235,6 @@ mod helpers {
             };
 
             match &mut locations_z__ {
-                crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
-                    binary_info.push(offset)
-                }
-                _ => (),
-            };
-
-            match &mut rho {
                 crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
                     binary_info.push(offset)
                 }
@@ -307,12 +301,13 @@ mod helpers {
                 z_locations: locations_z__.into_buffer(),
             };
 
-            let rho = rho.into_buffer();
             let u = u.into_buffer();
             let v = v.into_buffer();
             let w = w.into_buffer();
 
-            Ok((Self { rho, u, v, w }, locations))
+            Ok((Self { u, v, w }, locations))
         }
     }
+
+
 }
