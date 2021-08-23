@@ -182,4 +182,125 @@ mod helpers {
             SpanData { rho }
         }
     }
+
+
+    struct AppendedParse {
+        rho: Vec<f64>,
+        u: Vec<f64>,
+        v: Vec<f64>,
+        w: Vec<f64>,
+    }
+
+    impl crate::traits::ParseDataArray for AppendedParse {
+        fn parse_dataarrays(
+            data: &[u8],
+            span_info: &super::LocationSpans,
+            locations: super::xml_parse::LocationsPartial,
+        ) -> Result<(Self, super::Locations), super::xml_parse::ParseError> {
+            let mut binary_info : Vec<&mut crate::parse::OffsetBuffer>= Vec::new();
+            //
+            let len = span_info.x_len() * span_info.y_len() * span_info.z_len();
+            let (data, rho) = crate::parse::parse_dataarray_or_lazy(data, b"rho", len)?;
+            let (data, u) = crate::parse::parse_dataarray_or_lazy(data, b"u", len)?;
+            let (data, v) = crate::parse::parse_dataarray_or_lazy(data, b"v", len)?;
+            let (data, w) = crate::parse::parse_dataarray_or_lazy(data, b"w", len)?;
+
+            let mut locations_x__ = crate::parse::PartialDataArrayBuffered::new(locations.x, len);
+            let mut locations_y__ = crate::parse::PartialDataArrayBuffered::new(locations.y, len);
+            let mut locations_z__ = crate::parse::PartialDataArrayBuffered::new(locations.z, len);
+
+            let mut rho = crate::parse::PartialDataArrayBuffered::new(rho, len);
+            let mut u= crate::parse::PartialDataArrayBuffered::new(u, len);
+            let mut v= crate::parse::PartialDataArrayBuffered::new(v, len);
+            let mut w= crate::parse::PartialDataArrayBuffered::new(w, len);
+
+
+            // push into the arryas
+            match &mut locations_x__ {
+                crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
+                    binary_info.push(offset)
+                }
+                _ => ()
+            };
+
+            match &mut locations_y__ {
+                crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
+                    binary_info.push(offset)
+                }
+                _ => ()
+            };
+
+            match &mut locations_z__ {
+                crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
+                    binary_info.push(offset)
+                }
+                _ => ()
+            };
+
+            match &mut rho {
+                crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
+                    binary_info.push(offset)
+                }
+                _ => ()
+            };
+
+            match &mut u {
+                crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
+                    binary_info.push(offset)
+                }
+                _ => ()
+            };
+
+            match &mut v {
+                crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
+                    binary_info.push(offset)
+                }
+                _ => ()
+            };
+
+            match &mut w {
+                crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
+                    binary_info.push(offset)
+                }
+                _ => ()
+            };
+
+            // if we have any binary data:
+            if binary_info.len() > 0 {
+                //we have some data to read - first organize all of the data by the offsets
+                binary_info.sort_unstable();
+
+                let mut iterator = binary_info.iter_mut().peekable();
+                let (mut appended_data, _) = crate::parse::setup_appended_read(data)?;
+
+                loop {
+                    if let Some(current_offset_buffer) = iterator.next() {
+                        // get the number of bytes to read based on the next element's offset
+                        let reading_offset = iterator.peek()
+                            .map(|offset_buffer|  crate::parse::AppendedArrayLength::Known((offset_buffer.offset - current_offset_buffer.offset) as usize))
+                            .unwrap_or(crate::parse::AppendedArrayLength::UntilEnd);
+
+                        let (remaining_appended_data, _) = crate::parse::parse_appended_binary(appended_data, reading_offset, &mut current_offset_buffer.buffer)?;
+                        appended_data = remaining_appended_data
+                    } else {
+                        // there are not more elements in the array - lets leave
+                        break
+                    }
+                }
+            }
+
+            let locations = crate::Locations { 
+                x_locations: locations_x__.into_buffer(), 
+                y_locations: locations_y__.into_buffer(), 
+                z_locations: locations_z__.into_buffer(), 
+            };
+
+            let rho = rho.into_buffer();
+            let u = u.into_buffer();
+            let v = v.into_buffer();
+            let w = w.into_buffer();
+
+            Ok(( Self{ rho, u, v,w}, locations))
+        }
+    }
 }

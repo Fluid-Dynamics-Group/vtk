@@ -250,11 +250,47 @@ impl PartialDataArray {
             _ => panic!("called unwrap_parsed on a PartialDataArray::AppendedBinary")
         }
     }
+
     pub fn unwrap_appended(self) -> i64 {
         match self {
             Self::AppendedBinary {offset}  => offset,
             _ => panic!("called unwrap_parsed on a PartialDataArray::AppendedBinary")
         }
+    }
+}
+
+pub enum PartialDataArrayBuffered {
+    Parsed(Vec<f64>),
+    AppendedBinary(OffsetBuffer),
+}
+
+impl <'a> PartialDataArrayBuffered {
+    pub fn new(partial: PartialDataArray, size_hint: usize) -> Self {
+        match partial {
+            PartialDataArray::Parsed(x) => PartialDataArrayBuffered::Parsed(x),
+            PartialDataArray::AppendedBinary {offset} => PartialDataArrayBuffered::AppendedBinary(OffsetBuffer{ offset, buffer: Vec::with_capacity(size_hint)}),
+        }
+    }
+
+    pub fn into_buffer(self) -> Vec<f64> {
+        match self {
+            Self::Parsed(x) => x,
+            Self::AppendedBinary(offset_buffer) => offset_buffer.buffer
+        }
+    }
+}
+
+#[derive(PartialEq, PartialOrd)]
+pub struct OffsetBuffer {
+    pub offset: i64, 
+    pub buffer: Vec<f64> 
+}
+
+impl Eq for OffsetBuffer {}
+
+impl Ord for OffsetBuffer {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.offset.cmp(&other.offset)
     }
 }
 
@@ -362,8 +398,8 @@ pub enum AppendedArrayLength {
 pub fn parse_appended_binary<'a>(
     xml_bytes: &'a [u8],
     length: AppendedArrayLength,
-    size_hint: usize
-) -> IResult<&'a [u8], Vec<f64>> {
+    parsed_bytes: &mut Vec<f64>
+) -> IResult<&'a [u8], ()> {
     let (rest, bytes) = match length {
         AppendedArrayLength::Known(known_length) => {
             let (rest_of_appended, current_bytes_slice) = take(known_length)(xml_bytes)?;
@@ -375,15 +411,13 @@ pub fn parse_appended_binary<'a>(
         }
     };
 
-    let mut out = Vec::with_capacity(size_hint);
-
     let mut idx = 0;
     let inc = 8;
 
     loop {
         if let Some(byte_slice) = bytes.get(idx..idx + inc) {
             let float = utils::bytes_to_float(byte_slice);
-            out.push(float);
+            parsed_bytes.push(float);
         } else {
             break
         }
@@ -391,7 +425,7 @@ pub fn parse_appended_binary<'a>(
         idx += inc;
     }
 
-    Ok((rest, out))
+    Ok((rest, ()))
 }
 
 #[cfg(test)]
@@ -563,12 +597,16 @@ mod tests {
         let (rest, _) = setup_appended_read(rest).unwrap();
 
         println!(":: xml data after queued movement- {} ", string_representation);
+        
+        let mut data_1 = Vec::new();
+        let mut data_2 = Vec::new();
 
-        let (rest, data_1) = parse_appended_binary(rest, len_1, 4).unwrap();
+
+        let (rest, _) = parse_appended_binary(rest, len_1, &mut data_1).unwrap();
 
         let string_representation = String::from_utf8_lossy(&rest);
         println!("between parses - {}", string_representation);
-        let (_rest, data_2) = parse_appended_binary(rest, len_2, 4).unwrap();
+        let (_rest, _) = parse_appended_binary(rest, len_2, &mut data_2).unwrap();
 
         assert_eq!(values.as_ref(), data_1);
         assert_eq!(values2.as_ref(), data_2);

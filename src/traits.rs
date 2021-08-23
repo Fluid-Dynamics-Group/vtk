@@ -155,7 +155,7 @@ pub trait Combine {
 ///
 /// This trait can be derived with the `vtk::ParseDataArray` proc macro:
 ///
-/// ```
+/// ```ignore
 /// #[derive(vtk::ParseDataArray)]
 /// struct FlowData {
 ///     u: Vec<f64>,
@@ -202,13 +202,14 @@ struct Info<'a> {
     b: &'a [f64],
 }
 
-//#[cfg(feature = "derive")]
-//#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
-//struct Parse {
-//    #[allow(dead_code)]
-//    a: Vec<f64>,
-//    #[allow(dead_code)]
-//    b: Vec<f64>,
-//    #[allow(dead_code)]
-//    c: Vec<f64>,
-//}
+#[cfg(feature = "derive")]
+#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
+//#[derive(vtk_derive::DataArray)]
+struct Parse {
+    #[allow(dead_code)]
+    a: Vec<f64>,
+    #[allow(dead_code)]
+    b: Vec<f64>,
+    #[allow(dead_code)]
+    c: Vec<f64>,
+}

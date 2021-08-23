@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 derive_builder = "0.10.2"
-nom = "6.1.2"
+nom = "7.0.0"
 ryu = "1.0.5"
 thiserror = "1.0.25"
 xml-rs = "0.8.3"
