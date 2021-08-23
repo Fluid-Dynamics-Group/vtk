@@ -1,6 +1,6 @@
 use super::iter::VtkIterator;
-use std::ops::{Add, Div, Sub, SubAssign};
 use crate::utils;
+use std::ops::{Add, Div, Sub, SubAssign};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct VtkData<D> {
@@ -129,7 +129,6 @@ impl LocationSpans {
             z_end: split.next().unwrap().parse().unwrap(),
         }
     }
-
 
     /// Get the total length in the X direction for this
     /// local segment as paraview would interpret it

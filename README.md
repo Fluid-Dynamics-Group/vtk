@@ -65,38 +65,6 @@ let location_spans = vtk::LocationSpans {
 };
 ```
 
-Lastly, we need to describe to vtk how our `VelocityField` members are going to be actually
-written to a file. We can use the built-in `vtk::write_dataarray` function for all of our needs:
-
-```rust,ignore
-impl vtk::DataArray for VelocityField {
-    fn write_inline_dataarrays<W: Write>(
-        &self,
-    ) -> Result<(), crate::Error> {
-        vtk::write_inline_dataarray(writer, &self.u, "u", vtk::Encoding::Base64)?;
-        vtk::write_inline_dataarray(writer, &self.v, "v", vtk::Encoding::Base64)?;
-        vtk::write_inline_dataarray(writer, &self.w, "w", vtk::Encoding::Base64)?;
-        Ok(())
-    }
-    fn is_appended_array() -> bool {
-        false
-    }
-    fn write_appended_dataarray_headers<W: Write>(
-        &self,
-        writer: &mut EventWriter<W>,
-        starting_offset: i64,
-    ) -> Result<(), crate::Error> {
-    	Ok(())
-    }
-    fn write_appended_dataarrays<W: Write>(
-        &self,
-        writer: &mut EventWriter<W>,
-    ) -> Result<(), crate::Error> {
-    	Ok(())
-    }
-}
-```
-
 With this, we can combine our file into a `vtk::VtkData` and write it to a file to view in paraview!:
 
 ```rust,ignore
@@ -113,7 +81,7 @@ let file = std::io::WriteBuf::new(std::fs::File::create("your_file.vtk").unwrap(
 vtk::write_vtk(file, vtk_file).unwrap()
 ```
 
-### Deriving
+### Deriving Traits
 The implementation for `DataArray` on all your types can be tedious. If you add a new member to your data struct
 you must also remember to add an additional call to `write_dataarray`.  Instead, you can add the `derive` feature
 to your crate and this trait (along with `vtk::traits::ParseDataArray`) can be automatically generated. 
@@ -126,51 +94,6 @@ struct VelocityField {
     v: Vec<f64>,
     w: Vec<f64>,
 }
-```
-
-and the following code is automatically generated:
-
-```rust,ignore
-impl vtk::traits::DataArray for Data {
-    fn write_inline_dataarrays<W: std::io::Write>(
-        &self,
-        writer: &mut vtk::EventWriter<W>,
-    ) -> Result<(), vtk::Error> {
-        vtk::write_inline_dataarray(writer, &self.u, "u", vtk::Encoding::Base64)?;
-        vtk::write_inline_dataarray(writer, &self.v, "v", vtk::Encoding::Base64)?;
-        vtk::write_inline_dataarray(writer, &self.w, "w", vtk::Encoding::Base64)?;
-        Ok(())
-    }
-    fn is_appended_array() -> bool {
-        false
-    }
-    fn write_appended_dataarray_headers<W: std::io::Write>(
-        &self,
-        writer: &mut vtk::EventWriter<W>,
-        mut offset: i64,
-    ) -> Result<(), vtk::Error> {
-        Ok(())
-    }
-    fn write_appended_dataarrays<W: std::io::Write>(
-        &self,
-        writer: &mut vtk::EventWriter<W>,
-    ) -> Result<(), vtk::Error> {
-        Ok(())
-    }
-}
-impl vtk::traits::ParseDataArray for Data {
-    fn parse_dataarrays(
-        data: &str,
-        span_info: &vtk::LocationSpans,
-    ) -> Result<Self, vtk::ParseError> {
-        let len = span_info.x_len() * span_info.y_len() * span_info.z_len();
-        let (data, u) = vtk::parse_dataarray(&data, "u", len)?;
-        let (data, v) = vtk::parse_dataarray(&data, "v", len)?;
-        let (data, w) = vtk::parse_dataarray(&data, "w", len)?;
-        Ok(Self { w, v, u })
-    }
-}
-
 ```
 
 ## Encoding Sizes

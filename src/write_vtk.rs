@@ -124,13 +124,17 @@ pub fn write_vtk<W: Write, D: DataArray>(
     Ok(())
 }
 
-pub(crate) fn appended_binary_header_start<W: Write>(writer: &mut EventWriter<W>) -> Result<(), xml::writer::Error> {
+pub(crate) fn appended_binary_header_start<W: Write>(
+    writer: &mut EventWriter<W>,
+) -> Result<(), xml::writer::Error> {
     let inner = writer.inner_mut();
     inner.write_all(b"<AppendedData encoding=\"raw\">_")?;
     Ok(())
 }
 
-pub(crate) fn appended_binary_header_end<W: Write>(writer: &mut EventWriter<W>) -> Result<(), xml::writer::Error> {
+pub(crate) fn appended_binary_header_end<W: Write>(
+    writer: &mut EventWriter<W>,
+) -> Result<(), xml::writer::Error> {
     let inner = writer.inner_mut();
     inner.write_all(b"\n</AppendedData>")?;
     Ok(())

@@ -4,9 +4,9 @@ mod combine_vtk;
 mod data;
 mod iter;
 pub mod traits;
-pub mod xml_parse;
-mod write_vtk;
 mod utils;
+mod write_vtk;
+pub mod xml_parse;
 
 pub use xml_parse as parse;
 
@@ -86,7 +86,7 @@ mod helpers {
         fn parse_dataarrays(
             rest: &[u8],
             span_info: &crate::LocationSpans,
-            partial: crate::xml_parse::LocationsPartial
+            partial: crate::xml_parse::LocationsPartial,
         ) -> Result<(Self, crate::Locations), crate::xml_parse::ParseError> {
             let (rest, rho) = crate::xml_parse::parse_dataarray_or_lazy(rest, b"rho", 1000)?;
             let locations = crate::Locations {
@@ -94,7 +94,12 @@ mod helpers {
                 y_locations: partial.y.unwrap_parsed(),
                 z_locations: partial.z.unwrap_parsed(),
             };
-            Ok((Self { rho: rho.unwrap_parsed() }, locations))
+            Ok((
+                Self {
+                    rho: rho.unwrap_parsed(),
+                },
+                locations,
+            ))
         }
     }
 
@@ -183,7 +188,6 @@ mod helpers {
         }
     }
 
-
     struct AppendedParse {
         rho: Vec<f64>,
         u: Vec<f64>,
@@ -197,7 +201,7 @@ mod helpers {
             span_info: &super::LocationSpans,
             locations: super::xml_parse::LocationsPartial,
         ) -> Result<(Self, super::Locations), super::xml_parse::ParseError> {
-            let mut binary_info : Vec<&mut crate::parse::OffsetBuffer>= Vec::new();
+            let mut binary_info: Vec<&mut crate::parse::OffsetBuffer> = Vec::new();
             //
             let len = span_info.x_len() * span_info.y_len() * span_info.z_len();
             let (data, rho) = crate::parse::parse_dataarray_or_lazy(data, b"rho", len)?;
@@ -210,59 +214,58 @@ mod helpers {
             let mut locations_z__ = crate::parse::PartialDataArrayBuffered::new(locations.z, len);
 
             let mut rho = crate::parse::PartialDataArrayBuffered::new(rho, len);
-            let mut u= crate::parse::PartialDataArrayBuffered::new(u, len);
-            let mut v= crate::parse::PartialDataArrayBuffered::new(v, len);
-            let mut w= crate::parse::PartialDataArrayBuffered::new(w, len);
-
+            let mut u = crate::parse::PartialDataArrayBuffered::new(u, len);
+            let mut v = crate::parse::PartialDataArrayBuffered::new(v, len);
+            let mut w = crate::parse::PartialDataArrayBuffered::new(w, len);
 
             // push into the arryas
             match &mut locations_x__ {
                 crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
                     binary_info.push(offset)
                 }
-                _ => ()
+                _ => (),
             };
 
             match &mut locations_y__ {
                 crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
                     binary_info.push(offset)
                 }
-                _ => ()
+                _ => (),
             };
 
             match &mut locations_z__ {
                 crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
                     binary_info.push(offset)
                 }
-                _ => ()
+                _ => (),
             };
 
             match &mut rho {
                 crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
                     binary_info.push(offset)
                 }
-                _ => ()
+                _ => (),
             };
 
             match &mut u {
                 crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
                     binary_info.push(offset)
                 }
-                _ => ()
+                _ => (),
             };
 
             match &mut v {
                 crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
                     binary_info.push(offset)
                 }
-                _ => ()
+                _ => (),
             };
 
             match &mut w {
                 crate::parse::PartialDataArrayBuffered::AppendedBinary(offset) => {
                     binary_info.push(offset)
                 }
-                _ => ()
+                _ => (),
             };
 
             // if we have any binary data:
@@ -276,23 +279,32 @@ mod helpers {
                 loop {
                     if let Some(current_offset_buffer) = iterator.next() {
                         // get the number of bytes to read based on the next element's offset
-                        let reading_offset = iterator.peek()
-                            .map(|offset_buffer|  crate::parse::AppendedArrayLength::Known((offset_buffer.offset - current_offset_buffer.offset) as usize))
+                        let reading_offset = iterator
+                            .peek()
+                            .map(|offset_buffer| {
+                                crate::parse::AppendedArrayLength::Known(
+                                    (offset_buffer.offset - current_offset_buffer.offset) as usize,
+                                )
+                            })
                             .unwrap_or(crate::parse::AppendedArrayLength::UntilEnd);
 
-                        let (remaining_appended_data, _) = crate::parse::parse_appended_binary(appended_data, reading_offset, &mut current_offset_buffer.buffer)?;
+                        let (remaining_appended_data, _) = crate::parse::parse_appended_binary(
+                            appended_data,
+                            reading_offset,
+                            &mut current_offset_buffer.buffer,
+                        )?;
                         appended_data = remaining_appended_data
                     } else {
                         // there are not more elements in the array - lets leave
-                        break
+                        break;
                     }
                 }
             }
 
-            let locations = crate::Locations { 
-                x_locations: locations_x__.into_buffer(), 
-                y_locations: locations_y__.into_buffer(), 
-                z_locations: locations_z__.into_buffer(), 
+            let locations = crate::Locations {
+                x_locations: locations_x__.into_buffer(),
+                y_locations: locations_y__.into_buffer(),
+                z_locations: locations_z__.into_buffer(),
             };
 
             let rho = rho.into_buffer();
@@ -300,7 +312,7 @@ mod helpers {
             let v = v.into_buffer();
             let w = w.into_buffer();
 
-            Ok(( Self{ rho, u, v,w}, locations))
+            Ok((Self { rho, u, v, w }, locations))
         }
     }
 }
