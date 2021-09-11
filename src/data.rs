@@ -53,7 +53,6 @@ where
     }
 }
 
-// TODO: make this function + iterator generic at some point
 impl<D> std::iter::Sum for VtkData<D>
 where
     D: Default,

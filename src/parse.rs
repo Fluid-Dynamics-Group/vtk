@@ -354,8 +354,6 @@ fn parse_ascii_inner_dataarray<'a>(
     let location_data_string =
         std::str::from_utf8(location_data).expect("ascii data was not encoded as UTF-8");
 
-    // TODO IN THE MORNING: - this location data should
-
     let mut out = Vec::with_capacity(size_hint);
 
     location_data_string

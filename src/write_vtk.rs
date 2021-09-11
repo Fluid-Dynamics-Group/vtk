@@ -18,8 +18,6 @@ pub fn write_vtk<W: Write, D: DataArray>(
     data: VtkData<D>,
     append_coordinates:bool 
 ) -> Result<(), Error> {
-    // TODO: fix the appending of coordinates
-    //let append_coordinates = false;
     let mut writer = EventWriter::new(writer);
 
     let version = xml::common::XmlVersion::Version10;
