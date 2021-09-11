@@ -385,7 +385,11 @@ fn parse_base64_inner_dataarray<'a>(
     let numerical_bytes =
         base64::decode(&base64_encoded_bytes).expect("could not decode base64 data array bytes");
 
-    let mut idx = 0;
+
+    // normally we start with idx = 0, but since paraview expects the first 8 bytes 
+    // to be garbage information we need to skip the first 8 bytes before actually
+    // reading the data
+    let mut idx = 8;
     let inc = 8;
 
     loop {
@@ -421,7 +425,8 @@ pub fn setup_appended_read<'a>(xml_bytes: &[u8]) -> IResult<&[u8], ()> {
     // TODO: make this function return the type of encoding used in the appended section
     let (appended_data_section, _) = take_until_consume(xml_bytes, b"AppendedData")?;
     let (appended_start, _encoding_information) = take_until_consume(appended_data_section, b">_")?;
-    Ok((appended_start, ()))
+    let (appended_start_no_garbage, _) = take(8usize)(appended_start)?;
+    Ok((appended_start_no_garbage, ()))
 }
 
 pub enum AppendedArrayLength {
@@ -630,6 +635,10 @@ mod tests {
 
         // write the data inside the appended section
         crate::write_vtk::appended_binary_header_start(&mut event_writer).unwrap();
+
+        // need to write a single garbage byte for things to work as expected - this 
+        // is becasue of how paraview expects things
+        crate::write_appended_dataarray(&mut event_writer, &[100f64]).unwrap();
 
         crate::write_appended_dataarray(&mut event_writer, &values).unwrap();
         crate::write_appended_dataarray(&mut event_writer, &values2).unwrap();

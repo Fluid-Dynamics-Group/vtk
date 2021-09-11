@@ -52,6 +52,7 @@ mod helpers {
     use std::io::Write;
     use std::ops::{Add, Div, Sub};
 
+
     #[derive(Debug, Clone, Default, derive_builder::Builder, PartialEq)]
     pub struct SpanData {
         pub u: Vec<f64>,
@@ -310,4 +311,131 @@ mod helpers {
     }
 
 
+}
+
+#[cfg(all(test, feature="derive"))]
+mod parsing_writing_compare {
+    use crate as vtk;
+
+    #[derive(super::ParseDataArray, super::DataArray, Clone, Debug)]
+    #[vtk(encoding="binary")]
+    struct Binary {
+        rho: Vec<f64>,
+        u: Vec<f64>,
+        v: Vec<f64>,
+        w: Vec<f64>,
+    }
+
+    #[derive(vtk::ParseDataArray, vtk::DataArray, Clone)]
+    #[vtk(encoding="base64")]
+    struct Base64 {
+        rho: Vec<f64>,
+        u: Vec<f64>,
+        v: Vec<f64>,
+        w: Vec<f64>,
+    }
+
+    impl From<Binary> for Base64 {
+        fn from(x: Binary) -> Self {
+            let Binary { rho, u, v, w} = x;
+            Base64 { rho, u, v, w}
+        }
+    }
+
+
+    fn create_data() -> super::VtkData<Binary> {
+        let locations = super::Locations {
+            x_locations: vec![0., 1., 2., 3., 4.],
+            y_locations: vec![0., 1., 2., 3., 4.],
+            z_locations: vec![0., 1., 2., 3., 4.],
+        };
+
+        let spans = super::LocationSpans {
+            x_start: 0,
+            x_end:4,
+            y_start: 0,
+            y_end:4,
+            z_start: 0,
+            z_end:4,
+        };
+
+        let length = spans.x_len() * spans.y_len() * spans.z_len();
+
+        let rho : Vec<_>= std::iter::repeat(0).take(length).enumerate().map(|(i, _)| i as f64).collect();
+        let u = std::iter::repeat(0).take(length).enumerate().map(|(i, _)| i as f64).collect();
+        let v = std::iter::repeat(0).take(length).enumerate().map(|(i, _)| i as f64).collect();
+        let w = std::iter::repeat(0).take(length).enumerate().map(|(i, _)| i as f64).collect();
+
+        dbg!(rho.len());
+
+        let data = Binary {
+            rho,
+            u,
+            v,
+            w,
+        };
+
+        let data = super::VtkData {
+            locations,
+            spans,
+            data
+        };
+
+        data
+    }
+
+    #[test]
+    fn inline_ascii_points_appended_binary_data() {
+        let data = create_data();
+        let mut writer = Vec::new();
+        vtk::write_vtk(&mut writer, data.clone(), false).unwrap();
+
+        let output_data : vtk::VtkData<Binary> = vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
+
+        assert_eq!(output_data.spans, output_data.spans);
+        assert_eq!(output_data.locations, output_data.locations);
+        assert_eq!(output_data.data.rho, data.data.rho);
+        assert_eq!(output_data.data.u, data.data.u);
+        assert_eq!(output_data.data.v, data.data.v);
+        assert_eq!(output_data.data.w, data.data.w);
+    }
+
+    #[test]
+    fn appended_ascii_points_appended_binary_data() {
+        let data = create_data();
+        let mut writer = Vec::new();
+        vtk::write_vtk(&mut writer, data.clone(), true).unwrap();
+
+        let output_data : vtk::VtkData<Binary> = vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
+
+        assert_eq!(output_data.spans, output_data.spans);
+        assert_eq!(output_data.locations, output_data.locations);
+        assert_eq!(output_data.data.rho, data.data.rho);
+        assert_eq!(output_data.data.u, data.data.u);
+        assert_eq!(output_data.data.v, data.data.v);
+        assert_eq!(output_data.data.w, data.data.w);
+    }
+
+    #[test]
+    fn inline_points_inline_base64() {
+        let data = create_data();
+        let mut writer = Vec::new();
+
+        let locations = data.locations.clone();
+        let spans = data.spans.clone();
+        let data = data.data.clone();
+
+        let base64 = vtk::VtkData { locations: locations.clone(), spans: spans.clone(), data: Base64::from(data.clone()) };
+
+        vtk::write_vtk(&mut writer, base64.clone(), true).unwrap();
+
+        let output_data : vtk::VtkData<Base64> = vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
+
+        assert_eq!(output_data.spans, output_data.spans);
+        assert_eq!(output_data.locations, output_data.locations);
+        assert_eq!(output_data.data.rho, base64.data.rho);
+        assert_eq!(output_data.data.u, base64.data.u);
+        assert_eq!(output_data.data.v, base64.data.v);
+        assert_eq!(output_data.data.w, base64.data.w);
+    }
 }

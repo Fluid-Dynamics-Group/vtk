@@ -204,8 +204,14 @@ pub fn write_inline_dataarray<W: Write>(
                 namespace: Cow::Owned(Namespace::empty()),
             })?;
 
+            let mut byte_data : Vec<u8> = Vec::with_capacity((data.len() + 1) * 8 );
+
+            // for some reason paraview expects the first 8 bytes to be garbage information -
+            // I have no idea why this is the case but the first 8 bytes must be ignored
+            // for things to work correctly
+            byte_data.extend_from_slice("12345678".as_bytes());
+
             // convert the floats into LE bytes
-            let mut byte_data = Vec::with_capacity(data.len() * 8);
             data.into_iter()
                 .for_each(|float| byte_data.extend_from_slice(&float.to_le_bytes()));
 
