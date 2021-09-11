@@ -10,12 +10,15 @@ use xml::name::Name;
 use xml::namespace::Namespace;
 use xml::writer::{EventWriter, XmlEvent};
 
+const STARTING_OFFSET : i64 = 0; 
+
 /// Write a given vtk file to a `Writer`
 pub fn write_vtk<W: Write, D: DataArray>(
     writer: W,
     data: VtkData<D>,
-    append_coordinates: bool,
 ) -> Result<(), Error> {
+    // TODO: fix the appending of coordinates
+    let append_coordinates = false;
     let mut writer = EventWriter::new(writer);
 
     let version = xml::common::XmlVersion::Version10;
@@ -62,7 +65,7 @@ pub fn write_vtk<W: Write, D: DataArray>(
         ascii_coordinates_inline(&mut writer, &data.locations)?;
         // this is some funky hack to includethe first value in the data array that
         // paraview somehow skips over - not sure if this will ever be fixed on their end
-        -8
+        STARTING_OFFSET
     } else {
         // write the headers now with the intention to write the full dataarrays later
         // in the appended section. return the total offset required before writing
@@ -136,7 +139,7 @@ pub(crate) fn appended_binary_header_end<W: Write>(
     writer: &mut EventWriter<W>,
 ) -> Result<(), xml::writer::Error> {
     let inner = writer.inner_mut();
-    inner.write_all(b"\n</AppendedData>")?;
+    inner.write_all(b"</AppendedData>")?;
     Ok(())
 }
 /// the encoding to use when writing an inline dataarray
@@ -286,16 +289,16 @@ fn coordinate_headers_appended<W: Write>(
     writer: &mut EventWriter<W>,
     locations: &super::Locations,
 ) -> Result<i64, Error> {
-    let mut offset = -8;
+    let mut offset = STARTING_OFFSET;
 
     write_appended_dataarray_header(writer, "X", offset)?;
-    offset += (std::mem::size_of::<f64>() * locations.x_locations.len()) as i64;
+    offset += (std::mem::size_of::<f64>() * (locations.x_locations.len() + 0)) as i64;
 
     write_appended_dataarray_header(writer, "Y", offset)?;
-    offset += (std::mem::size_of::<f64>() * locations.y_locations.len()) as i64;
+    offset += (std::mem::size_of::<f64>() * (locations.y_locations.len() + 0)) as i64;
 
     write_appended_dataarray_header(writer, "Z", offset)?;
-    offset += (std::mem::size_of::<f64>() * locations.z_locations.len()) as i64;
+    offset += (std::mem::size_of::<f64>() * (locations.z_locations.len() + 0)) as i64;
 
     Ok(offset)
 }

@@ -5,8 +5,8 @@ use super::traits::Combine;
 /// of a flowfield.
 pub fn combine_vtk<T: Combine, D: From<T>>(data: T) -> VtkData<D> {
     let x_locations = data.x_locations();
-    let y_locations = data.x_locations();
-    let z_locations = data.x_locations();
+    let y_locations = data.y_locations();
+    let z_locations = data.z_locations();
 
     let (x_start, x_end) = data.x_dims();
     let (y_start, y_end) = data.y_dims();
