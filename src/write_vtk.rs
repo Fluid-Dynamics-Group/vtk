@@ -10,15 +10,16 @@ use xml::name::Name;
 use xml::namespace::Namespace;
 use xml::writer::{EventWriter, XmlEvent};
 
-const STARTING_OFFSET : i64 = 0; 
+const STARTING_OFFSET : i64 = 0;
 
 /// Write a given vtk file to a `Writer`
 pub fn write_vtk<W: Write, D: DataArray>(
     writer: W,
     data: VtkData<D>,
+    append_coordinates:bool 
 ) -> Result<(), Error> {
     // TODO: fix the appending of coordinates
-    let append_coordinates = false;
+    //let append_coordinates = false;
     let mut writer = EventWriter::new(writer);
 
     let version = xml::common::XmlVersion::Version10;
@@ -107,6 +108,16 @@ pub fn write_vtk<W: Write, D: DataArray>(
     if append_coordinates || D::is_appended_array() {
         appended_binary_header_start(&mut writer)?;
 
+        // for some reason paraview expects the first byte that is not '_' to
+        // be garbage and it is skipped over. Previously we just used an initial offset=-8
+        // to fix this issue, but it turns out that has unpredictable behavior when
+        // writing :
+        //      inline point location information + binary appended data (previously ok with
+        //          offset)
+        //      appended point loacation information + binary appended data (was failure)
+        //      appended point location information + ascii data (was failure)
+        write_appended_dataarray(&mut writer, &[100f64])?;
+
         // write the appended point data here if required
         if append_coordinates {
             appended_coordinate_dataarrays(&mut writer, &data.locations)?;
@@ -139,7 +150,7 @@ pub(crate) fn appended_binary_header_end<W: Write>(
     writer: &mut EventWriter<W>,
 ) -> Result<(), xml::writer::Error> {
     let inner = writer.inner_mut();
-    inner.write_all(b"</AppendedData>")?;
+    inner.write_all(b"\n</AppendedData>")?;
     Ok(())
 }
 /// the encoding to use when writing an inline dataarray
@@ -311,9 +322,11 @@ fn appended_coordinate_dataarrays<W: Write>(
     writer: &mut EventWriter<W>,
     locations: &super::Locations,
 ) -> Result<(), Error> {
+
     write_appended_dataarray(writer, &locations.x_locations)?;
     write_appended_dataarray(writer, &locations.y_locations)?;
     write_appended_dataarray(writer, &locations.z_locations)?;
 
     Ok(())
 }
+

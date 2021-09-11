@@ -74,7 +74,7 @@ fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::
             #headers_body
 
             vtk::write_appended_dataarray_header(writer, #lit, offset)?;
-            offset += (std::mem::size_of::<f64>() * (self.#field_name.len() + 1)) as i64;
+            offset += (std::mem::size_of::<f64>() * (self.#field_name.len() + 0)) as i64;
         }
     }
 
