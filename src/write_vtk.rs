@@ -268,8 +268,21 @@ pub fn write_appended_dataarray<W: Write>(
     let writer = writer.inner_mut();
     let mut bytes = Vec::with_capacity(data.len() * 8);
 
-    data.into_iter()
-        .for_each(|float| bytes.extend(float.to_le_bytes()));
+
+    // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
+    // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
+    if data[data.len()-1] == 0.0 {
+        // skip the last data point (since we know its 0.0 and 
+        // instead write a very small number in its place
+        data[0..data.len()-1].into_iter()
+            .for_each(|float| bytes.extend(float.to_le_bytes()));
+
+        bytes.extend(0.000001_f64.to_le_bytes());
+    }
+    else {
+        data.into_iter()
+            .for_each(|float| bytes.extend(float.to_le_bytes()));
+    }
 
     writer.write_all(&bytes)?;
 
