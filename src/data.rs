@@ -8,6 +8,15 @@ pub struct VtkData<D> {
     pub spans: LocationSpans,
 }
 
+impl <D> VtkData <D> {
+    pub fn new_data<T>(self, new_data: T) -> VtkData<T> {
+        let spans = self.spans;
+        let locations = self.locations;
+        
+        VtkData { spans, locations, data : new_data }
+    }
+}
+
 impl<D> Add for VtkData<D>
 where
     D: Add<Output = D>,
