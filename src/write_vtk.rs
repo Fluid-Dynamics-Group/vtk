@@ -116,6 +116,7 @@ pub fn write_vtk<W: Write, D: DataArray>(
         //      appended point loacation information + binary appended data (was failure)
         //      appended point location information + ascii data (was failure)
         //write_appended_dataarray(&mut writer, )?;
+
         [100f64].as_ref().write_binary(&mut writer)?;
 
         // write the appended point data here if required

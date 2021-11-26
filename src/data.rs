@@ -2,7 +2,8 @@ use super::iter::VtkIterator;
 use std::ops::{Add, Div, Sub, SubAssign};
 
 /// Stores vector information at each point in space instead 
-/// of a single scalar value
+/// of a single scalar value #[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct VectorPoints {
     pub(crate) components: usize,
     pub(crate) arr: ndarray::Array4<f64>
@@ -201,6 +202,7 @@ mod tests {
     use crate::VectorPoints;
 
     use crate as vtk;
+    use crate::Array;
 
     #[test]
     fn data_add() {
@@ -229,7 +231,7 @@ mod tests {
         assert_eq!(data / 3., expected)
     }
 
-    #[derive(crate::DataArray)]
+    #[derive(crate::DataArray, crate::ParseDataArray, Debug)]
     struct SimpleArray {
         array: crate::VectorPoints
     }
@@ -242,11 +244,11 @@ mod tests {
         let locations = Locations { x_locations, y_locations, z_locations };
 
         let spans = LocationSpans {
-            x_start: 0,
+            x_start: 1,
             x_end: 3,
-            y_start: 0,
+            y_start: 1,
             y_end: 3,
-            z_start: 0,
+            z_start: 1,
             z_end: 3,
         };
 
@@ -264,15 +266,24 @@ mod tests {
             0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
         ];
 
-        dbg!(data.len(), 3*3*3*3);
+        assert_eq!(3*3*3*3, data.len());
 
         let arr = ndarray::Array4::<f64>::from_shape_vec((3,3,3,3), data).unwrap();
+        let arr = arr.reversed_axes();
 
-        dbg!(&arr);
+        dbg!(
+            arr[[0,0,0,0]],
+            arr[[0,0,0,1]],
+            arr[[0,0,0,2]],
+        );
 
         let data = SimpleArray { array: VectorPoints::new(arr) };
 
+        dbg!(&data);
+
         let vtk = crate::VtkData { data, spans, locations };
-        
+
+        let file = std::fs::File::create("./test_vtks/simple_vector_array.vtk").unwrap();
+        vtk::write_vtk(file, vtk, true).unwrap();
     }
 }

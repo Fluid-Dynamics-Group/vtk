@@ -251,6 +251,10 @@ impl Array for VectorPoints {
     fn length(&self) -> usize {
         (&self).length()
     }
+
+    fn components(&self) -> usize {
+        (&self).components()
+    }
 }
 
 impl Array for &Vec<f64> {
@@ -282,6 +286,7 @@ impl Array for &[f64] {
                     num
                 })
                 .collect();
+
         writer.write(XmlEvent::Characters(&data))?;
 
         crate::write_vtk::close_inline_array_header(writer)?;
@@ -368,6 +373,7 @@ impl Array for &VectorPoints {
         
         Ok(())
     }
+
     fn write_base64<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(), crate::Error> {
         crate::write_vtk::write_inline_array_header(writer, crate::write_vtk::Encoding::Base64, name, self.components)?;
         let mut byte_data : Vec<u8> = Vec::with_capacity((self.len() + 1) * 8 );
