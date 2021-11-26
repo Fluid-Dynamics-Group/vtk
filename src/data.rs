@@ -1,6 +1,45 @@
 use super::iter::VtkIterator;
 use std::ops::{Add, Div, Sub, SubAssign};
 
+/// Stores vector information at each point in space instead 
+/// of a single scalar value
+pub struct VectorPoints {
+    pub(crate) components: usize,
+    pub(crate) arr: ndarray::Array4<f64>
+}
+
+impl  VectorPoints {
+    /// The passed in array should be in real space, not 
+    /// in the vtk-space
+    ///
+    /// Vtk-space writing will be taken care of
+    pub fn new(arr:ndarray::Array4<f64>) -> Self {
+        let components = arr.raw_dim()[3];
+
+        Self {
+            components,
+            arr
+        }
+    }
+
+    pub fn dims(&self) -> (usize, usize, usize) {
+        let dims = self.arr.raw_dim();
+        let nx = dims[0];
+        let ny = dims[1];
+        let nz = dims[2];
+
+        (nx, ny, nz)
+    }
+}
+
+impl std::ops::Deref for VectorPoints {
+    type Target = ndarray::Array4<f64>;
+
+    fn deref(&self) ->  &Self::Target {
+        &self.arr
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct VtkData<D> {
     pub data: D,

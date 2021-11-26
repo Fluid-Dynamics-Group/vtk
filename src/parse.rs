@@ -470,6 +470,7 @@ pub fn parse_appended_binary<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Array;
 
     #[test]
     fn shred_to_extent() {
@@ -604,7 +605,7 @@ mod tests {
         let values = [1.0, 2.0, 3.0, 4.0];
         let mut output = Vec::new();
         let mut event_writer = crate::EventWriter::new(&mut output);
-        crate::write_inline_dataarray(&mut event_writer, &values, "X", crate::Encoding::Base64)
+        crate::write_inline_dataarray(&mut event_writer, values.as_ref(), "X", crate::Encoding::Base64)
             .unwrap();
 
         let string = String::from_utf8(output).unwrap();
@@ -628,18 +629,18 @@ mod tests {
         let offset_1 = -8;
         let offset_2 = -8 + (4 * 8);
 
-        crate::write_appended_dataarray_header(&mut event_writer, "X", offset_1).unwrap();
-        crate::write_appended_dataarray_header(&mut event_writer, "Y", offset_2).unwrap();
+        crate::write_appended_dataarray_header(&mut event_writer, "X", offset_1, 1).unwrap();
+        crate::write_appended_dataarray_header(&mut event_writer, "Y", offset_2, 1).unwrap();
 
         // write the data inside the appended section
         crate::write_vtk::appended_binary_header_start(&mut event_writer).unwrap();
 
         // need to write a single garbage byte for things to work as expected - this 
         // is becasue of how paraview expects things
-        crate::write_appended_dataarray(&mut event_writer, &[100f64]).unwrap();
+        [100f64].as_ref().write_binary(&mut event_writer).unwrap();
 
-        crate::write_appended_dataarray(&mut event_writer, &values).unwrap();
-        crate::write_appended_dataarray(&mut event_writer, &values2).unwrap();
+        values.as_ref().write_binary(&mut event_writer).unwrap();
+        values2.as_ref().write_binary(&mut event_writer).unwrap();
 
         crate::write_vtk::appended_binary_header_end(&mut event_writer).unwrap();
 
