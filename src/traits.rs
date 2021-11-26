@@ -107,7 +107,7 @@ pub trait DataArray {
         Ok(())
     }
     fn is_appended_array() -> bool {
-        false 
+        false
     }
     fn write_appended_dataarray_headers<W: Write>(
         &self,
@@ -157,7 +157,7 @@ pub trait Combine {
 /// If you are planning on skipping some of the data in the vtk (not parsing it), then you
 /// must ensure that there is no data associated with the `AppendedData` element in the vtk.
 /// If some fields are skipped, then the final variable read from `AppendedData` will over-run
-/// into data not intended to be parsed into that field. This behavior can 
+/// into data not intended to be parsed into that field. This behavior can
 /// be modified by implementing the trait manually.
 ///
 /// This trait can be derived with the `vtk::ParseDataArray` proc macro:
@@ -202,11 +202,18 @@ pub trait ParseDataArray {
         Self: Sized;
 }
 
-
 pub trait Array {
-    fn write_ascii<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(),  crate::Error >;
+    fn write_ascii<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error>;
 
-    fn write_base64<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(), crate::Error>;
+    fn write_base64<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error>;
 
     /// write the file data to the file to the appended section in binary form
     ///
@@ -222,10 +229,18 @@ pub trait Array {
 }
 
 impl Array for Vec<f64> {
-    fn write_ascii<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(),  crate::Error >{
+    fn write_ascii<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error> {
         self.as_slice().write_ascii(writer, name)
     }
-    fn write_base64<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(), crate::Error> {
+    fn write_base64<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error> {
         self.as_slice().write_base64(writer, name)
     }
     fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error> {
@@ -238,10 +253,18 @@ impl Array for Vec<f64> {
 }
 
 impl Array for VectorPoints {
-    fn write_ascii<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(),  crate::Error >{
+    fn write_ascii<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error> {
         (&self).write_ascii(writer, name)
     }
-    fn write_base64<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(), crate::Error> {
+    fn write_base64<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error> {
         (&self).write_base64(writer, name)
     }
     fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error> {
@@ -258,10 +281,18 @@ impl Array for VectorPoints {
 }
 
 impl Array for &Vec<f64> {
-    fn write_ascii<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(),  crate::Error >{
+    fn write_ascii<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error> {
         self.as_slice().write_ascii(writer, name)
     }
-    fn write_base64<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(), crate::Error> {
+    fn write_base64<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error> {
         self.as_slice().write_base64(writer, name)
     }
     fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error> {
@@ -274,9 +305,18 @@ impl Array for &Vec<f64> {
 }
 
 impl Array for &[f64] {
-    fn write_ascii<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(), crate::Error> {
-        crate::write_vtk::write_inline_array_header(writer, crate::write_vtk::Encoding::Ascii, name, 1)?;
-        let data : String = 
+    fn write_ascii<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error> {
+        crate::write_vtk::write_inline_array_header(
+            writer,
+            crate::write_vtk::Encoding::Ascii,
+            name,
+            1,
+        )?;
+        let data : String =
             // write out all numbers with 12 points of precision
             self.into_iter()
                 .map(|x| {
@@ -290,29 +330,38 @@ impl Array for &[f64] {
         writer.write(XmlEvent::Characters(&data))?;
 
         crate::write_vtk::close_inline_array_header(writer)?;
-        
+
         Ok(())
     }
-    fn write_base64<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(), crate::Error> {
-        crate::write_vtk::write_inline_array_header(writer, crate::write_vtk::Encoding::Base64, name, 1)?;
-           let mut byte_data : Vec<u8> = Vec::with_capacity((self.len() + 1) * 8 );
+    fn write_base64<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error> {
+        crate::write_vtk::write_inline_array_header(
+            writer,
+            crate::write_vtk::Encoding::Base64,
+            name,
+            1,
+        )?;
+        let mut byte_data: Vec<u8> = Vec::with_capacity((self.len() + 1) * 8);
 
-           // for some reason paraview expects the first 8 bytes to be garbage information -
-           // I have no idea why this is the case but the first 8 bytes must be ignored
-           // for things to work correctly
-           byte_data.extend_from_slice("12345678".as_bytes());
+        // for some reason paraview expects the first 8 bytes to be garbage information -
+        // I have no idea why this is the case but the first 8 bytes must be ignored
+        // for things to work correctly
+        byte_data.extend_from_slice("12345678".as_bytes());
 
-           // convert the floats into LE bytes
-           self.into_iter()
-               .for_each(|float| byte_data.extend_from_slice(&float.to_le_bytes()));
+        // convert the floats into LE bytes
+        self.into_iter()
+            .for_each(|float| byte_data.extend_from_slice(&float.to_le_bytes()));
 
-           // encode as base64
-           let data = base64::encode(byte_data.as_slice());
+        // encode as base64
+        let data = base64::encode(byte_data.as_slice());
 
         writer.write(XmlEvent::Characters(&data))?;
 
         crate::write_vtk::close_inline_array_header(writer)?;
-        
+
         Ok(())
     }
 
@@ -322,15 +371,15 @@ impl Array for &[f64] {
 
         // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
         // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
-        if self[self.len()-1] == 0.0 {
-            // skip the last data point (since we know its 0.0 and 
+        if self[self.len() - 1] == 0.0 {
+            // skip the last data point (since we know its 0.0 and
             // instead write a very small number in its place
-            self[0..self.len()-1].into_iter()
+            self[0..self.len() - 1]
+                .into_iter()
                 .for_each(|float| bytes.extend(float.to_le_bytes()));
 
             bytes.extend(0.000001_f64.to_le_bytes());
-        }
-        else {
+        } else {
             self.into_iter()
                 .for_each(|float| bytes.extend(float.to_le_bytes()));
         }
@@ -346,18 +395,27 @@ impl Array for &[f64] {
 }
 
 impl Array for &VectorPoints {
-    fn write_ascii<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(), crate::Error> {
-        crate::write_vtk::write_inline_array_header(writer, crate::write_vtk::Encoding::Ascii, name, self.components)?;
+    fn write_ascii<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error> {
+        crate::write_vtk::write_inline_array_header(
+            writer,
+            crate::write_vtk::Encoding::Ascii,
+            name,
+            self.components,
+        )?;
         let mut data = String::new();
 
-        let (nx,ny, nz) = self.dims();
+        let (nx, ny, nz) = self.dims();
 
         // convert the x-space array to bytes that can be written to a vtk file
         for k in 0..nz {
             for j in 0..ny {
                 for i in 0..nx {
                     for n in 0..self.components {
-                        let float = self.arr.get((i,j,k, n)).unwrap();
+                        let float = self.arr.get((i, j, k, n)).unwrap();
                         let mut buffer = ryu::Buffer::new();
                         let mut num = buffer.format(*float).to_string();
                         num.push(' ');
@@ -370,14 +428,23 @@ impl Array for &VectorPoints {
         writer.write(XmlEvent::Characters(&data))?;
 
         crate::write_vtk::close_inline_array_header(writer)?;
-        
+
         Ok(())
     }
 
-    fn write_base64<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(), crate::Error> {
-        crate::write_vtk::write_inline_array_header(writer, crate::write_vtk::Encoding::Base64, name, self.components)?;
-        let mut byte_data : Vec<u8> = Vec::with_capacity((self.len() + 1) * 8 );
-        let (nx,ny, nz) = self.dims();
+    fn write_base64<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        name: &str,
+    ) -> Result<(), crate::Error> {
+        crate::write_vtk::write_inline_array_header(
+            writer,
+            crate::write_vtk::Encoding::Base64,
+            name,
+            self.components,
+        )?;
+        let mut byte_data: Vec<u8> = Vec::with_capacity((self.len() + 1) * 8);
+        let (nx, ny, nz) = self.dims();
 
         // for some reason paraview expects the first 8 bytes to be garbage information -
         // I have no idea why this is the case but the first 8 bytes must be ignored
@@ -389,7 +456,7 @@ impl Array for &VectorPoints {
             for j in 0..ny {
                 for i in 0..nx {
                     for n in 0..self.components {
-                        let float = self.arr.get((i,j,k, n)).unwrap();
+                        let float = self.arr.get((i, j, k, n)).unwrap();
                         byte_data.extend_from_slice(&float.to_le_bytes());
                     }
                 }
@@ -402,7 +469,7 @@ impl Array for &VectorPoints {
         writer.write(XmlEvent::Characters(&data))?;
 
         crate::write_vtk::close_inline_array_header(writer)?;
-        
+
         Ok(())
     }
 
@@ -417,7 +484,7 @@ impl Array for &VectorPoints {
             for j in 0..ny {
                 for i in 0..nx {
                     for n in 0..self.components {
-                        let float = self.arr.get((i,j,k, n)).unwrap();
+                        let float = self.arr.get((i, j, k, n)).unwrap();
                         bytes.extend(float.to_le_bytes());
                     }
                 }
@@ -425,7 +492,12 @@ impl Array for &VectorPoints {
         }
 
         // handle the edge case of the last element in the array being zero
-        if *self.arr.get((nx-1, ny-1, nz-1, self.components-1)).unwrap() == 0.0 {
+        if *self
+            .arr
+            .get((nx - 1, ny - 1, nz - 1, self.components - 1))
+            .unwrap()
+            == 0.0
+        {
             let mut index = bytes.len() - 9;
             for i in 0.000001_f64.to_le_bytes() {
                 bytes[index] = i;
@@ -447,23 +519,28 @@ impl Array for &VectorPoints {
     }
 }
 
-
 pub trait FromBuffer {
     fn from_buffer(buffer: Vec<f64>, nx: usize, ny: usize, nz: usize, components: usize) -> Self;
 }
 
 impl FromBuffer for Vec<f64> {
-    fn from_buffer(buffer: Vec<f64>, _nx: usize, _ny: usize, _nz: usize, _components: usize) -> Self {
+    fn from_buffer(
+        buffer: Vec<f64>,
+        _nx: usize,
+        _ny: usize,
+        _nz: usize,
+        _components: usize,
+    ) -> Self {
         buffer
     }
 }
 
 impl FromBuffer for VectorPoints {
     fn from_buffer(buffer: Vec<f64>, nx: usize, ny: usize, nz: usize, components: usize) -> Self {
-        let mut arr = ndarray::Array4::from_shape_vec((nx,ny,nz,components), buffer).unwrap();
+        let mut arr = ndarray::Array4::from_shape_vec((nx, ny, nz, components), buffer).unwrap();
         // this axes swap accounts for how the data is read. It shoud now match _exactly_
         // how the information is input
-        arr.swap_axes(0,2);
+        arr.swap_axes(0, 2);
         VectorPoints::new(arr)
     }
 }

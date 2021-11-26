@@ -307,6 +307,5 @@ mod tests {
         let out_data = out_vtk.data;
 
         assert_eq!(data.array.arr, out_data.array.arr);
-
     }
 }

@@ -147,12 +147,18 @@ pub fn parse_dataarray_or_lazy<'a>(
         DataArrayHeader::InlineAscii { components } => {
             let (after_dataarray, parsed_data) = parse_ascii_inner_dataarray(rest, size_hint)?;
             rest = after_dataarray;
-            PartialDataArray::Parsed { buffer: parsed_data, components} 
+            PartialDataArray::Parsed {
+                buffer: parsed_data,
+                components,
+            }
         }
         DataArrayHeader::InlineBase64 { components } => {
             let (after_dataarray, parsed_data) = parse_base64_inner_dataarray(rest, size_hint)?;
             rest = after_dataarray;
-            PartialDataArray::Parsed {buffer: parsed_data, components }
+            PartialDataArray::Parsed {
+                buffer: parsed_data,
+                components,
+            }
         }
     };
 
@@ -279,7 +285,7 @@ pub enum DataArrayHeader {
 /// Describes if the data for this array has already been parsed (regardless of format), or its offset
 /// in the `AppendedData` section
 pub enum PartialDataArray {
-    Parsed {buffer: Vec<f64>, components: usize },
+    Parsed { buffer: Vec<f64>, components: usize },
     AppendedBinary { offset: i64, components: usize },
 }
 
@@ -287,7 +293,7 @@ impl PartialDataArray {
     /// unwrap the data as `PartailDataArray::Parsed` or panic
     pub fn unwrap_parsed(self) -> Vec<f64> {
         match self {
-            Self::Parsed { buffer, ..} => buffer,
+            Self::Parsed { buffer, .. } => buffer,
             _ => panic!("called unwrap_parsed on a PartialDataArray::AppendedBinary"),
         }
     }
@@ -304,7 +310,7 @@ impl PartialDataArray {
     pub fn components(&self) -> usize {
         match self {
             Self::AppendedBinary { components, .. } => *components,
-            Self::Parsed{ components, .. } => *components,
+            Self::Parsed { components, .. } => *components,
         }
     }
 }
@@ -322,7 +328,9 @@ impl<'a> PartialDataArrayBuffered {
     /// Construct a buffer associated with appended binary
     pub fn new(partial: PartialDataArray, size_hint: usize) -> Self {
         match partial {
-            PartialDataArray::Parsed{ buffer, components } => PartialDataArrayBuffered::Parsed{ buffer, components },
+            PartialDataArray::Parsed { buffer, components } => {
+                PartialDataArrayBuffered::Parsed { buffer, components }
+            }
             PartialDataArray::AppendedBinary { offset, components } => {
                 PartialDataArrayBuffered::AppendedBinary(OffsetBuffer {
                     offset,
@@ -337,7 +345,7 @@ impl<'a> PartialDataArrayBuffered {
     /// of the variants
     pub fn into_buffer(self) -> Vec<f64> {
         match self {
-            Self::Parsed{ buffer, .. } => buffer,
+            Self::Parsed { buffer, .. } => buffer,
             Self::AppendedBinary(offset_buffer) => offset_buffer.buffer,
         }
     }
@@ -345,7 +353,7 @@ impl<'a> PartialDataArrayBuffered {
     /// get the number of components associated with the header of the array
     pub fn components(&self) -> usize {
         match self {
-            Self::Parsed{ components, .. } => *components,
+            Self::Parsed { components, .. } => *components,
             Self::AppendedBinary(offset_buffer) => offset_buffer.components,
         }
     }
@@ -357,7 +365,7 @@ impl<'a> PartialDataArrayBuffered {
 pub struct OffsetBuffer {
     pub offset: i64,
     pub buffer: Vec<f64>,
-    pub components: usize
+    pub components: usize,
 }
 
 impl Eq for OffsetBuffer {}
@@ -624,7 +632,13 @@ mod tests {
 
         let (rest, array_type) = out.unwrap();
 
-        assert_eq!(array_type, DataArrayHeader::AppendedBinary { offset: 99, components: 3 });
+        assert_eq!(
+            array_type,
+            DataArrayHeader::AppendedBinary {
+                offset: 99,
+                components: 3
+            }
+        );
         assert_eq!(rest, b"");
     }
 
