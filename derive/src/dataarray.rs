@@ -59,6 +59,7 @@ struct MyFieldReceiver {
 }
 
 fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::TokenStream> {
+
     let inline_arrays = quote!(Ok(()));
     let is_appended = quote!(true);
     let mut headers_body = quote!();
@@ -73,7 +74,9 @@ fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::
         headers_body = quote! {
             #headers_body
 
-            let comps = vtk::Array::components(&self.#field_name);
+            let ref_field = &self.#field_name;
+            let comps = vtk::Array::components(ref_field);
+
             vtk::write_appended_dataarray_header(writer, #lit, offset, comps)?;
             offset += (std::mem::size_of::<f64>() * self.#field_name.len()) as i64;
         }

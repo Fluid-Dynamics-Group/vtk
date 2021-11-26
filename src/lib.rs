@@ -9,10 +9,11 @@ mod write_vtk;
 pub mod parse;
 
 
-pub(crate) use traits::{DataArray, ParseDataArray, Array};
+pub(crate) use traits::{DataArray, ParseDataArray};
 
+pub use traits::Array;
 pub use combine_vtk::combine_vtk;
-pub use data::{LocationSpans, Locations, VtkData};
+pub use data::{LocationSpans, Locations, VtkData, VectorPoints};
 pub use write_vtk::write_vtk;
 pub use write_vtk::{
     write_appended_dataarray_header, write_inline_dataarray, Encoding,

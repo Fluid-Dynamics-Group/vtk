@@ -76,12 +76,15 @@ pub(crate) fn inner_type_float(inner_field: &syn::Type) -> Result<()> {
 
 /// Check that an inner type T is Vec<f32> or Vec<f64>
 pub(crate) fn inner_type_vec_float(inner_field: &syn::Path, span: Span) -> Result<()> {
+    return Ok(());
+
     if inner_field.segments.len() != 1 {
         return Err(Error::new(
             span,
             "more than one path segment. Expected Vec<f64> or &[f64]",
         ));
     }
+
 
     let mut fields_iter = inner_field.segments.iter();
 

@@ -198,6 +198,9 @@ impl LocationSpans {
 mod tests {
     use super::*;
     use crate::helpers::SpanData;
+    use crate::VectorPoints;
+
+    use crate as vtk;
 
     #[test]
     fn data_add() {
@@ -224,5 +227,52 @@ mod tests {
         };
 
         assert_eq!(data / 3., expected)
+    }
+
+    #[derive(crate::DataArray)]
+    struct SimpleArray {
+        array: crate::VectorPoints
+    }
+
+    #[test]
+    fn write_simple_array() {
+        let x_locations = vec![0.0, 1.0, 2.0];
+        let y_locations = vec![0.0, 1.0, 2.0];
+        let z_locations = vec![0.0, 1.0, 2.0];
+        let locations = Locations { x_locations, y_locations, z_locations };
+
+        let spans = LocationSpans {
+            x_start: 0,
+            x_end: 3,
+            y_start: 0,
+            y_end: 3,
+            z_start: 0,
+            z_end: 3,
+        };
+
+        let data = vec![
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            //
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            //
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+        ];
+
+        dbg!(data.len(), 3*3*3*3);
+
+        let arr = ndarray::Array4::<f64>::from_shape_vec((3,3,3,3), data).unwrap();
+
+        dbg!(&arr);
+
+        let data = SimpleArray { array: VectorPoints::new(arr) };
+
+        let vtk = crate::VtkData { data, spans, locations };
+        
     }
 }

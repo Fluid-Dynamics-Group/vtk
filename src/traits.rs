@@ -237,6 +237,22 @@ impl Array for Vec<f64> {
     }
 }
 
+impl Array for VectorPoints {
+    fn write_ascii<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(),  crate::Error >{
+        (&self).write_ascii(writer, name)
+    }
+    fn write_base64<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(), crate::Error> {
+        (&self).write_base64(writer, name)
+    }
+    fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error> {
+        (&self).write_binary(writer)
+    }
+
+    fn length(&self) -> usize {
+        (&self).length()
+    }
+}
+
 impl Array for &Vec<f64> {
     fn write_ascii<W: Write>(&self, writer: &mut EventWriter<W>, name: &str) -> Result<(),  crate::Error >{
         self.as_slice().write_ascii(writer, name)
