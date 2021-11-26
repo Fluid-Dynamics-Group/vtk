@@ -1,26 +1,23 @@
 use super::iter::VtkIterator;
 use std::ops::{Add, Div, Sub, SubAssign};
 
-/// Stores vector information at each point in space instead 
+/// Stores vector information at each point in space instead
 /// of a single scalar value #[derive(Clone, Debug)]
 #[derive(Debug, Clone)]
 pub struct VectorPoints {
     pub(crate) components: usize,
-    pub(crate) arr: ndarray::Array4<f64>
+    pub(crate) arr: ndarray::Array4<f64>,
 }
 
-impl  VectorPoints {
-    /// The passed in array should be in real space, not 
+impl VectorPoints {
+    /// The passed in array should be in real space, not
     /// in the vtk-space
     ///
     /// Vtk-space writing will be taken care of
-    pub fn new(arr:ndarray::Array4<f64>) -> Self {
+    pub fn new(arr: ndarray::Array4<f64>) -> Self {
         let components = arr.raw_dim()[3];
 
-        Self {
-            components,
-            arr
-        }
+        Self { components, arr }
     }
 
     pub fn dims(&self) -> (usize, usize, usize) {
@@ -36,7 +33,7 @@ impl  VectorPoints {
 impl std::ops::Deref for VectorPoints {
     type Target = ndarray::Array4<f64>;
 
-    fn deref(&self) ->  &Self::Target {
+    fn deref(&self) -> &Self::Target {
         &self.arr
     }
 }
@@ -231,17 +228,20 @@ mod tests {
         assert_eq!(data / 3., expected)
     }
 
-    #[derive(crate::DataArray, crate::ParseDataArray, Debug)]
+    #[derive(crate::DataArray, crate::ParseDataArray, Debug, Clone)]
     struct SimpleArray {
-        array: crate::VectorPoints
+        array: crate::VectorPoints,
     }
 
-    #[test]
-    fn write_simple_array() {
+    fn setup_vtk() -> VtkData<SimpleArray> {
         let x_locations = vec![0.0, 1.0, 2.0];
         let y_locations = vec![0.0, 1.0, 2.0];
         let z_locations = vec![0.0, 1.0, 2.0];
-        let locations = Locations { x_locations, y_locations, z_locations };
+        let locations = Locations {
+            x_locations,
+            y_locations,
+            z_locations,
+        };
 
         let spans = LocationSpans {
             x_start: 1,
@@ -253,37 +253,60 @@ mod tests {
         };
 
         let data = vec![
-            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
             //
-            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
             //
-            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
-            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
+            //
+            //
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
+            0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
         ];
 
-        assert_eq!(3*3*3*3, data.len());
+        assert_eq!(3 * 3 * 3 * 3, data.len());
 
-        let arr = ndarray::Array4::<f64>::from_shape_vec((3,3,3,3), data).unwrap();
+        let arr = ndarray::Array4::<f64>::from_shape_vec((3, 3, 3, 3), data).unwrap();
         let arr = arr.reversed_axes();
 
-        dbg!(
-            arr[[0,0,0,0]],
-            arr[[0,0,0,1]],
-            arr[[0,0,0,2]],
-        );
+        dbg!(arr[[0, 0, 0, 0]], arr[[0, 0, 0, 1]], arr[[0, 0, 0, 2]],);
 
-        let data = SimpleArray { array: VectorPoints::new(arr) };
+        let data = SimpleArray {
+            array: VectorPoints::new(arr),
+        };
 
         dbg!(&data);
 
-        let vtk = crate::VtkData { data, spans, locations };
+        crate::VtkData {
+            data,
+            spans,
+            locations,
+        }
+    }
+
+    #[test]
+    fn write_simple_array() {
+        let vtk = setup_vtk();
 
         let file = std::fs::File::create("./test_vtks/simple_vector_array.vtk").unwrap();
         vtk::write_vtk(file, vtk, true).unwrap();
+    }
+
+    #[test]
+    fn read_simple_vtk_after_write() {
+        let mut file = Vec::new();
+        let vtk = setup_vtk();
+        let data = vtk.data.clone();
+        vtk::write_vtk(&mut file, vtk, true).unwrap();
+
+        let out_vtk = crate::parse::parse_xml_document::<SimpleArray>(&file).unwrap();
+        let out_data = out_vtk.data;
+
+        assert_eq!(data.array.arr, out_data.array.arr);
+
     }
 }

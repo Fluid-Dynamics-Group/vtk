@@ -129,7 +129,8 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
     for field in &fields {
         body = quote!(
             #body
-            let #field = #field.into_buffer();
+            let comp  = #field.components();
+            let #field = vtk::FromBuffer::from_buffer(#field.into_buffer(), locations.x_locations.len(), locations.y_locations.len(), locations.z_locations.len(), comp);
         );
     }
 

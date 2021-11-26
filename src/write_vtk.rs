@@ -1,6 +1,6 @@
 use super::data::VtkData;
-use super::DataArray;
 use super::Array;
+use super::DataArray;
 use crate::Error;
 
 use std::borrow::Cow;
@@ -11,13 +11,13 @@ use xml::name::Name;
 use xml::namespace::Namespace;
 use xml::writer::{EventWriter, XmlEvent};
 
-const STARTING_OFFSET : i64 = 0;
+const STARTING_OFFSET: i64 = 0;
 
 /// Write a given vtk file to a `Writer`
 pub fn write_vtk<W: Write, D: DataArray>(
     writer: W,
     data: VtkData<D>,
-    append_coordinates:bool 
+    append_coordinates: bool,
 ) -> Result<(), Error> {
     let mut writer = EventWriter::new(writer);
 
@@ -161,15 +161,20 @@ pub enum Encoding {
 }
 
 impl Encoding {
-    fn to_str(&self) -> &'static str{
+    fn to_str(&self) -> &'static str {
         match &self {
             Self::Ascii => "ascii",
-            Self::Base64=> "binary",
+            Self::Base64 => "binary",
         }
     }
 }
 
-pub fn write_inline_array_header<W: Write>(writer: &mut EventWriter<W>, format: Encoding, name: &str, components: usize) -> Result<(), Error> {
+pub fn write_inline_array_header<W: Write>(
+    writer: &mut EventWriter<W>,
+    format: Encoding,
+    name: &str,
+    components: usize,
+) -> Result<(), Error> {
     writer.write(XmlEvent::StartElement {
         name: Name::from("DataArray"),
         attributes: vec![
@@ -189,7 +194,7 @@ pub fn close_inline_array_header<W: Write>(writer: &mut EventWriter<W>) -> Resul
     writer.write(XmlEvent::EndElement {
         name: Some(Name::from("DataArray")),
     })?;
-    
+
     Ok(())
 }
 
@@ -223,7 +228,7 @@ pub fn write_appended_dataarray_header<W: Write>(
     writer: &mut EventWriter<W>,
     name: &str,
     offset: i64,
-    components: usize
+    components: usize,
 ) -> Result<(), Error> {
     writer.write(XmlEvent::StartElement {
         name: Name::from("DataArray"),
@@ -301,4 +306,3 @@ fn appended_coordinate_dataarrays<W: Write>(
 
     Ok(())
 }
-

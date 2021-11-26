@@ -447,6 +447,27 @@ impl Array for &VectorPoints {
     }
 }
 
+
+pub trait FromBuffer {
+    fn from_buffer(buffer: Vec<f64>, nx: usize, ny: usize, nz: usize, components: usize) -> Self;
+}
+
+impl FromBuffer for Vec<f64> {
+    fn from_buffer(buffer: Vec<f64>, _nx: usize, _ny: usize, _nz: usize, _components: usize) -> Self {
+        buffer
+    }
+}
+
+impl FromBuffer for VectorPoints {
+    fn from_buffer(buffer: Vec<f64>, nx: usize, ny: usize, nz: usize, components: usize) -> Self {
+        let mut arr = ndarray::Array4::from_shape_vec((nx,ny,nz,components), buffer).unwrap();
+        // this axes swap accounts for how the data is read. It shoud now match _exactly_
+        // how the information is input
+        arr.swap_axes(0,2);
+        VectorPoints::new(arr)
+    }
+}
+
 #[cfg(feature = "derive")]
 #[derive(vtk_derive::DataArray)]
 struct Info<'a> {
