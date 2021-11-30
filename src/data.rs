@@ -3,7 +3,7 @@ use std::ops::{Add, Div, Sub, SubAssign};
 
 /// Stores vector information at each point in space instead
 /// of a single scalar value #[derive(Clone, Debug)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct VectorPoints {
     pub(crate) components: usize,
     pub(crate) arr: ndarray::Array4<f64>,
@@ -35,6 +35,12 @@ impl std::ops::Deref for VectorPoints {
 
     fn deref(&self) -> &Self::Target {
         &self.arr
+    }
+}
+
+impl std::ops::DerefMut for VectorPoints {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.arr
     }
 }
 
@@ -294,6 +300,7 @@ mod tests {
 
         let file = std::fs::File::create("./test_vtks/simple_vector_array.vtk").unwrap();
         vtk::write_vtk(file, vtk, true).unwrap();
+        panic!()
     }
 
     #[test]
