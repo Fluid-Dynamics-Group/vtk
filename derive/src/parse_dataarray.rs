@@ -5,12 +5,11 @@ use quote::quote;
 use proc_macro2::TokenStream as TokenStream2;
 
 use syn::spanned::Spanned;
-use syn::Error;
 use syn::Result;
 
 pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
     let span = input.span();
-    let fields = utils::parse_fields(input.data, span, is_valid_field)?;
+    let fields = utils::parse_fields(input.data, span)?;
     let generics = input.generics;
     let struct_type = input.ident;
 
@@ -130,7 +129,8 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
     for field in &fields {
         body = quote!(
             #body
-            let #field = #field.into_buffer();
+            let comp  = #field.components();
+            let #field = vtk::FromBuffer::from_buffer(#field.into_buffer(), locations.x_locations.len(), locations.y_locations.len(), locations.z_locations.len(), comp);
         );
     }
 
@@ -154,29 +154,4 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
 
     // Hand the output tokens back to the compiler
     Ok(TokenStream::from(expanded))
-}
-
-fn is_valid_field(field_type: &syn::Type) -> Result<()> {
-    match field_type {
-        syn::Type::Path(path) => {
-            // check that the overall path is Vec<Float>
-            utils::inner_type_vec_float(&path.path, field_type.span())
-        }
-        //syn::Type::Slice(slice) => {
-        //    // check that the T in &[T] is a float
-        //    utils::inner_type_float(&slice.elem)
-        //}
-        //syn::Type::Reference(reference) => {
-        //    // this is a reference to either a vector or a slice in order to be valid
-        //    // so we just recurse backwards
-        //    is_valid_field(&reference.elem)
-        //}
-        _ => {
-            // unhandled type to export to dataarray
-            Err(Error::new(
-                field_type.span(),
-                "unhandled datatype. Only accepts Vec<f64> and &[f64]",
-            ))
-        }
-    }
 }

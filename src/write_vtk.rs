@@ -1,4 +1,5 @@
 use super::data::VtkData;
+use super::Array;
 use super::DataArray;
 use crate::Error;
 
@@ -10,13 +11,13 @@ use xml::name::Name;
 use xml::namespace::Namespace;
 use xml::writer::{EventWriter, XmlEvent};
 
-const STARTING_OFFSET : i64 = 0;
+const STARTING_OFFSET: i64 = 0;
 
 /// Write a given vtk file to a `Writer`
 pub fn write_vtk<W: Write, D: DataArray>(
     writer: W,
     data: VtkData<D>,
-    append_coordinates:bool 
+    append_coordinates: bool,
 ) -> Result<(), Error> {
     let mut writer = EventWriter::new(writer);
 
@@ -114,7 +115,9 @@ pub fn write_vtk<W: Write, D: DataArray>(
         //          offset)
         //      appended point loacation information + binary appended data (was failure)
         //      appended point location information + ascii data (was failure)
-        write_appended_dataarray(&mut writer, &[100f64])?;
+        //write_appended_dataarray(&mut writer, )?;
+
+        [100f64].as_ref().write_binary(&mut writer)?;
 
         // write the appended point data here if required
         if append_coordinates {
@@ -157,71 +160,60 @@ pub enum Encoding {
     Base64,
 }
 
-/// write a single (inline) array of data (such as x-velocity)
-/// to the vtk file.
-pub fn write_inline_dataarray<W: Write>(
+impl Encoding {
+    fn to_str(&self) -> &'static str {
+        match &self {
+            Self::Ascii => "ascii",
+            Self::Base64 => "binary",
+        }
+    }
+}
+
+pub fn write_inline_array_header<W: Write>(
     writer: &mut EventWriter<W>,
-    data: &[f64],
+    format: Encoding,
     name: &str,
-    encoding: Encoding,
+    components: usize,
 ) -> Result<(), Error> {
-    let data = match encoding {
-        Encoding::Ascii => {
-            writer.write(XmlEvent::StartElement {
-                name: Name::from("DataArray"),
-                attributes: vec![
-                    make_att("type", "Float64"),
-                    make_att("NumberOfComponents", "1"),
-                    make_att("Name", name),
-                    make_att("format", "ascii"),
-                ]
-                .into(),
-                namespace: Cow::Owned(Namespace::empty()),
-            })?;
+    writer.write(XmlEvent::StartElement {
+        name: Name::from("DataArray"),
+        attributes: vec![
+            make_att("type", "Float64"),
+            make_att("NumberOfComponents", &components.to_string()),
+            make_att("Name", name),
+            make_att("format", format.to_str()),
+        ]
+        .into(),
+        namespace: Cow::Owned(Namespace::empty()),
+    })?;
 
-            // write out all numbers with 12 points of precision
-            data.into_iter()
-                .map(|x| {
-                    let mut buffer = ryu::Buffer::new();
-                    let mut num = buffer.format(*x).to_string();
-                    num.push(' ');
-                    num
-                })
-                .collect()
-        }
-        Encoding::Base64 => {
-            writer.write(XmlEvent::StartElement {
-                name: Name::from("DataArray"),
-                attributes: vec![
-                    make_att("type", "Float64"),
-                    make_att("NumberOfComponents", "1"),
-                    make_att("Name", name),
-                    make_att("format", "binary"),
-                ]
-                .into(),
-                namespace: Cow::Owned(Namespace::empty()),
-            })?;
+    Ok(())
+}
 
-            let mut byte_data : Vec<u8> = Vec::with_capacity((data.len() + 1) * 8 );
-
-            // for some reason paraview expects the first 8 bytes to be garbage information -
-            // I have no idea why this is the case but the first 8 bytes must be ignored
-            // for things to work correctly
-            byte_data.extend_from_slice("12345678".as_bytes());
-
-            // convert the floats into LE bytes
-            data.into_iter()
-                .for_each(|float| byte_data.extend_from_slice(&float.to_le_bytes()));
-
-            base64::encode(byte_data.as_slice())
-        }
-    };
-
-    writer.write(XmlEvent::Characters(&data))?;
-
+pub fn close_inline_array_header<W: Write>(writer: &mut EventWriter<W>) -> Result<(), Error> {
     writer.write(XmlEvent::EndElement {
         name: Some(Name::from("DataArray")),
     })?;
+
+    Ok(())
+}
+
+/// write a single (inline) array of data (such as x-velocity)
+/// to the vtk file.
+pub fn write_inline_dataarray<W: Write, A: Array>(
+    writer: &mut EventWriter<W>,
+    data: A,
+    name: &str,
+    encoding: Encoding,
+) -> Result<(), Error> {
+    match encoding {
+        Encoding::Ascii => {
+            data.write_ascii(writer, name)?;
+        }
+        Encoding::Base64 => {
+            data.write_base64(writer, name)?;
+        }
+    };
 
     Ok(())
 }
@@ -236,12 +228,13 @@ pub fn write_appended_dataarray_header<W: Write>(
     writer: &mut EventWriter<W>,
     name: &str,
     offset: i64,
+    components: usize,
 ) -> Result<(), Error> {
     writer.write(XmlEvent::StartElement {
         name: Name::from("DataArray"),
         attributes: vec![
             make_att("type", "Float64"),
-            make_att("NumberOfComponents", "1"),
+            make_att("NumberOfComponents", &components.to_string()),
             make_att("Name", name),
             make_att("format", "appended"),
             make_att("offset", &offset.to_string()),
@@ -253,38 +246,6 @@ pub fn write_appended_dataarray_header<W: Write>(
     writer.write(XmlEvent::EndElement {
         name: Some(Name::from("DataArray")),
     })?;
-
-    Ok(())
-}
-
-/// write the file data to the file to the appended section in binary form
-///
-/// You must ensure that you have called `write_appended_dataarray_header` with
-/// the correct offset before calling this function.
-pub fn write_appended_dataarray<W: Write>(
-    writer: &mut EventWriter<W>,
-    data: &[f64],
-) -> Result<(), Error> {
-    let writer = writer.inner_mut();
-    let mut bytes = Vec::with_capacity(data.len() * 8);
-
-
-    // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
-    // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
-    if data[data.len()-1] == 0.0 {
-        // skip the last data point (since we know its 0.0 and 
-        // instead write a very small number in its place
-        data[0..data.len()-1].into_iter()
-            .for_each(|float| bytes.extend(float.to_le_bytes()));
-
-        bytes.extend(0.000001_f64.to_le_bytes());
-    }
-    else {
-        data.into_iter()
-            .for_each(|float| bytes.extend(float.to_le_bytes()));
-    }
-
-    writer.write_all(&bytes)?;
 
     Ok(())
 }
@@ -319,13 +280,13 @@ fn coordinate_headers_appended<W: Write>(
 ) -> Result<i64, Error> {
     let mut offset = STARTING_OFFSET;
 
-    write_appended_dataarray_header(writer, "X", offset)?;
+    write_appended_dataarray_header(writer, "X", offset, 1)?;
     offset += (std::mem::size_of::<f64>() * (locations.x_locations.len() + 0)) as i64;
 
-    write_appended_dataarray_header(writer, "Y", offset)?;
+    write_appended_dataarray_header(writer, "Y", offset, 1)?;
     offset += (std::mem::size_of::<f64>() * (locations.y_locations.len() + 0)) as i64;
 
-    write_appended_dataarray_header(writer, "Z", offset)?;
+    write_appended_dataarray_header(writer, "Z", offset, 1)?;
     offset += (std::mem::size_of::<f64>() * (locations.z_locations.len() + 0)) as i64;
 
     Ok(offset)
@@ -339,11 +300,9 @@ fn appended_coordinate_dataarrays<W: Write>(
     writer: &mut EventWriter<W>,
     locations: &super::Locations,
 ) -> Result<(), Error> {
-
-    write_appended_dataarray(writer, &locations.x_locations)?;
-    write_appended_dataarray(writer, &locations.y_locations)?;
-    write_appended_dataarray(writer, &locations.z_locations)?;
+    locations.x_locations.write_binary(writer)?;
+    locations.y_locations.write_binary(writer)?;
+    locations.z_locations.write_binary(writer)?;
 
     Ok(())
 }
-

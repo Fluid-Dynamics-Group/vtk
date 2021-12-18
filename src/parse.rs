@@ -4,6 +4,7 @@
 //! instead derive `ParseDataArray`
 use super::data::{LocationSpans, VtkData};
 use super::ParseDataArray;
+
 use crate::utils;
 use crate::Error;
 
@@ -140,16 +141,24 @@ pub fn parse_dataarray_or_lazy<'a>(
 ) -> IResult<&'a [u8], PartialDataArray> {
     let (mut rest, header) = read_dataarray_header(xml_bytes, expected_data)?;
     let lazy_array = match header {
-        DataArrayHeader::AppendedBinary { offset } => PartialDataArray::AppendedBinary { offset },
-        DataArrayHeader::InlineAscii => {
+        DataArrayHeader::AppendedBinary { offset, components } => {
+            PartialDataArray::AppendedBinary { offset, components }
+        }
+        DataArrayHeader::InlineAscii { components } => {
             let (after_dataarray, parsed_data) = parse_ascii_inner_dataarray(rest, size_hint)?;
             rest = after_dataarray;
-            PartialDataArray::Parsed(parsed_data)
+            PartialDataArray::Parsed {
+                buffer: parsed_data,
+                components,
+            }
         }
-        DataArrayHeader::InlineBase64 => {
+        DataArrayHeader::InlineBase64 { components } => {
             let (after_dataarray, parsed_data) = parse_base64_inner_dataarray(rest, size_hint)?;
             rest = after_dataarray;
-            PartialDataArray::Parsed(parsed_data)
+            PartialDataArray::Parsed {
+                buffer: parsed_data,
+                components,
+            }
         }
     };
 
@@ -192,7 +201,16 @@ pub fn read_dataarray_header<'a>(
     xml_bytes: &'a [u8],
     expected_data: &[u8],
 ) -> IResult<&'a [u8], DataArrayHeader> {
-    let (name_start, _) = take_until_consume(xml_bytes, b"Name=")?;
+    // grab the number of components as well
+    let (components_start, _) = take_until_consume(xml_bytes, b"NumberOfComponents=")?;
+    let (after_components, num_components_str) = read_inside_quotes(components_start)?;
+
+    let components = String::from_utf8(num_components_str.to_vec())
+        .unwrap()
+        .parse()
+        .unwrap();
+
+    let (name_start, _) = take_until_consume(after_components, b"Name=")?;
     let (after_quotes, name) = read_inside_quotes(name_start)?;
 
     assert_eq!(name, expected_data);
@@ -213,15 +231,15 @@ pub fn read_dataarray_header<'a>(
                 "data array offset `{}` coult not be parsed as integer",
                 offset_str
             ));
-            DataArrayHeader::AppendedBinary { offset }
+            DataArrayHeader::AppendedBinary { offset, components }
         }
         b"binary" => {
             // we have base64 encoded data here
-            DataArrayHeader::InlineBase64
+            DataArrayHeader::InlineBase64 { components }
         }
         b"ascii" => {
             // plain ascii data here
-            DataArrayHeader::InlineAscii
+            DataArrayHeader::InlineAscii { components }
         }
         _ => {
             // TODO: find a better way to make errors here
@@ -255,27 +273,27 @@ fn read_inside_quotes<'a>(i: &'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// Describes what kind of information is in a header
 pub enum DataArrayHeader {
     /// Ascii information is contained directly within the `DataArray` elements
-    InlineAscii,
+    InlineAscii { components: usize },
     /// Base64 information is contained directly within the `DataArray` elements
-    InlineBase64,
-    /// Information is not stored inline, it is stored at a specified `offset` 
+    InlineBase64 { components: usize },
+    /// Information is not stored inline, it is stored at a specified `offset`
     /// in the `AppendedData` section
-    AppendedBinary { offset: i64 },
+    AppendedBinary { offset: i64, components: usize },
 }
 
 #[derive(Debug)]
 /// Describes if the data for this array has already been parsed (regardless of format), or its offset
 /// in the `AppendedData` section
 pub enum PartialDataArray {
-    Parsed(Vec<f64>),
-    AppendedBinary { offset: i64 },
+    Parsed { buffer: Vec<f64>, components: usize },
+    AppendedBinary { offset: i64, components: usize },
 }
 
 impl PartialDataArray {
     /// unwrap the data as `PartailDataArray::Parsed` or panic
     pub fn unwrap_parsed(self) -> Vec<f64> {
         match self {
-            Self::Parsed(x) => x,
+            Self::Parsed { buffer, .. } => buffer,
             _ => panic!("called unwrap_parsed on a PartialDataArray::AppendedBinary"),
         }
     }
@@ -283,41 +301,60 @@ impl PartialDataArray {
     /// unwrap the data as `PartailDataArray::AppendedBinary` or panic
     pub fn unwrap_appended(self) -> i64 {
         match self {
-            Self::AppendedBinary { offset } => offset,
+            Self::AppendedBinary { offset, .. } => offset,
             _ => panic!("called unwrap_parsed on a PartialDataArray::AppendedBinary"),
+        }
+    }
+
+    /// unwrap the data as `PartailDataArray::AppendedBinary` or panic
+    pub fn components(&self) -> usize {
+        match self {
+            Self::AppendedBinary { components, .. } => *components,
+            Self::Parsed { components, .. } => *components,
         }
     }
 }
 
-/// Similar to `PartialDataArray`, but instead contains an allocation for 
-/// data to be placed for the `AppendedBinary` section. 
+/// Similar to `PartialDataArray`, but instead contains an allocation for
+/// data to be placed for the `AppendedBinary` section.
 ///
 /// Useful for implementing `traits::ParseDataArray`
 pub enum PartialDataArrayBuffered {
-    Parsed(Vec<f64>),
+    Parsed { buffer: Vec<f64>, components: usize },
     AppendedBinary(OffsetBuffer),
 }
 
 impl<'a> PartialDataArrayBuffered {
-    /// Construct a buffer associated with appended binary 
+    /// Construct a buffer associated with appended binary
     pub fn new(partial: PartialDataArray, size_hint: usize) -> Self {
         match partial {
-            PartialDataArray::Parsed(x) => PartialDataArrayBuffered::Parsed(x),
-            PartialDataArray::AppendedBinary { offset } => {
+            PartialDataArray::Parsed { buffer, components } => {
+                PartialDataArrayBuffered::Parsed { buffer, components }
+            }
+            PartialDataArray::AppendedBinary { offset, components } => {
                 PartialDataArrayBuffered::AppendedBinary(OffsetBuffer {
                     offset,
                     buffer: Vec::with_capacity(size_hint),
+                    components,
                 })
             }
         }
     }
 
-    /// Pull the data buffer from from each 
+    /// Pull the data buffer from from each
     /// of the variants
     pub fn into_buffer(self) -> Vec<f64> {
         match self {
-            Self::Parsed(x) => x,
+            Self::Parsed { buffer, .. } => buffer,
             Self::AppendedBinary(offset_buffer) => offset_buffer.buffer,
+        }
+    }
+
+    /// get the number of components associated with the header of the array
+    pub fn components(&self) -> usize {
+        match self {
+            Self::Parsed { components, .. } => *components,
+            Self::AppendedBinary(offset_buffer) => offset_buffer.components,
         }
     }
 }
@@ -328,6 +365,7 @@ impl<'a> PartialDataArrayBuffered {
 pub struct OffsetBuffer {
     pub offset: i64,
     pub buffer: Vec<f64>,
+    pub components: usize,
 }
 
 impl Eq for OffsetBuffer {}
@@ -346,7 +384,6 @@ fn parse_ascii_inner_dataarray<'a>(
     xml_bytes: &'a [u8],
     size_hint: usize,
 ) -> IResult<&'a [u8], Vec<f64>> {
-
     let (location_data_and_rest, _whitespace) =
         take_till(|c: u8| c.is_ascii_digit() || c == b'.' || c == b'-')(xml_bytes)?;
     let (rest_of_document, location_data) = take_till(|c| c == b'<')(location_data_and_rest)?;
@@ -383,8 +420,7 @@ fn parse_base64_inner_dataarray<'a>(
     let numerical_bytes =
         base64::decode(&base64_encoded_bytes).expect("could not decode base64 data array bytes");
 
-
-    // normally we start with idx = 0, but since paraview expects the first 8 bytes 
+    // normally we start with idx = 0, but since paraview expects the first 8 bytes
     // to be garbage information we need to skip the first 8 bytes before actually
     // reading the data
     let mut idx = 8;
@@ -470,6 +506,7 @@ pub fn parse_appended_binary<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Array;
 
     #[test]
     fn shred_to_extent() {
@@ -570,7 +607,7 @@ mod tests {
 
         let (rest, array_type) = out.unwrap();
 
-        assert_eq!(array_type, DataArrayHeader::InlineAscii);
+        assert_eq!(array_type, DataArrayHeader::InlineAscii { components: 1 });
         assert_eq!(rest, b"");
     }
 
@@ -583,19 +620,25 @@ mod tests {
 
         let (rest, array_type) = out.unwrap();
 
-        assert_eq!(array_type, DataArrayHeader::InlineBase64);
+        assert_eq!(array_type, DataArrayHeader::InlineBase64 { components: 1 });
         assert_eq!(rest, b"");
     }
 
     #[test]
     fn appended_array_header() {
-        let header = r#"<DataArray type="Float64" NumberOfComponents="1" Name="X" format="appended" offset="99">"#;
+        let header = r#"<DataArray type="Float64" NumberOfComponents="3" Name="X" format="appended" offset="99">"#;
         let out = read_dataarray_header(header.as_bytes(), b"X");
         dbg!(&out);
 
         let (rest, array_type) = out.unwrap();
 
-        assert_eq!(array_type, DataArrayHeader::AppendedBinary { offset: 99 });
+        assert_eq!(
+            array_type,
+            DataArrayHeader::AppendedBinary {
+                offset: 99,
+                components: 3
+            }
+        );
         assert_eq!(rest, b"");
     }
 
@@ -604,8 +647,13 @@ mod tests {
         let values = [1.0, 2.0, 3.0, 4.0];
         let mut output = Vec::new();
         let mut event_writer = crate::EventWriter::new(&mut output);
-        crate::write_inline_dataarray(&mut event_writer, &values, "X", crate::Encoding::Base64)
-            .unwrap();
+        crate::write_inline_dataarray(
+            &mut event_writer,
+            values.as_ref(),
+            "X",
+            crate::Encoding::Base64,
+        )
+        .unwrap();
 
         let string = String::from_utf8(output).unwrap();
         let parsed_result = parse_dataarray_or_lazy(&string.as_bytes(), b"X", 4);
@@ -628,18 +676,18 @@ mod tests {
         let offset_1 = -8;
         let offset_2 = -8 + (4 * 8);
 
-        crate::write_appended_dataarray_header(&mut event_writer, "X", offset_1).unwrap();
-        crate::write_appended_dataarray_header(&mut event_writer, "Y", offset_2).unwrap();
+        crate::write_appended_dataarray_header(&mut event_writer, "X", offset_1, 1).unwrap();
+        crate::write_appended_dataarray_header(&mut event_writer, "Y", offset_2, 1).unwrap();
 
         // write the data inside the appended section
         crate::write_vtk::appended_binary_header_start(&mut event_writer).unwrap();
 
-        // need to write a single garbage byte for things to work as expected - this 
+        // need to write a single garbage byte for things to work as expected - this
         // is becasue of how paraview expects things
-        crate::write_appended_dataarray(&mut event_writer, &[100f64]).unwrap();
+        [100f64].as_ref().write_binary(&mut event_writer).unwrap();
 
-        crate::write_appended_dataarray(&mut event_writer, &values).unwrap();
-        crate::write_appended_dataarray(&mut event_writer, &values2).unwrap();
+        values.as_ref().write_binary(&mut event_writer).unwrap();
+        values2.as_ref().write_binary(&mut event_writer).unwrap();
 
         crate::write_vtk::appended_binary_header_end(&mut event_writer).unwrap();
 
