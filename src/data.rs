@@ -3,7 +3,7 @@ use std::ops::{Add, Div, Sub, SubAssign};
 
 /// Stores vector information at each point in space instead
 /// of a single scalar value #[derive(Clone, Debug)]
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct VectorPoints {
     pub(crate) components: usize,
     pub(crate) arr: ndarray::Array4<f64>,
