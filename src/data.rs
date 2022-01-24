@@ -309,7 +309,6 @@ mod tests {
 
         let file = std::fs::File::create("./test_vtks/simple_vector_array.vtk").unwrap();
         vtk::write_vtk(file, vtk, true).unwrap();
-        panic!()
     }
 
     #[test]
