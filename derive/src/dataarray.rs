@@ -50,6 +50,7 @@ struct MyFieldReceiver {
     ident: Option<syn::Ident>,
 
     /// This magic field name pulls the type from the input.
+    #[allow(dead_code)]
     ty: syn::Type,
 }
 

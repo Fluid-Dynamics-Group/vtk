@@ -649,7 +649,7 @@ mod tests {
         let mut event_writer = crate::EventWriter::new(&mut output);
         crate::write_inline_dataarray(
             &mut event_writer,
-            values.as_ref(),
+            &values.as_slice(),
             "X",
             crate::Encoding::Base64,
         )

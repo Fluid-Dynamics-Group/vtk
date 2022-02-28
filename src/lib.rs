@@ -2,7 +2,7 @@
 
 mod combine_vtk;
 mod data;
-mod iter;
+mod array;
 pub mod parse;
 pub mod traits;
 mod utils;
@@ -11,7 +11,7 @@ mod write_vtk;
 pub(crate) use traits::{DataArray, ParseDataArray};
 
 pub use combine_vtk::combine_vtk;
-pub use data::{LocationSpans, Locations, VectorPoints, VtkData};
+pub use data::{LocationSpans, Locations, VtkData};
 pub use traits::{Array, FromBuffer};
 pub use write_vtk::write_vtk;
 pub use write_vtk::{write_appended_dataarray_header, write_inline_dataarray, Encoding};
@@ -26,6 +26,7 @@ pub use vtk_derive::{DataArray, ParseDataArray};
 pub fn test_fn() {}
 
 pub use xml::EventWriter;
+pub use ndarray;
 
 /// general purpose error enumeration for possible causes of failure.
 #[derive(thiserror::Error, Debug)]

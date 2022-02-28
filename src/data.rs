@@ -1,49 +1,3 @@
-use super::iter::VtkIterator;
-use std::ops::{Add, Div, Sub, SubAssign};
-
-/// Stores vector information at each point in space instead
-/// of a single scalar value #[derive(Clone, Debug)]
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct VectorPoints {
-    pub(crate) components: usize,
-    pub(crate) arr: ndarray::Array4<f64>,
-}
-
-impl VectorPoints {
-    /// The passed in array should be in real space, not
-    /// in the vtk-space
-    ///
-    /// Vtk-space writing will be taken care of
-    pub fn new(arr: ndarray::Array4<f64>) -> Self {
-        let components = arr.raw_dim()[3];
-
-        Self { components, arr }
-    }
-
-    pub fn dims(&self) -> (usize, usize, usize) {
-        let dims = self.arr.raw_dim();
-        let nx = dims[0];
-        let ny = dims[1];
-        let nz = dims[2];
-
-        (nx, ny, nz)
-    }
-}
-
-impl std::ops::Deref for VectorPoints {
-    type Target = ndarray::Array4<f64>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.arr
-    }
-}
-
-impl std::ops::DerefMut for VectorPoints {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.arr
-    }
-}
-
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct VtkData<D> {
     pub data: D,
@@ -51,86 +5,16 @@ pub struct VtkData<D> {
     pub spans: LocationSpans,
 }
 
-impl <D> VtkData <D> {
+impl<D> VtkData<D> {
     pub fn new_data<T>(self, new_data: T) -> VtkData<T> {
         let spans = self.spans;
         let locations = self.locations;
-        
-        VtkData { spans, locations, data : new_data }
-    }
-}
 
-impl<D> Add for VtkData<D>
-where
-    D: Add<Output = D>,
-{
-    type Output = Self;
-
-    fn add(mut self, other: Self) -> Self::Output {
-        self.data = self.data + other.data;
-        self
-    }
-}
-
-impl<D> Div<f64> for VtkData<D>
-where
-    D: Div<f64, Output = D>,
-{
-    type Output = Self;
-
-    fn div(mut self, other: f64) -> Self::Output {
-        self.data = self.data / other;
-        self
-    }
-}
-
-impl<D> Sub for VtkData<D>
-where
-    D: Sub<Output = D>,
-{
-    type Output = Self;
-
-    fn sub(mut self, other: Self) -> Self::Output {
-        self.data = self.data - other.data;
-        self
-    }
-}
-
-impl<D> SubAssign for VtkData<D>
-where
-    D: Sub<Output = D> + Clone,
-{
-    fn sub_assign(&mut self, other: Self) {
-        self.data = self.data.clone() - other.data;
-    }
-}
-
-impl<D> std::iter::Sum for VtkData<D>
-where
-    D: Default,
-    VtkData<D>: Add<Output = Self>,
-{
-    fn sum<I: Iterator<Item = VtkData<D>>>(iter: I) -> Self {
-        let mut base = VtkData::default();
-        for i in iter {
-            // important to write it this way so that base will
-            // be overwritten by the new spans of the iterator
-            // since the spans on the default are incorrect
-            base = i + base;
+        VtkData {
+            spans,
+            locations,
+            data: new_data,
         }
-        base
-    }
-}
-
-impl<D> std::iter::IntoIterator for VtkData<D>
-where
-    D: super::traits::PointData,
-{
-    type Item = D::PointData;
-    type IntoIter = VtkIterator<D>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        VtkIterator::new(self.data)
     }
 }
 
@@ -211,7 +95,6 @@ impl LocationSpans {
 mod tests {
     use super::*;
     use crate::helpers::SpanData;
-    use crate::VectorPoints;
 
     use crate as vtk;
     use crate::Array;
@@ -245,7 +128,7 @@ mod tests {
 
     #[derive(crate::DataArray, crate::ParseDataArray, Debug, Clone)]
     struct SimpleArray {
-        array: crate::VectorPoints,
+        array: ndarray::Array4<f64>,
     }
 
     fn setup_vtk() -> VtkData<SimpleArray> {
@@ -286,13 +169,12 @@ mod tests {
         assert_eq!(3 * 3 * 3 * 3, data.len());
 
         let arr = ndarray::Array4::<f64>::from_shape_vec((3, 3, 3, 3), data).unwrap();
+        // TODO: i dont remember why this call is here
         let arr = arr.reversed_axes();
 
         dbg!(arr[[0, 0, 0, 0]], arr[[0, 0, 0, 1]], arr[[0, 0, 0, 2]],);
 
-        let data = SimpleArray {
-            array: VectorPoints::new(arr),
-        };
+        let data = SimpleArray { array: arr };
 
         dbg!(&data);
 
@@ -321,6 +203,6 @@ mod tests {
         let out_vtk = crate::parse::parse_xml_document::<SimpleArray>(&file).unwrap();
         let out_data = out_vtk.data;
 
-        assert_eq!(data.array.arr, out_data.array.arr);
+        assert_eq!(data.array, out_data.array);
     }
 }

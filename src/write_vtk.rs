@@ -202,7 +202,7 @@ pub fn close_inline_array_header<W: Write>(writer: &mut EventWriter<W>) -> Resul
 /// to the vtk file.
 pub fn write_inline_dataarray<W: Write, A: Array>(
     writer: &mut EventWriter<W>,
-    data: A,
+    data: &A,
     name: &str,
     encoding: Encoding,
 ) -> Result<(), Error> {
