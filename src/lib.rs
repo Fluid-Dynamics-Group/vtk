@@ -1,8 +1,8 @@
 #![doc = include_str!("../README.md")]
 
-mod mesh;
-mod data;
 mod array;
+mod data;
+mod mesh;
 //pub mod parse;
 mod traits;
 mod utils;
@@ -15,10 +15,10 @@ pub use data::VtkData;
 pub use mesh::Mesh3D;
 pub use mesh::Spans3D;
 
+pub use traits::*;
 pub use traits::{Array, FromBuffer};
 pub use write_vtk::write_vtk;
 pub use write_vtk::{write_appended_dataarray_header, write_inline_dataarray, Encoding};
-pub use traits::*;
 
 //pub use parse::read_and_parse as read_vtk;
 //pub use parse::ParseError;
@@ -29,8 +29,8 @@ pub use vtk_derive::{DataArray, ParseDataArray};
 #[cfg(feature = "derive")]
 pub fn test_fn() {}
 
-pub use xml::EventWriter;
 pub use ndarray;
+pub use xml::EventWriter;
 
 /// general purpose error enumeration for possible causes of failure.
 #[derive(thiserror::Error, Debug)]
@@ -56,7 +56,7 @@ pub struct Base64;
 /// ascii encoding marker type
 pub struct Ascii;
 
-impl traits::Encode for Binary{
+impl traits::Encode for Binary {
     fn is_binary() -> bool {
         true
     }

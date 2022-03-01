@@ -1,9 +1,9 @@
 use crate::traits::*;
-use crate::Binary;
 use crate::write_vtk;
-use std::io::Write;
-use crate::EventWriter;
+use crate::Binary;
 use crate::Error;
+use crate::EventWriter;
+use std::io::Write;
 
 /// The X/Y/Z point data locations for the data points in the field
 #[derive(Debug, Clone, Default, derive_builder::Builder, PartialEq)]
@@ -11,7 +11,7 @@ pub struct Mesh3D {
     pub x_locations: Vec<f64>,
     pub y_locations: Vec<f64>,
     pub z_locations: Vec<f64>,
-    pub spans: Spans3D
+    pub spans: Spans3D,
 }
 
 /// The local locations
@@ -42,7 +42,7 @@ impl Spans3D {
     pub fn new(span_string: &str) -> Self {
         let mut split = span_string.split_ascii_whitespace();
 
-        Spans3D{
+        Spans3D {
             x_start: split.next().unwrap().parse().unwrap(),
             x_end: split.next().unwrap().parse().unwrap(),
             y_start: split.next().unwrap().parse().unwrap(),
@@ -83,7 +83,7 @@ impl Mesh<Binary> for Mesh3D {
     // only write the headers here
     fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
         let mut offset = 0;
-        
+
         write_vtk::write_appended_dataarray_header(writer, "X", offset, 1)?;
         offset += (std::mem::size_of::<f64>() * (self.x_locations.len())) as i64;
 
@@ -91,7 +91,9 @@ impl Mesh<Binary> for Mesh3D {
         offset += (std::mem::size_of::<f64>() * (self.y_locations.len())) as i64;
 
         write_vtk::write_appended_dataarray_header(writer, "Z", offset, 1)?;
-        //offset += (std::mem::size_of::<f64>() * (self.z_locations.len())) as i64;
+        offset += (std::mem::size_of::<f64>() * (self.z_locations.len())) as i64;
+
+        println!("mesh information covered {} bytes", offset);
 
         Ok(())
     }
@@ -115,10 +117,7 @@ impl Mesh<Binary> for Mesh3D {
         offset += std::mem::size_of::<f64>() * (self.y_locations.len());
         offset += std::mem::size_of::<f64>() * (self.z_locations.len());
 
+        println!("reporting {} bytes from function call mesh_bytes", offset);
         offset
     }
-        
-    
 }
-
-

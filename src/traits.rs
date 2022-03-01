@@ -6,9 +6,9 @@
 //! some limitations to this, be sure to refer to each trait's documentation.
 //!
 
+use crate::Error;
 use std::io::Write;
 use xml::writer::EventWriter;
-use crate::Error;
 
 /// describes how to write the data to a vtk file
 ///
@@ -97,22 +97,21 @@ use crate::Error;
 ///         _binary data here
 ///     </AppendedData>
 /// </VTKFile>
-pub trait DataArray {
-    fn write_inline_dataarrays<W: Write>(
-        &self,
-        #[allow(unused_variables)] writer: &mut EventWriter<W>,
-    ) -> Result<(), crate::Error> {
-        Ok(())
-    }
-    fn is_appended_array() -> bool {
-        false
-    }
-    fn write_appended_dataarray_headers<W: Write>(
+pub trait DataArray<Encoding> {
+    /// Write all the arrays in the <PointData> section of the file
+    ///
+    /// If the encoding is base64 or ascii, this function should write the data in the element.
+    /// If the encoding is binary, then this function will only write information about the length
+    /// and offset of the arrays and `write_mesh_appended` will handle writing the binary data.
+    fn write_array_header<W: Write>(
         &self,
         writer: &mut EventWriter<W>,
         starting_offset: i64,
     ) -> Result<(), crate::Error>;
-    fn write_appended_dataarrays<W: Write>(
+
+    /// If the encoding is binary, write all of the binary information to the appended
+    /// section of the binary file (raw bytes)
+    fn write_array_appended<W: Write>(
         &self,
         writer: &mut EventWriter<W>,
     ) -> Result<(), crate::Error>;
@@ -229,7 +228,7 @@ pub trait Mesh<Encoding> {
     /// Write the mesh information within the `<Coordinates>` section of the file
     ///
     /// If the encoding is base64 or ascii, this function should write the data in the element.
-    /// If the encoding is binary, then this function will only write information about the length 
+    /// If the encoding is binary, then this function will only write information about the length
     /// and offset of the arrays and `write_mesh_appended` will handle writing the binary data.
     fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error>;
 
@@ -249,16 +248,15 @@ pub trait Encode {
     fn is_binary() -> bool;
 }
 
-
 #[cfg(feature = "derive")]
 use crate as vtk;
 #[cfg(feature = "derive")]
 #[derive(vtk_derive::DataArray)]
+#[vtk(encoding = "binary")]
 struct Info<'a> {
     a: Vec<f64>,
     b: &'a [f64],
 }
-
 
 //#[cfg(feature = "derive")]
 //#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]

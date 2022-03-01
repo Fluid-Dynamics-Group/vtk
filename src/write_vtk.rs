@@ -1,9 +1,9 @@
 use super::data::VtkData;
 use super::Array;
 use super::DataArray;
+use crate::Encode;
 use crate::Error;
 use crate::Mesh;
-use crate::Encode;
 
 use std::borrow::Cow;
 use std::io::Write;
@@ -16,14 +16,16 @@ use xml::writer::{EventWriter, XmlEvent};
 const STARTING_OFFSET: i64 = 0;
 
 /// Write a given vtk file to a `Writer`
-pub fn write_vtk<W, D, MESH, E>(
+pub fn write_vtk<W, D, MESH, EncMesh, EncArray>(
     writer: W,
     data: VtkData<MESH, D>,
-) -> Result<(), Error> 
-where W: Write,
-      D: DataArray,
-      MESH: Mesh<E>,
-      E: Encode
+) -> Result<(), Error>
+where
+    W: Write,
+    D: DataArray<EncArray>,
+    MESH: Mesh<EncMesh>,
+    EncArray: Encode,
+    EncMesh: Encode,
 {
     let mut writer = EventWriter::new(writer);
 
@@ -67,16 +69,15 @@ where W: Write,
         namespace: Cow::Owned(Namespace::empty()),
     })?;
 
-
     // write the mesh information out
     data.mesh.write_mesh_header(&mut writer)?;
 
     // either write the loation of all the verticies inline
     // here or write only the headers w/ offsets and write the data as binary later
-    let starting_offset = if E::is_binary() {
-        STARTING_OFFSET
-    } else {
+    let starting_offset = if EncMesh::is_binary() {
         data.mesh.mesh_bytes() as i64
+    } else {
+        STARTING_OFFSET
     };
 
     writer.write(XmlEvent::EndElement {
@@ -89,14 +90,7 @@ where W: Write,
         namespace: Cow::Owned(Namespace::empty()),
     })?;
 
-    // inline dataarray declarations
-    if !D::is_appended_array() {
-        // call the data element of VtkData to write itself out
-        data.data.write_inline_dataarrays(&mut writer)?;
-    } else {
-        data.data
-            .write_appended_dataarray_headers(&mut writer, starting_offset)?;
-    }
+    data.data.write_array_header(&mut writer, starting_offset)?;
 
     writer.write(XmlEvent::EndElement {
         name: Some(Name::from("PointData")),
@@ -110,7 +104,7 @@ where W: Write,
     })?;
 
     // if we are doing _any_ sort of appending of data
-    if E::is_binary() || D::is_appended_array() {
+    if EncMesh::is_binary() || EncArray::is_binary() {
         appended_binary_header_start(&mut writer)?;
 
         // for some reason paraview expects the first byte that is not '_' to
@@ -125,16 +119,11 @@ where W: Write,
 
         [100f64].as_ref().write_binary(&mut writer)?;
 
-        // write the appended point data here if required
-        if E::is_binary() {
-            data.mesh.write_mesh_appended(&mut writer)?;
-            //appended_coordinate_dataarrays(&mut writer, &data.locations)?;
-        }
-
-        // write the appended flow data here
-        if D::is_appended_array() {
-            data.data.write_appended_dataarrays(&mut writer)?;
-        }
+        // implementations will do nothing if they are not responsible for writing any binary
+        // information
+        data.mesh.write_mesh_appended(&mut writer)?;
+        // same here
+        data.data.write_array_appended(&mut writer)?;
 
         appended_binary_header_end(&mut writer)?;
     }
