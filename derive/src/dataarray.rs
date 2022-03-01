@@ -205,7 +205,7 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
         };
 
     let out = quote! {
-        impl #imp vtk::traits::DataArray for #ident #ty #wher {
+        impl #imp vtk::DataArray for #ident #ty #wher {
             #trait_body
         }
     };

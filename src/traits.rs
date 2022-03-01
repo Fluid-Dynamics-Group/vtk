@@ -5,11 +5,10 @@
 //! `ParseDataArray` and `DataArray` can be derived for you automatically. There are
 //! some limitations to this, be sure to refer to each trait's documentation.
 //!
-#[cfg(feature = "derive")]
-use crate as vtk;
 
 use std::io::Write;
 use xml::writer::EventWriter;
+use crate::Error;
 
 /// describes how to write the data to a vtk file
 ///
@@ -119,34 +118,6 @@ pub trait DataArray {
     ) -> Result<(), crate::Error>;
 }
 
-/// helper trait to work with an iterator over a vtk
-///
-/// Defines a way to get the data for a single point in a flowfield
-/// by a linear index
-pub trait PointData {
-    /// if Data contains a field of Vec<T>, this is just the T
-    type PointData;
-    fn get_point_data(&self, idx: usize) -> Option<Self::PointData>;
-}
-
-/// Descibes how the combining of a set of vtk files should be done
-pub trait Combine {
-    /// the total number of mpi processes used to generate the data
-    fn total_procs(&self) -> usize;
-    /// (x start location, x end location)
-    fn x_dims(&self) -> (usize, usize);
-    /// (y start location, y end location)
-    fn y_dims(&self) -> (usize, usize);
-    /// (z start location, z end location)
-    fn z_dims(&self) -> (usize, usize);
-    /// a vector of all the x points in space at which we have some data to write
-    fn x_locations(&self) -> Vec<f64>;
-    /// a vector of all the y points in space at which we have some data to write
-    fn y_locations(&self) -> Vec<f64>;
-    /// a vector of all the z points in space at which we have some data to write
-    fn z_locations(&self) -> Vec<f64>;
-}
-
 /// Describes how to read in a vtk file's data
 ///
 /// The built-in routines for parsing DataArrays only account for ascii data stored
@@ -191,15 +162,16 @@ pub trait Combine {
 ///     </RectilinearGrid>
 /// </VTKFile>
 /// ```
-pub trait ParseDataArray {
-    fn parse_dataarrays(
-        data: &[u8],
-        span_info: &super::LocationSpans,
-        locations: super::parse::LocationsPartial,
-    ) -> Result<(Self, super::Locations), super::parse::ParseError>
-    where
-        Self: Sized;
-}
+
+//pub trait ParseDataArray {
+//    fn parse_dataarrays(
+//        data: &[u8],
+//        span_info: &super::LocationSpans,
+//        locations: super::parse::LocationsPartial,
+//    ) -> Result<(Self, super::Locations), super::parse::ParseError>
+//    where
+//        Self: Sized;
+//}
 
 pub trait Array {
     fn write_ascii<W: Write>(
@@ -253,6 +225,33 @@ impl FromBuffer for ndarray::Array4<f64> {
     }
 }
 
+pub trait Mesh<Encoding> {
+    /// Write the mesh information within the `<Coordinates>` section of the file
+    ///
+    /// If the encoding is base64 or ascii, this function should write the data in the element.
+    /// If the encoding is binary, then this function will only write information about the length 
+    /// and offset of the arrays and `write_mesh_appended` will handle writing the binary data.
+    fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error>;
+
+    /// If writing binary encoded data, this function writes raw binary information to the writer.
+    ///
+    /// If the encoding is base64 / ascii, this function does nothing.
+    fn write_mesh_appended<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error>;
+
+    /// The VTK-formatted span / extent string for location spans contained in the mesh
+    fn span_string(&self) -> String;
+
+    /// number of raw bytes (not encoded in base64 / ascii) that are contained in this mesh
+    fn mesh_bytes(&self) -> usize;
+}
+
+pub trait Encode {
+    fn is_binary() -> bool;
+}
+
+
+#[cfg(feature = "derive")]
+use crate as vtk;
 #[cfg(feature = "derive")]
 #[derive(vtk_derive::DataArray)]
 struct Info<'a> {
@@ -260,14 +259,15 @@ struct Info<'a> {
     b: &'a [f64],
 }
 
-#[cfg(feature = "derive")]
-#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
-//#[derive(vtk_derive::DataArray)]
-struct Parse {
-    #[allow(dead_code)]
-    a: Vec<f64>,
-    #[allow(dead_code)]
-    b: Vec<f64>,
-    #[allow(dead_code)]
-    c: Vec<f64>,
-}
+
+//#[cfg(feature = "derive")]
+//#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
+////#[derive(vtk_derive::DataArray)]
+//struct Parse {
+//    #[allow(dead_code)]
+//    a: Vec<f64>,
+//    #[allow(dead_code)]
+//    b: Vec<f64>,
+//    #[allow(dead_code)]
+//    c: Vec<f64>,
+//}

@@ -1,23 +1,27 @@
 #![doc = include_str!("../README.md")]
 
-mod combine_vtk;
+mod mesh;
 mod data;
 mod array;
-pub mod parse;
-pub mod traits;
+//pub mod parse;
+mod traits;
 mod utils;
 mod write_vtk;
 
-pub(crate) use traits::{DataArray, ParseDataArray};
+pub use traits::DataArray;
+//pub(crate) use traits::ParseDataArray;
 
-pub use combine_vtk::combine_vtk;
-pub use data::{LocationSpans, Locations, VtkData};
+pub use data::VtkData;
+pub use mesh::Mesh3D;
+pub use mesh::Spans3D;
+
 pub use traits::{Array, FromBuffer};
 pub use write_vtk::write_vtk;
 pub use write_vtk::{write_appended_dataarray_header, write_inline_dataarray, Encoding};
+pub use traits::*;
 
-pub use parse::read_and_parse as read_vtk;
-pub use parse::ParseError;
+//pub use parse::read_and_parse as read_vtk;
+//pub use parse::ParseError;
 
 #[cfg(feature = "derive")]
 pub use vtk_derive::{DataArray, ParseDataArray};
@@ -35,12 +39,39 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("The xml data inputted was malformed: `{0}`")]
     Xml(#[from] xml::reader::Error),
-    #[error("Error when parsing the xml data: `{0}`")]
-    Nom(#[from] parse::ParseError),
+    //#[error("Error when parsing the xml data: `{0}`")]
+    //Nom(#[from] parse::ParseError),
     #[error("Could not convert file to uf8 encoding: `{0}`")]
     Utf8(#[from] std::string::FromUtf8Error),
     #[error("Could not write XML data to file: `{0}`")]
     XmlWrite(#[from] xml::writer::Error),
+}
+
+/// Binary encoding marker type
+pub struct Binary;
+
+/// base64 encoding marker type
+pub struct Base64;
+
+/// ascii encoding marker type
+pub struct Ascii;
+
+impl traits::Encode for Binary{
+    fn is_binary() -> bool {
+        true
+    }
+}
+
+impl traits::Encode for Ascii {
+    fn is_binary() -> bool {
+        false
+    }
+}
+
+impl traits::Encode for Base64 {
+    fn is_binary() -> bool {
+        false
+    }
 }
 
 #[cfg(test)]
@@ -142,43 +173,6 @@ mod helpers {
         pub(crate) data: crate::VtkData<SpanData>,
         pub(crate) proc_number: usize,
         pub(crate) step_number: usize,
-    }
-
-    #[rustfmt::skip]
-    impl crate::traits::Combine for Vec<DataItem> {
-        fn total_procs(&self) -> usize {
-            self.len()
-        }
-        fn x_dims(&self) -> (usize, usize) {
-            let start = self.into_iter().min_by_key(|x| x.proc_number).unwrap().data.spans.x_start;
-            let end = self.into_iter().max_by_key(|x| x.proc_number).unwrap().data.spans.x_end;
-            (start, end)
-        }
-        fn y_dims(&self) -> (usize, usize) {
-            let start = self.into_iter().min_by_key(|x| x.proc_number).unwrap().data.spans.y_start;
-            let end = self.into_iter().max_by_key(|x| x.proc_number).unwrap().data.spans.y_end;
-            (start, end)
-        }
-        fn z_dims(&self) -> (usize, usize) {
-            let start = self.into_iter().min_by_key(|x| x.proc_number).unwrap().data.spans.y_start;
-            let end = self.into_iter().max_by_key(|x| x.proc_number).unwrap().data.spans.y_end;
-            (start, end)
-        }
-        fn x_locations(&self) -> Vec<f64> {
-            let mut out = Vec::with_capacity(self.len() * self[0].data.locations.x_locations.len());
-            self.into_iter().for_each(|item| out.extend(&item.data.locations.x_locations));
-            out
-        }
-        fn y_locations(&self) -> Vec<f64> {
-            let mut out = Vec::with_capacity(self.len() * self[0].data.locations.y_locations.len());
-            self.into_iter().for_each(|item| out.extend(&item.data.locations.y_locations));
-            out
-        }
-        fn z_locations(&self) -> Vec<f64> {
-            let mut out = Vec::with_capacity(self.len() * self[0].data.locations.z_locations.len());
-            self.into_iter().for_each(|item| out.extend(&item.data.locations.z_locations));
-            out
-        } 
     }
 
     impl From<Vec<DataItem>> for SpanData {

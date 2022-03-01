@@ -2,6 +2,8 @@ use super::data::VtkData;
 use super::Array;
 use super::DataArray;
 use crate::Error;
+use crate::Mesh;
+use crate::Encode;
 
 use std::borrow::Cow;
 use std::io::Write;
@@ -14,11 +16,15 @@ use xml::writer::{EventWriter, XmlEvent};
 const STARTING_OFFSET: i64 = 0;
 
 /// Write a given vtk file to a `Writer`
-pub fn write_vtk<W: Write, D: DataArray>(
+pub fn write_vtk<W, D, MESH, E>(
     writer: W,
-    data: VtkData<D>,
-    append_coordinates: bool,
-) -> Result<(), Error> {
+    data: VtkData<MESH, D>,
+) -> Result<(), Error> 
+where W: Write,
+      D: DataArray,
+      MESH: Mesh<E>,
+      E: Encode
+{
     let mut writer = EventWriter::new(writer);
 
     let version = xml::common::XmlVersion::Version10;
@@ -40,7 +46,9 @@ pub fn write_vtk<W: Write, D: DataArray>(
         namespace: Cow::Owned(Namespace::empty()),
     })?;
 
-    let span_str = data.spans.to_string();
+    // output the spans
+    let span_str = data.mesh.span_string();
+
     writer.write(XmlEvent::StartElement {
         name: Name::from("RectilinearGrid"),
         attributes: vec![make_att("WholeExtent", &span_str)].into(),
@@ -59,18 +67,16 @@ pub fn write_vtk<W: Write, D: DataArray>(
         namespace: Cow::Owned(Namespace::empty()),
     })?;
 
+
+    // write the mesh information out
+    data.mesh.write_mesh_header(&mut writer)?;
+
     // either write the loation of all the verticies inline
     // here or write only the headers w/ offsets and write the data as binary later
-    let starting_offset = if !append_coordinates {
-        ascii_coordinates_inline(&mut writer, &data.locations)?;
-        // this is some funky hack to includethe first value in the data array that
-        // paraview somehow skips over - not sure if this will ever be fixed on their end
+    let starting_offset = if E::is_binary() {
         STARTING_OFFSET
     } else {
-        // write the headers now with the intention to write the full dataarrays later
-        // in the appended section. return the total offset required before writing
-        // any additional data arrays
-        coordinate_headers_appended(&mut writer, &data.locations)?
+        data.mesh.mesh_bytes() as i64
     };
 
     writer.write(XmlEvent::EndElement {
@@ -104,7 +110,7 @@ pub fn write_vtk<W: Write, D: DataArray>(
     })?;
 
     // if we are doing _any_ sort of appending of data
-    if append_coordinates || D::is_appended_array() {
+    if E::is_binary() || D::is_appended_array() {
         appended_binary_header_start(&mut writer)?;
 
         // for some reason paraview expects the first byte that is not '_' to
@@ -120,8 +126,9 @@ pub fn write_vtk<W: Write, D: DataArray>(
         [100f64].as_ref().write_binary(&mut writer)?;
 
         // write the appended point data here if required
-        if append_coordinates {
-            appended_coordinate_dataarrays(&mut writer, &data.locations)?;
+        if E::is_binary() {
+            data.mesh.write_mesh_appended(&mut writer)?;
+            //appended_coordinate_dataarrays(&mut writer, &data.locations)?;
         }
 
         // write the appended flow data here
@@ -255,54 +262,16 @@ fn make_att<'a>(name: &'static str, value: &'a str) -> Attribute<'a> {
     Attribute::new(name, value)
 }
 
-#[inline]
-fn ascii_coordinates_inline<W: Write>(
-    writer: &mut EventWriter<W>,
-    locations: &super::Locations,
-) -> Result<(), Error> {
-    write_inline_dataarray(writer, &locations.x_locations, "X", Encoding::Ascii)?;
-
-    write_inline_dataarray(writer, &locations.y_locations, "Y", Encoding::Ascii)?;
-
-    write_inline_dataarray(writer, &locations.z_locations, "Z", Encoding::Ascii)?;
-
-    Ok(())
-}
-
-/// write the headers for the coordinates assuming that we are going to write
-/// the raw data for the headers in the appended section later
-///
-/// does not write the data inline
-#[inline]
-fn coordinate_headers_appended<W: Write>(
-    writer: &mut EventWriter<W>,
-    locations: &super::Locations,
-) -> Result<i64, Error> {
-    let mut offset = STARTING_OFFSET;
-
-    write_appended_dataarray_header(writer, "X", offset, 1)?;
-    offset += (std::mem::size_of::<f64>() * (locations.x_locations.len() + 0)) as i64;
-
-    write_appended_dataarray_header(writer, "Y", offset, 1)?;
-    offset += (std::mem::size_of::<f64>() * (locations.y_locations.len() + 0)) as i64;
-
-    write_appended_dataarray_header(writer, "Z", offset, 1)?;
-    offset += (std::mem::size_of::<f64>() * (locations.z_locations.len() + 0)) as i64;
-
-    Ok(offset)
-}
-
-/// Write the raw data for the DataArray's used for the coordinates
-///
-/// this is only here to make the main `write_vtk` function more readable
-#[inline]
-fn appended_coordinate_dataarrays<W: Write>(
-    writer: &mut EventWriter<W>,
-    locations: &super::Locations,
-) -> Result<(), Error> {
-    locations.x_locations.write_binary(writer)?;
-    locations.y_locations.write_binary(writer)?;
-    locations.z_locations.write_binary(writer)?;
-
-    Ok(())
-}
+//#[inline]
+//fn ascii_coordinates_inline<W: Write>(
+//    writer: &mut EventWriter<W>,
+//    locations: &super::Locations,
+//) -> Result<(), Error> {
+//    write_inline_dataarray(writer, &locations.x_locations, "X", Encoding::Ascii)?;
+//
+//    write_inline_dataarray(writer, &locations.y_locations, "Y", Encoding::Ascii)?;
+//
+//    write_inline_dataarray(writer, &locations.z_locations, "Z", Encoding::Ascii)?;
+//
+//    Ok(())
+//}
