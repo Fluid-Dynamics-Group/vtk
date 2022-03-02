@@ -7,9 +7,12 @@
 //!
 
 use crate::Error;
+use nom::IResult;
 use crate::ParseError;
+use crate::parse;
 use std::io::Write;
 use xml::writer::EventWriter;
+use std::cell::RefMut;
 
 /// describes how to write the data to a vtk file
 ///
@@ -240,16 +243,22 @@ pub trait ParseMesh {
     type Visitor;
 }
 
-pub trait Visitor<Spans>: {
+pub trait Visitor<Spans> where Self: Sized {
     type Output;
 
-    fn read_headers(&mut self, spans: &Spans) -> Result<(), ParseError>;
-    fn read_apppended(&mut self) -> Result<(), ParseError>;
+    fn read_headers<'a>(spans: &Spans, buffer: &'a [u8]) -> IResult<&'a [u8], Self>;
+
+    fn add_to_appended_reader<'a, 'b>(&'a self, buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>);
+
     fn finish(self) -> Result<Self::Output, ParseError>;
 }
 
 pub trait ParseArray {
     type Visitor;
+}
+
+pub trait ParseSpan {
+    fn from_str(extent: &str) -> Self;
 }
 
 pub trait Encode {

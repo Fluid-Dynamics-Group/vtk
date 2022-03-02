@@ -1,15 +1,13 @@
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct VtkData<MESH, D> {
-    pub mesh: MESH,
+pub struct VtkData<DOMAIN, D> {
+    pub domain: DOMAIN,
     pub data: D,
-    //pub locations: Locations,
-    //pub spans: LocationSpans,
 }
 
-impl<MESH, D> VtkData<MESH, D> {
-    pub fn new_data<T>(self, new_data: T) -> VtkData<MESH, T> {
+impl<DOMAIN, D> VtkData<DOMAIN, D> {
+    pub fn new_data<T>(self, new_data: T) -> VtkData<DOMAIN, T> {
         VtkData {
-            mesh: self.mesh,
+            domain: self.domain,
             data: new_data,
         }
     }

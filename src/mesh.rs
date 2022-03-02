@@ -4,24 +4,67 @@ use crate::Binary;
 use crate::Error;
 use crate::EventWriter;
 use crate::Visitor;
+use crate::parse;
 use crate::ParseError;
 use crate::ParseMesh;
 use std::io::Write;
+use std::marker::PhantomData;
+use nom::IResult;
+use std::cell::RefCell;
+use std::cell::RefMut;
 
-pub struct Rectilinear3D {
+pub struct Rectilinear3D<Encoding> {
     pub spans: Spans3D,
-    pub mesh: Mesh3D
+    pub mesh: Mesh3D<Encoding>
 }
 
-/// The X/Y/Z point data locations for the data points in the field
-#[derive(Debug, Clone, Default, derive_builder::Builder, PartialEq)]
-pub struct Mesh3D {
+impl<Encoding> Rectilinear3D<Encoding> {
+    pub fn new(
+        mesh: Mesh3D<Encoding>,
+        spans: Spans3D,
+    ) -> Rectilinear3D<Encoding> {
+
+        Self {
+            mesh,
+            spans,
+        }
+    }
+}
+
+/// Describes the computational stencil for 3D rectilinear geometry
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Mesh3D<Encoding> {
     pub x_locations: Vec<f64>,
     pub y_locations: Vec<f64>,
     pub z_locations: Vec<f64>,
+    pub spans: Spans3D,
+    _marker: PhantomData<Encoding>,
 }
 
-/// The local locations
+impl<Encoding> Mesh3D <Encoding> {
+    pub fn new(
+        x_locations: Vec<f64>,
+        y_locations: Vec<f64>,
+        z_locations: Vec<f64>,
+        spans: Spans3D,
+    ) -> Mesh3D<Encoding> {
+        Self {
+            x_locations,
+            y_locations,
+            z_locations,
+            spans,
+            _marker: PhantomData
+        }
+    }
+}
+
+
+/// Describes the area of the computational 
+/// domain that this VTK handles. 
+///
+/// Most often you want to use the [`new`] constructor 
+/// if you are not writing multiple vtk files to describe
+/// parts of the same domain
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Spans3D {
     pub x_start: usize,
@@ -33,6 +76,19 @@ pub struct Spans3D {
 }
 
 impl Spans3D {
+
+    /// create a simple span geometry from some known point lengths
+    pub fn new(nx: usize, ny: usize, nz: usize) -> Self {
+        Self {
+            x_start: 0,
+            x_end: nx-1,
+            y_start: 0,
+            y_end: ny-1,
+            z_start: 0,
+            z_end: nz-1,
+        }
+    }
+
     /// simple constructor used to generate a `LocationSpans` from a string
     /// you would find in a vtk file. The expeceted input is in the form
     /// `"x_start x_end y_start y_end z_start z_end"`
@@ -46,7 +102,7 @@ impl Spans3D {
     ///
     /// This function panics if there are not 6 `usize` values
     /// separated by a single space each
-    pub fn new(span_string: &str) -> Self {
+    pub fn from_span_string(span_string: &str) -> Self {
         let mut split = span_string.split_ascii_whitespace();
 
         Spans3D {
@@ -86,7 +142,7 @@ impl Spans3D {
     }
 }
 
-impl Mesh<Binary> for Rectilinear3D {
+impl Mesh<Binary> for Rectilinear3D<Binary> {
     // only write the headers here
     fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
         let mut offset = 0;
@@ -98,10 +154,8 @@ impl Mesh<Binary> for Rectilinear3D {
         offset += (std::mem::size_of::<f64>() * (self.mesh.y_locations.len())) as i64;
 
         write_vtk::write_appended_dataarray_header(writer, "Z", offset, 1)?;
-        offset += (std::mem::size_of::<f64>() * (self.mesh.z_locations.len())) as i64;
-
-        println!("mesh information covered {} bytes", offset);
-
+        //offset += (std::mem::size_of::<f64>() * (self.z_locations.len())) as i64;
+        //
         Ok(())
     }
 
@@ -124,32 +178,41 @@ impl Mesh<Binary> for Rectilinear3D {
         offset += std::mem::size_of::<f64>() * (self.mesh.y_locations.len());
         offset += std::mem::size_of::<f64>() * (self.mesh.z_locations.len());
 
-        println!("reporting {} bytes from function call mesh_bytes", offset);
         offset
     }
 }
 
-impl ParseMesh for Mesh3D {
+impl <T> ParseMesh for Mesh3D<T> {
     type Visitor = Mesh3DVisitor;
 }
 
-struct Mesh3DVisitor {
-    x_locations: parse::PartialDataArray,
-    y_locations: parse::PartialDataArray,
-    z_locations: parse::PartialDataArray,
+pub struct Mesh3DVisitor {
+    x_locations: parse::PartialDataArrayBuffered,
+    y_locations: parse::PartialDataArrayBuffered,
+    z_locations: parse::PartialDataArrayBuffered,
 }
 
 impl Visitor<Spans3D> for Mesh3DVisitor {
-    type Output = Mesh3D;
+    type Output = Mesh3D<Binary>;
 
-    fn read_headers(&mut self, spans: &Spans3D) -> Result<(), ParseError> {
+    fn read_headers<'a>(spans: &Spans3D, buffer: &'a [u8]) -> IResult<&'a [u8], Self> {
+        let (rest, x) = parse::parse_dataarray_or_lazy(buffer, b"X", spans.x_len())?;
+        let (rest, y) = parse::parse_dataarray_or_lazy(rest, b"Y", spans.y_len())?;
+        let (rest, z) = parse::parse_dataarray_or_lazy(rest, b"Z", spans.z_len())?;
+
+        let x_locations = parse::PartialDataArrayBuffered::new(x, spans.x_len());
+        let y_locations = parse::PartialDataArrayBuffered::new(y, spans.y_len());
+        let z_locations = parse::PartialDataArrayBuffered::new(z, spans.z_len());
+
+        let visitor = Self { x_locations, y_locations, z_locations };
         
-        Ok(())
+        Ok((rest, visitor))
     }
 
-    fn read_apppended(&mut self) -> Result<(), ParseError> {
-        
-        Ok(())
+    fn add_to_appended_reader<'a, 'b>(&'a self, buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>) {
+        self.x_locations.append_to_reader_list(buffer);
+        self.y_locations.append_to_reader_list(buffer);
+        self.z_locations.append_to_reader_list(buffer);
     }
 
     fn finish(self) -> Result<Self::Output, ParseError> {

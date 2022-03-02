@@ -39,8 +39,8 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("The xml data inputted was malformed: `{0}`")]
     Xml(#[from] xml::reader::Error),
-    //#[error("Error when parsing the xml data: `{0}`")]
-    //Nom(#[from] parse::ParseError),
+    #[error("Error when parsing the xml data: `{0}`")]
+    Nom(#[from] parse::ParseError),
     #[error("Could not convert file to uf8 encoding: `{0}`")]
     Utf8(#[from] std::string::FromUtf8Error),
     #[error("Could not write XML data to file: `{0}`")]

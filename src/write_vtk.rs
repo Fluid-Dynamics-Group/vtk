@@ -49,7 +49,7 @@ where
     })?;
 
     // output the spans
-    let span_str = data.mesh.span_string();
+    let span_str = data.domain.span_string();
 
     writer.write(XmlEvent::StartElement {
         name: Name::from("RectilinearGrid"),
@@ -70,12 +70,12 @@ where
     })?;
 
     // write the mesh information out
-    data.mesh.write_mesh_header(&mut writer)?;
+    data.domain.write_mesh_header(&mut writer)?;
 
     // either write the loation of all the verticies inline
     // here or write only the headers w/ offsets and write the data as binary later
     let starting_offset = if EncMesh::is_binary() {
-        data.mesh.mesh_bytes() as i64
+        data.domain.mesh_bytes() as i64
     } else {
         STARTING_OFFSET
     };
@@ -121,7 +121,7 @@ where
 
         // implementations will do nothing if they are not responsible for writing any binary
         // information
-        data.mesh.write_mesh_appended(&mut writer)?;
+        data.domain.write_mesh_appended(&mut writer)?;
         // same here
         data.data.write_array_appended(&mut writer)?;
 
