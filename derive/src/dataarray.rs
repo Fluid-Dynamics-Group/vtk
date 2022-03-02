@@ -5,7 +5,7 @@ use syn::Result;
 use darling::{ast, FromDeriveInput, FromField, FromMeta};
 
 #[derive(FromMeta, Debug, Clone, Copy)]
-enum Encoding {
+pub(crate) enum Encoding {
     Ascii,
     Base64,
     Binary,

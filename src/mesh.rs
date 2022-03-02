@@ -1,33 +1,33 @@
+use crate::parse;
 use crate::traits::*;
 use crate::write_vtk;
 use crate::Binary;
 use crate::Error;
 use crate::EventWriter;
-use crate::Visitor;
-use crate::parse;
 use crate::ParseError;
 use crate::ParseMesh;
-use std::io::Write;
-use std::marker::PhantomData;
+use crate::Visitor;
 use nom::IResult;
 use std::cell::RefCell;
 use std::cell::RefMut;
+use std::io::Write;
+use std::marker::PhantomData;
 
 pub struct Rectilinear3D<Encoding> {
     pub spans: Spans3D,
-    pub mesh: Mesh3D<Encoding>
+    pub mesh: Mesh3D<Encoding>,
 }
 
 impl<Encoding> Rectilinear3D<Encoding> {
-    pub fn new(
-        mesh: Mesh3D<Encoding>,
-        spans: Spans3D,
-    ) -> Rectilinear3D<Encoding> {
+    pub fn new(mesh: Mesh3D<Encoding>, spans: Spans3D) -> Rectilinear3D<Encoding> {
+        Self { mesh, spans }
+    }
+}
 
-        Self {
-            mesh,
-            spans,
-        }
+// from impl is required for generic parsing
+impl<T> From<(Mesh3D<T>, Spans3D)> for Rectilinear3D<T> {
+    fn from(x: (Mesh3D<T>, Spans3D)) -> Self {
+        Self::new(x.0, x.1)
     }
 }
 
@@ -37,32 +37,28 @@ pub struct Mesh3D<Encoding> {
     pub x_locations: Vec<f64>,
     pub y_locations: Vec<f64>,
     pub z_locations: Vec<f64>,
-    pub spans: Spans3D,
     _marker: PhantomData<Encoding>,
 }
 
-impl<Encoding> Mesh3D <Encoding> {
+impl<Encoding> Mesh3D<Encoding> {
     pub fn new(
         x_locations: Vec<f64>,
         y_locations: Vec<f64>,
         z_locations: Vec<f64>,
-        spans: Spans3D,
     ) -> Mesh3D<Encoding> {
         Self {
             x_locations,
             y_locations,
             z_locations,
-            spans,
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 }
 
-
-/// Describes the area of the computational 
-/// domain that this VTK handles. 
+/// Describes the area of the computational
+/// domain that this VTK handles.
 ///
-/// Most often you want to use the [`new`] constructor 
+/// Most often you want to use the [`new`] constructor
 /// if you are not writing multiple vtk files to describe
 /// parts of the same domain
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -76,16 +72,15 @@ pub struct Spans3D {
 }
 
 impl Spans3D {
-
     /// create a simple span geometry from some known point lengths
     pub fn new(nx: usize, ny: usize, nz: usize) -> Self {
         Self {
             x_start: 0,
-            x_end: nx-1,
+            x_end: nx - 1,
             y_start: 0,
-            y_end: ny-1,
+            y_end: ny - 1,
             z_start: 0,
-            z_end: nz-1,
+            z_end: nz - 1,
         }
     }
 
@@ -182,7 +177,7 @@ impl Mesh<Binary> for Rectilinear3D<Binary> {
     }
 }
 
-impl <T> ParseMesh for Mesh3D<T> {
+impl<T> ParseMesh for Mesh3D<T> {
     type Visitor = Mesh3DVisitor;
 }
 
@@ -204,18 +199,29 @@ impl Visitor<Spans3D> for Mesh3DVisitor {
         let y_locations = parse::PartialDataArrayBuffered::new(y, spans.y_len());
         let z_locations = parse::PartialDataArrayBuffered::new(z, spans.z_len());
 
-        let visitor = Self { x_locations, y_locations, z_locations };
-        
+        let visitor = Self {
+            x_locations,
+            y_locations,
+            z_locations,
+        };
+
         Ok((rest, visitor))
     }
 
-    fn add_to_appended_reader<'a, 'b>(&'a self, buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>) {
+    fn add_to_appended_reader<'a, 'b>(
+        &'a self,
+        buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>,
+    ) {
         self.x_locations.append_to_reader_list(buffer);
         self.y_locations.append_to_reader_list(buffer);
         self.z_locations.append_to_reader_list(buffer);
     }
 
-    fn finish(self) -> Result<Self::Output, ParseError> {
-        todo!();
+    fn finish(self, _spans: &Spans3D) -> Result<Self::Output, ParseError> {
+        let x_locations = self.x_locations.into_buffer();
+        let y_locations = self.y_locations.into_buffer();
+        let z_locations = self.z_locations.into_buffer();
+
+        Ok(Mesh3D::new(x_locations, y_locations, z_locations))
     }
 }

@@ -6,13 +6,13 @@
 //! some limitations to this, be sure to refer to each trait's documentation.
 //!
 
-use crate::Error;
-use nom::IResult;
-use crate::ParseError;
 use crate::parse;
+use crate::Error;
+use crate::ParseError;
+use nom::IResult;
+use std::cell::RefMut;
 use std::io::Write;
 use xml::writer::EventWriter;
-use std::cell::RefMut;
 
 /// describes how to write the data to a vtk file
 ///
@@ -193,25 +193,23 @@ pub trait Array {
     }
 }
 
-pub trait FromBuffer {
-    fn from_buffer(buffer: Vec<f64>, nx: usize, ny: usize, nz: usize, components: usize) -> Self;
+pub trait FromBuffer<SPAN> {
+    fn from_buffer(buffer: Vec<f64>, spans: &SPAN, components: usize) -> Self;
 }
 
-impl FromBuffer for Vec<f64> {
+impl <T>FromBuffer<T> for Vec<f64> {
     fn from_buffer(
         buffer: Vec<f64>,
-        _nx: usize,
-        _ny: usize,
-        _nz: usize,
+        spans: &T,
         _components: usize,
     ) -> Self {
         buffer
     }
 }
 
-impl FromBuffer for ndarray::Array4<f64> {
-    fn from_buffer(buffer: Vec<f64>, nx: usize, ny: usize, nz: usize, components: usize) -> Self {
-        let mut arr = Self::from_shape_vec((nx, ny, nz, components), buffer).unwrap();
+impl FromBuffer<vtk::Spans3D> for ndarray::Array4<f64> {
+    fn from_buffer(buffer: Vec<f64>, spans: &vtk::Spans3D, components: usize) -> Self {
+        let mut arr = Self::from_shape_vec((spans.x_len(), spans.y_len(), spans.z_len(), components), buffer).unwrap();
         // this axes swap accounts for how the data is read. It shoud now match _exactly_
         // how the information is input
         arr.swap_axes(0, 2);
@@ -243,14 +241,20 @@ pub trait ParseMesh {
     type Visitor;
 }
 
-pub trait Visitor<Spans> where Self: Sized {
+pub trait Visitor<Spans>
+where
+    Self: Sized,
+{
     type Output;
 
     fn read_headers<'a>(spans: &Spans, buffer: &'a [u8]) -> IResult<&'a [u8], Self>;
 
-    fn add_to_appended_reader<'a, 'b>(&'a self, buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>);
+    fn add_to_appended_reader<'a, 'b>(
+        &'a self,
+        buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>,
+    );
 
-    fn finish(self) -> Result<Self::Output, ParseError>;
+    fn finish(self, spans: &Spans) -> Result<Self::Output, ParseError>;
 }
 
 pub trait ParseArray {
@@ -269,11 +273,41 @@ pub trait Encode {
 use crate as vtk;
 #[cfg(feature = "derive")]
 #[derive(vtk_derive::DataArray)]
-#[vtk(encoding = "binary")]
-struct Info<'a> {
+//#[derive(vtk_derive::ParseArray)]
+pub struct Info {
     a: Vec<f64>,
-    b: &'a [f64],
 }
+
+    pub struct InfoVisitor {
+        a: vtk::parse::PartialDataArrayBuffered,
+    }
+    impl vtk::Visitor<vtk::mesh::Spans3D> for InfoVisitor {
+        type Output = Info;
+        fn read_headers<'a>(
+            spans: &vtk::mesh::Spans3D,
+            buffer: &'a [u8],
+        ) -> nom::IResult<&'a [u8], Self> {
+            let rest = buffer;
+            let (rest, a) = vtk::parse::parse_dataarray_or_lazy(rest, b"a", 0)?;
+            let a = parse::PartialDataArrayBuffered::new(a, 0);
+            let visitor = InfoVisitor { a };
+            Ok((rest, visitor))
+        }
+        fn add_to_appended_reader<'a, 'b>(
+            &'a self,
+            buffer: &'b mut Vec<std::cell::RefMut<'a, parse::OffsetBuffer>>,
+        ) {
+            self.a.append_to_reader_list(buffer);
+        }
+        fn finish(self, spans: &vtk::mesh::Spans3D) -> Result<Self::Output, vtk::ParseError> {
+            let comp = self.a.components();
+            let a = self.a.into_buffer();
+            let a = vtk::FromBuffer::from_buffer(a, &spans, comp);
+            Ok(Info { a })
+        }
+    }
+
+
 
 //#[cfg(feature = "derive")]
 //#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]

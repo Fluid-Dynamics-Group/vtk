@@ -16,7 +16,7 @@ pub fn derive_dataarray(input: TokenStream) -> TokenStream {
         .into()
 }
 
-#[proc_macro_derive(ParseDataArray)]
+#[proc_macro_derive(ParseArray)]
 pub fn derive_parse_dataarray(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);

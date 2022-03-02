@@ -3,12 +3,12 @@
 //! most of the time you will not need to interact with this file,
 //! instead derive `ParseDataArray`
 use super::data::VtkData;
-use crate::traits::{Visitor, ParseMesh, ParseArray, ParseSpan};
+use crate::traits::{ParseArray, ParseMesh, ParseSpan, Visitor, FromBuffer};
 
 use crate::utils;
+use crate::Error;
 use std::cell::RefCell;
 use std::cell::RefMut;
-use crate::Error;
 
 use std::io::Read;
 
@@ -69,14 +69,16 @@ impl fmt::Display for ParseError {
 }
 
 /// read in and parse an entire vtk file for a given path
-pub fn read_and_parse<GEOMETRY, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(path: &std::path::Path) -> Result<VtkData<GEOMETRY, D>, Error>
+pub fn read_and_parse<GEOMETRY, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
+    path: &std::path::Path,
+) -> Result<VtkData<GEOMETRY, D>, Error>
 where
-    D: ParseArray<Visitor=ArrayVisitor>,
+    D: ParseArray<Visitor = ArrayVisitor> + FromBuffer<SPAN>,
     ArrayVisitor: Visitor<SPAN, Output = D>,
-    MESH: ParseMesh<Visitor=MeshVisitor>,
+    MESH: ParseMesh<Visitor = MeshVisitor>,
     MeshVisitor: Visitor<SPAN, Output = MESH>,
     SPAN: ParseSpan,
-    GEOMETRY: From<(MESH, SPAN)>
+    GEOMETRY: From<(MESH, SPAN)>,
 {
     let mut file = std::fs::File::open(path)?;
     let mut buffer = Vec::with_capacity(1024 * 1024 * 3);
@@ -85,14 +87,16 @@ where
     parse_xml_document(&buffer)
 }
 
-pub(crate) fn parse_xml_document<GEOMETRY, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(i: &[u8]) -> Result<VtkData<GEOMETRY, D>, Error>
+pub(crate) fn parse_xml_document<DOMAIN, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
+    i: &[u8],
+) -> Result<VtkData<DOMAIN, D>, Error>
 where
-    D: ParseArray<Visitor=ArrayVisitor>,
+    D: ParseArray<Visitor = ArrayVisitor> + FromBuffer<SPAN>,
     ArrayVisitor: Visitor<SPAN, Output = D>,
-    MESH: ParseMesh<Visitor=MeshVisitor>,
+    MESH: ParseMesh<Visitor = MeshVisitor>,
     MeshVisitor: Visitor<SPAN, Output = MESH>,
     SPAN: ParseSpan,
-    GEOMETRY: From<(MESH, SPAN)>
+    DOMAIN: From<(MESH, SPAN)>,
 {
     let (rest, spans) = find_extent::<SPAN>(i).map_err(|e: NomErr| {
         ParseError::from_nom(
@@ -101,14 +105,14 @@ where
         )
     })?;
 
-    let (rest, location_visitor) = MeshVisitor::read_headers(&spans, rest).map_err(|e: NomErr| {
-        ParseError::from_nom(e, "could not read the values of the coordinate arrays")
-    })?;
+    let (rest, location_visitor) =
+        MeshVisitor::read_headers(&spans, rest).map_err(|e: NomErr| {
+            ParseError::from_nom(e, "could not read the values of the coordinate arrays")
+        })?;
 
     let (rest, array_visitor) = ArrayVisitor::read_headers(&spans, rest).map_err(|e: NomErr| {
         ParseError::from_nom(e, "could not read the values of the data arrays. Attributes of <DataArray> Elements may be in an unexpected order")
     })?;
-
 
     let mut reader_buffer = Vec::new();
     location_visitor.add_to_appended_reader(&mut reader_buffer);
@@ -116,13 +120,11 @@ where
 
     read_appended_array_buffers(reader_buffer, rest)?;
 
-    let data : D = array_visitor.finish()?;
-    let mesh : MESH = location_visitor.finish()?;
-    let domain = GEOMETRY::from((mesh, spans));
+    let data: D = array_visitor.finish(&spans)?;
+    let mesh: MESH = location_visitor.finish(&spans)?;
+    let domain = DOMAIN::from((mesh, spans));
 
-    Ok(VtkData {
-        domain, data
-    })
+    Ok(VtkData { domain, data })
 }
 
 #[allow(dead_code)]
@@ -182,8 +184,10 @@ pub fn parse_dataarray_or_lazy<'a>(
 
 /// cycle through buffers (and their offsets) and read the binary information from the
 /// <AppendedBinary> section in order
-pub fn read_appended_array_buffers(mut buffers: Vec<RefMut<'_, OffsetBuffer>>, bytes: &[u8]) -> Result<(), ParseError> {
-    
+pub fn read_appended_array_buffers(
+    mut buffers: Vec<RefMut<'_, OffsetBuffer>>,
+    bytes: &[u8],
+) -> Result<(), ParseError> {
     // if we have any binary data:
     if buffers.len() > 0 {
         //we have some data to read - first organize all of the data by the offsets
@@ -219,7 +223,6 @@ pub fn read_appended_array_buffers(mut buffers: Vec<RefMut<'_, OffsetBuffer>>, b
 
     Ok(())
 }
-
 
 /// read through a DataArray header and consume up to the ending `>` character of the
 /// header.
@@ -372,17 +375,6 @@ pub enum PartialDataArrayBuffered {
     AppendedBinary(RefCell<OffsetBuffer>),
 }
 
-impl PartialDataArrayBuffered {
-    pub fn append_to_reader_list<'a, 'b>(&'a self, buffer: &'b mut Vec<RefMut<'a, OffsetBuffer>>) {
-        match self {
-            PartialDataArrayBuffered::AppendedBinary(offset_buffer) => buffer.push(offset_buffer.borrow_mut()),
-            // if this is here then we have already read the data inline, and we dont need to worry
-            // about any appended data for this item
-            _ => ()
-        }
-    }
-}
-
 impl<'a> PartialDataArrayBuffered {
     /// Construct a buffer associated with appended binary
     pub fn new(partial: PartialDataArray, size_hint: usize) -> Self {
@@ -414,6 +406,19 @@ impl<'a> PartialDataArrayBuffered {
         match self {
             Self::Parsed { components, .. } => *components,
             Self::AppendedBinary(offset_buffer) => offset_buffer.borrow().components,
+        }
+    }
+
+    /// helper function to put the array in a vector so that we can read all the binary data in
+    /// order
+    pub fn append_to_reader_list<'c, 'b>(&'c self, buffer: &'b mut Vec<RefMut<'c, OffsetBuffer>>) {
+        match self {
+            PartialDataArrayBuffered::AppendedBinary(offset_buffer) => {
+                buffer.push(offset_buffer.borrow_mut())
+            }
+            // if this is here then we have already read the data inline, and we dont need to worry
+            // about any appended data for this item
+            _ => (),
         }
     }
 }

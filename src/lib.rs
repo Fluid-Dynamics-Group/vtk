@@ -2,7 +2,7 @@
 
 mod array;
 mod data;
-mod mesh;
+pub mod mesh;
 pub mod parse;
 mod traits;
 mod utils;
@@ -27,7 +27,7 @@ pub use parse::ParseError;
 //type ParseError = ();
 
 #[cfg(feature = "derive")]
-pub use vtk_derive::{DataArray, ParseDataArray};
+pub use vtk_derive::{DataArray, ParseArray};
 
 pub use ndarray;
 pub use xml::EventWriter;
@@ -78,9 +78,9 @@ impl traits::Encode for Base64 {
 mod helpers {
     use super::write_vtk::Encoding;
     use super::EventWriter;
+    use crate::Binary;
     use std::io::Write;
     use std::ops::{Add, Div, Sub};
-    use crate::Binary;
 
     #[derive(Debug, Clone, Default, derive_builder::Builder, PartialEq)]
     pub struct SpanData {
@@ -300,8 +300,7 @@ mod parsing_writing_compare {
     use vtk::Mesh3D;
     use vtk::Span3D;
 
-    #[derive(super::DataArray, Clone, Debug)]
-    #[derive(super::ParseDataArray)]
+    #[derive(super::DataArray, Clone, Debug, super::ParseDataArray)]
     #[vtk(encoding = "binary")]
     struct Binary {
         rho: Vec<f64>,
@@ -310,8 +309,7 @@ mod parsing_writing_compare {
         w: Vec<f64>,
     }
 
-    #[derive(vtk::DataArray, Clone)]
-    #[derive(vtk::ParseDataArray)]
+    #[derive(vtk::DataArray, Clone, vtk::ParseDataArray)]
     #[vtk(encoding = "base64")]
     struct Base64 {
         rho: Vec<f64>,
@@ -328,17 +326,16 @@ mod parsing_writing_compare {
     }
 
     fn create_data() -> super::VtkData<Binary> {
-        let spans = super::Spans3D::new(5,5,5);
+        let spans = super::Spans3D::new(5, 5, 5);
 
         let length = spans.x_len() * spans.y_len() * spans.z_len();
 
-        let mesh = super::Mesh3D{
+        let mesh = super::Mesh3D {
             x_locations: vec![0., 1., 2., 3., 4.],
             y_locations: vec![0., 1., 2., 3., 4.],
             z_locations: vec![0., 1., 2., 3., 4.],
-            spans
+            spans,
         };
-
 
         let rho: Vec<_> = std::iter::repeat(0)
             .take(length)
@@ -365,10 +362,7 @@ mod parsing_writing_compare {
 
         let data = Binary { rho, u, v, w };
 
-        let data = super::VtkData {
-            mesh,
-            data,
-        };
+        let data = super::VtkData { mesh, data };
 
         data
     }
