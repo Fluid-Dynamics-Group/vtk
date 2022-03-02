@@ -73,7 +73,7 @@ pub fn read_and_parse<GEOMETRY, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
     path: &std::path::Path,
 ) -> Result<VtkData<GEOMETRY, D>, Error>
 where
-    D: ParseArray<Visitor = ArrayVisitor> + FromBuffer<SPAN>,
+    D: ParseArray<Visitor = ArrayVisitor>,
     ArrayVisitor: Visitor<SPAN, Output = D>,
     MESH: ParseMesh<Visitor = MeshVisitor>,
     MeshVisitor: Visitor<SPAN, Output = MESH>,
@@ -91,7 +91,7 @@ pub(crate) fn parse_xml_document<DOMAIN, SPAN, D, MESH, ArrayVisitor, MeshVisito
     i: &[u8],
 ) -> Result<VtkData<DOMAIN, D>, Error>
 where
-    D: ParseArray<Visitor = ArrayVisitor> + FromBuffer<SPAN>,
+    D: ParseArray<Visitor = ArrayVisitor>,
     ArrayVisitor: Visitor<SPAN, Output = D>,
     MESH: ParseMesh<Visitor = MeshVisitor>,
     MeshVisitor: Visitor<SPAN, Output = MESH>,

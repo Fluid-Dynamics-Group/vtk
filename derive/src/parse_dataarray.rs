@@ -226,6 +226,8 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
 
     let (imp, ty, wher) = generics.split_for_impl();
 
+    check_no_references(&generics.params)?;
+
     let fields : Result<Vec<_>> = data
         .take_struct()
         .expect("Should never be enum")
@@ -254,4 +256,18 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
     );
 
     Ok(out.into())
+}
+
+/// verify that there are no lifetimes in the type signature that we want
+fn check_no_references(types: &syn::punctuated::Punctuated<syn::GenericParam, syn::token::Comma>) -> Result<()> {
+    types.into_iter()
+        .try_for_each(|ty| 
+            match ty {
+                syn::GenericParam::Lifetime(_) => Err(syn::Error::new(ty.span(), "references are not allowed in parsed structs since they must be returned by value from the parser")),
+                _ => Ok(())
+            }
+        )?;
+    
+
+    Ok(())
 }

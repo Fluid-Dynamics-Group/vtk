@@ -200,7 +200,7 @@ pub trait FromBuffer<SPAN> {
 impl <T>FromBuffer<T> for Vec<f64> {
     fn from_buffer(
         buffer: Vec<f64>,
-        spans: &T,
+        _spans: &T,
         _components: usize,
     ) -> Self {
         buffer
@@ -273,40 +273,9 @@ pub trait Encode {
 use crate as vtk;
 #[cfg(feature = "derive")]
 #[derive(vtk_derive::DataArray)]
-//#[derive(vtk_derive::ParseArray)]
-pub struct Info {
+pub struct Info<'a> {
     a: Vec<f64>,
 }
-
-    pub struct InfoVisitor {
-        a: vtk::parse::PartialDataArrayBuffered,
-    }
-    impl vtk::Visitor<vtk::mesh::Spans3D> for InfoVisitor {
-        type Output = Info;
-        fn read_headers<'a>(
-            spans: &vtk::mesh::Spans3D,
-            buffer: &'a [u8],
-        ) -> nom::IResult<&'a [u8], Self> {
-            let rest = buffer;
-            let (rest, a) = vtk::parse::parse_dataarray_or_lazy(rest, b"a", 0)?;
-            let a = parse::PartialDataArrayBuffered::new(a, 0);
-            let visitor = InfoVisitor { a };
-            Ok((rest, visitor))
-        }
-        fn add_to_appended_reader<'a, 'b>(
-            &'a self,
-            buffer: &'b mut Vec<std::cell::RefMut<'a, parse::OffsetBuffer>>,
-        ) {
-            self.a.append_to_reader_list(buffer);
-        }
-        fn finish(self, spans: &vtk::mesh::Spans3D) -> Result<Self::Output, vtk::ParseError> {
-            let comp = self.a.components();
-            let a = self.a.into_buffer();
-            let a = vtk::FromBuffer::from_buffer(a, &spans, comp);
-            Ok(Info { a })
-        }
-    }
-
 
 
 //#[cfg(feature = "derive")]
