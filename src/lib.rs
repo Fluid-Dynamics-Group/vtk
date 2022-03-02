@@ -87,6 +87,13 @@ mod helpers {
     use std::ops::{Add, Div, Sub};
     use crate as vtk;
 
+    #[derive(vtk::DataArray)]
+    struct SpanDataBinary {
+        u: Vec<f64>,
+        v: Vec<f64>,
+        w: Vec<f64>,
+    }
+
     #[derive(Debug, Clone, Default, PartialEq)]
     pub struct SpanData {
         pub u: Vec<f64>,

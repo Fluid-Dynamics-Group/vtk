@@ -204,7 +204,7 @@ fn visitor_finish(output_ident: &syn::Ident, fields: &[ValidatedField]) -> proc_
             #out
             let comp  = self.#fieldname.components();
             let #fieldname = self.#fieldname.into_buffer();
-            let #fieldname = vtk::FromBuffer::from_buffer(#fieldname, &spans, comp);
+            let #fieldname = vtk::FromBuffer::from_buffer(#fieldname, spans, comp);
         )
     }
 

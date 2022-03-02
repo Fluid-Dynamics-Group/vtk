@@ -8,7 +8,7 @@ mod inner {
     #[derive(vtk::DataArray, Clone, Debug, vtk::ParseArray)]
     #[vtk_write(encoding = "binary")]
     #[vtk_parse(spans="vtk::Spans3D")]
-    struct Binary {
+    pub struct Binary {
         rho: Vec<f64>,
         u: Vec<f64>,
         v: Vec<f64>,
@@ -18,7 +18,7 @@ mod inner {
     #[derive(vtk::DataArray, Clone, vtk::ParseArray)]
     #[vtk_write(encoding = "base64")]
     #[vtk_parse(spans="vtk::Spans3D")]
-    struct Base64 {
+    pub struct Base64 {
         rho: Vec<f64>,
         u: Vec<f64>,
         v: Vec<f64>,
@@ -29,6 +29,13 @@ mod inner {
         fn from(x: Binary) -> Self {
             let Binary { rho, u, v, w } = x;
             Base64 { rho, u, v, w }
+        }
+    }
+
+    impl From<Base64> for Binary {
+        fn from(x: Base64 ) -> Self {
+            let Base64 { rho, u, v, w } = x;
+            Binary { rho, u, v, w }
         }
     }
 
@@ -75,6 +82,18 @@ mod inner {
         data
     }
 
+    fn check_assertions<T,V>(left: vtk::VtkData<Rectilinear3D<T>, Binary>, right: vtk::VtkData<Rectilinear3D<V>, Binary>) 
+    where V: std::fmt::Debug,T: std::fmt::Debug,
+  {
+        assert_eq!(left.domain.spans, right.domain.spans);
+        assert_eq!(left.domain.mesh, right.domain.mesh);
+        assert_eq!(left.data.rho, right.data.rho);
+        assert_eq!(left.data.u, right.data.u);
+        assert_eq!(left.data.v, right.data.v);
+        assert_eq!(left.data.w, right.data.w);
+        
+    }
+
     #[test]
     fn inline_ascii_points_appended_binary_data() {
         let data = create_data();
@@ -84,12 +103,7 @@ mod inner {
         let output_data: vtk::VtkData<Rectilinear3D<vtk::Binary>, Binary> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
 
-        assert_eq!(output_data.domain.spans, data.domain.spans);
-        assert_eq!(output_data.domain.mesh, data.domain.mesh);
-        assert_eq!(output_data.data.rho, data.data.rho);
-        assert_eq!(output_data.data.u, data.data.u);
-        assert_eq!(output_data.data.v, data.data.v);
-        assert_eq!(output_data.data.w, data.data.w);
+        check_assertions(data,output_data);
     }
 
     #[test]
@@ -101,34 +115,27 @@ mod inner {
         let output_data: vtk::VtkData<Rectilinear3D<vtk::Binary>, Binary> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
 
-        assert_eq!(output_data.domain.spans, data.domain.spans);
-        assert_eq!(output_data.domain.mesh, data.domain.mesh);
-        assert_eq!(output_data.data.rho, data.data.rho);
-        assert_eq!(output_data.data.u, data.data.u);
-        assert_eq!(output_data.data.v, data.data.v);
-        assert_eq!(output_data.data.w, data.data.w);
+        check_assertions(data,output_data);
     }
 
     #[test]
     fn inline_points_inline_base64() {
-        let data = create_data();
+        let vtk_data = create_data();
+        let vtk_data_c = vtk_data.clone();
         let mut writer = Vec::new();
-        let mesh = data.domain.mesh.clone();
+        //let mesh = vtk_data.domain.mesh.clone();
 
-        //let data = data.data.clone();
-
-        let base64 = data.new_data(Base64::from(data.data.clone()));
+        let inner_data = vtk_data.data.clone();
+        let base64 = vtk_data.new_data(Base64::from(inner_data));
 
         vtk::write_vtk(&mut writer, base64.clone()).unwrap();
 
         let output_data: vtk::VtkData<Rectilinear3D<vtk::Binary>, Base64> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
 
-        assert_eq!(output_data.domain.spans, base64.domain.spans);
-        assert_eq!(output_data.domain.mesh, base64.domain.mesh);
-        assert_eq!(output_data.data.rho, base64.data.rho);
-        assert_eq!(output_data.data.u, base64.data.u);
-        assert_eq!(output_data.data.v, base64.data.v);
-        assert_eq!(output_data.data.w, base64.data.w);
+        let output_data_inner = output_data.data.clone();
+        let output_in_binary = output_data.new_data(Binary::from(output_data_inner));
+
+        check_assertions(vtk_data_c, output_in_binary);
     }
 }

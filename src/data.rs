@@ -24,36 +24,9 @@ mod tests {
     use vtk::Mesh3D;
     use vtk::Rectilinear3D;
 
-    #[test]
-    fn data_add() {
-        let data = SpanData {
-            u: vec![0., 1., 2.],
-        };
-        let data_2 = SpanData {
-            u: vec![0., 0., 1.],
-        };
-        let expected = SpanData {
-            u: vec![0., 1., 3.],
-        };
-
-        assert_eq!(data + data_2, expected)
-    }
-
-    #[test]
-    fn data_div() {
-        let data = SpanData {
-            u: vec![3., 3., 3.],
-        };
-        let expected = SpanData {
-            u: vec![1., 1., 1.],
-        };
-
-        assert_eq!(data / 3., expected)
-    }
-
     #[derive(crate::DataArray, crate::ParseArray, Debug, Clone)]
     #[vtk_parse(spans="vtk::Spans3D")]
-    struct SimpleArray {
+    pub struct SimpleArray {
         array: ndarray::Array4<f64>,
     }
 
@@ -105,7 +78,7 @@ mod tests {
         let vtk = setup_vtk();
 
         let file = std::fs::File::create("./test_vtks/simple_vector_array.vtk").unwrap();
-        vtk::write_vtk(file, vtk, true).unwrap();
+        vtk::write_vtk(file, vtk).unwrap();
     }
 
     #[test]
@@ -113,9 +86,9 @@ mod tests {
         let mut file = Vec::new();
         let vtk = setup_vtk();
         let data = vtk.data.clone();
-        vtk::write_vtk(&mut file, vtk, true).unwrap();
+        vtk::write_vtk(&mut file, vtk).unwrap();
 
-        let out_vtk = crate::parse::parse_xml_document::<SimpleArray>(&file).unwrap();
+        let out_vtk : vtk::VtkData<Rectilinear3D<vtk::Binary>, SimpleArray> = crate::parse::parse_xml_document(&file).unwrap();
         let out_data = out_vtk.data;
 
         assert_eq!(data.array, out_data.array);

@@ -279,6 +279,12 @@ pub struct Info {
     a: Vec<f64>,
 }
 
+mod testgen {
+    use crate as vtk;
+
+
+}
+
 //#[cfg(feature = "derive")]
 //#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
 ////#[derive(vtk_derive::DataArray)]

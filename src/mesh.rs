@@ -2,6 +2,8 @@ use crate::parse;
 use crate::traits::*;
 use crate::write_vtk;
 use crate::Binary;
+use crate::Ascii;
+use crate::Base64;
 use crate::Error;
 use crate::EventWriter;
 use crate::ParseError;
@@ -32,7 +34,7 @@ impl<T> From<(Mesh3D<T>, Spans3D)> for Rectilinear3D<T> {
 }
 
 /// Describes the computational stencil for 3D rectilinear geometry
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct Mesh3D<Encoding> {
     pub x_locations: Vec<f64>,
     pub y_locations: Vec<f64>,
@@ -52,6 +54,14 @@ impl<Encoding> Mesh3D<Encoding> {
             z_locations,
             _marker: PhantomData,
         }
+    }
+}
+
+impl <T, V> PartialEq<Mesh3D<V>> for Mesh3D<T> {
+    fn eq(&self, other: &Mesh3D<V>) -> bool {
+        self.x_locations == other.x_locations &&
+        self.y_locations == other.y_locations &&
+        self.z_locations == other.z_locations
     }
 }
 
@@ -90,7 +100,7 @@ impl Spans3D {
     ///
     /// # Example
     /// ```
-    /// vtk::LocationSpans::new("0 10 0 20 0 10");
+    /// vtk::Spans3D::from_span_string("0 10 0 20 0 10");
     /// ```
     ///
     /// ## Panics
@@ -182,6 +192,38 @@ impl Mesh<Binary> for Rectilinear3D<Binary> {
         offset
     }
 }
+
+impl Mesh<Ascii> for Rectilinear3D<Ascii> {
+    // only write the headers here
+    fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
+        self.mesh.x_locations.write_ascii(writer, "X")?;
+        self.mesh.y_locations.write_ascii(writer, "Y")?;
+        self.mesh.z_locations.write_ascii(writer, "Z")?;
+
+        Ok(())
+    }
+
+    //
+    fn write_mesh_appended<W: Write>(&self, _: &mut EventWriter<W>) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn span_string(&self) -> String {
+        self.spans.to_string()
+    }
+
+    fn mesh_bytes(&self) -> usize {
+        let mut offset = 0;
+
+        offset += std::mem::size_of::<f64>() * (self.mesh.x_locations.len());
+        offset += std::mem::size_of::<f64>() * (self.mesh.y_locations.len());
+        offset += std::mem::size_of::<f64>() * (self.mesh.z_locations.len());
+
+        offset
+    }
+}
+
+
 
 impl<T> ParseMesh for Mesh3D<T> {
     type Visitor = Mesh3DVisitor;

@@ -572,26 +572,25 @@ pub fn parse_appended_binary<'a>(
 mod tests {
     use super::*;
     use crate::Array;
+    use crate::Rectilinear3D;
+    use crate::Mesh3D;
+    use crate::Spans3D;
+    use crate::Binary;
+    use crate::Visitor;
+    type Domain = Rectilinear3D<Binary>;
 
     #[test]
     fn shred_to_extent() {
         let input = r#"<VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
             <RectilinearGrid WholeExtent="1 220 1 200 1 1">
             <Piece Extent="1 220 1 200 1 1">"#;
-        let out = find_extent(input.as_bytes());
+        let out = find_extent::<Spans3D>(input.as_bytes());
         out.unwrap();
     }
 
     #[test]
     fn shred_to_locations() {
-        let locations = LocationSpans {
-            x_start: 1,
-            x_end: 4,
-            y_start: 1,
-            y_end: 4,
-            z_start: 1,
-            z_end: 4,
-        };
+        let spans = Spans3D::new(4, 4, 4);
 
         let input = r#"
             <Piece Extent="1 220 1 200 1 1">
@@ -606,12 +605,14 @@ mod tests {
                     .0000000000E+00 .3981797497E-01 .7963594994E-01 .1194539249E+00
                 </DataArray>
             "#;
-        let out = parse_locations(input.as_bytes(), &locations);
-        let out = out.unwrap().1;
 
-        assert_eq!(out.x.unwrap_parsed().len(), 4);
-        assert_eq!(out.y.unwrap_parsed().len(), 4);
-        assert_eq!(out.z.unwrap_parsed().len(), 4);
+        let (_rest, locations) = crate::mesh::Mesh3DVisitor::read_headers(&spans, input.as_bytes()).unwrap();
+        let out = locations.finish(&spans).unwrap();
+
+
+        assert_eq!(out.x_locations.len(), 4);
+        assert_eq!(out.y_locations.len(), 4);
+        assert_eq!(out.z_locations.len(), 4);
     }
 
     #[test]
@@ -633,7 +634,7 @@ mod tests {
     fn full_vtk_ascii() {
         let out = read_and_parse(std::path::Path::new("./static/sample_vtk_file.vtk"));
         dbg!(&out);
-        let out: crate::VtkData<crate::helpers::SpanData> = out.unwrap();
+        let out: crate::VtkData<Domain, crate::helpers::SpanData> = out.unwrap();
         assert!(out.data.u.len() > 1000);
     }
 
@@ -641,15 +642,25 @@ mod tests {
     fn full_vtk_base64() {
         let out = read_and_parse(std::path::Path::new("./static/base64.vtk"));
         dbg!(&out);
-        let out: crate::VtkData<crate::helpers::SpanData> = out.unwrap();
+        let out: crate::VtkData<Domain, crate::helpers::SpanData> = out.unwrap();
         assert!(out.data.u.len() > 1000);
     }
 
     #[test]
+    #[cfg(feature="derive")]
     fn full_vtk_binary() {
+        use crate as vtk;
+        #[derive(vtk::DataArray, vtk::ParseArray, Debug)]
+        #[vtk_parse(spans="vtk::Spans3D")]
+        pub struct SpanDataBinary {
+            u: Vec<f64>,
+            v: Vec<f64>,
+            w: Vec<f64>,
+        }
+
         let out = read_and_parse(std::path::Path::new("./static/binary.vtk"));
         dbg!(&out);
-        let out: crate::VtkData<crate::helpers::SpanDataBinary> = out.unwrap();
+        let out: crate::VtkData<Domain, SpanDataBinary> = out.unwrap();
         assert!(out.data.u.len() > 1000);
         assert!(out.data.v.len() > 1000);
         assert!(out.data.w.len() > 1000);
