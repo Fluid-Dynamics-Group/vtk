@@ -3,13 +3,15 @@
 mod array;
 mod data;
 mod mesh;
-//pub mod parse;
+pub mod parse;
 mod traits;
 mod utils;
 mod write_vtk;
 
 pub use traits::DataArray;
-//pub(crate) use traits::ParseDataArray;
+pub(crate) use traits::ParseArray;
+pub(crate) use traits::ParseMesh;
+pub(crate) use traits::Visitor;
 
 pub use data::VtkData;
 pub use mesh::Mesh3D;
@@ -20,14 +22,12 @@ pub use traits::{Array, FromBuffer};
 pub use write_vtk::write_vtk;
 pub use write_vtk::{write_appended_dataarray_header, write_inline_dataarray, Encoding};
 
-//pub use parse::read_and_parse as read_vtk;
-//pub use parse::ParseError;
+pub use parse::read_and_parse as read_vtk;
+pub use parse::ParseError;
+//type ParseError = ();
 
 #[cfg(feature = "derive")]
 pub use vtk_derive::{DataArray, ParseDataArray};
-
-#[cfg(feature = "derive")]
-pub fn test_fn() {}
 
 pub use ndarray;
 pub use xml::EventWriter;
@@ -80,33 +80,25 @@ mod helpers {
     use super::EventWriter;
     use std::io::Write;
     use std::ops::{Add, Div, Sub};
+    use crate::Binary;
 
     #[derive(Debug, Clone, Default, derive_builder::Builder, PartialEq)]
     pub struct SpanData {
         pub u: Vec<f64>,
     }
 
-    impl super::DataArray for SpanData {
-        fn write_inline_dataarrays<W: Write>(
-            &self,
-            writer: &mut xml::EventWriter<W>,
-        ) -> Result<(), crate::Error> {
-            super::write_vtk::write_inline_dataarray(writer, &self.u, "u", Encoding::Ascii)?;
-            Ok(())
-        }
-
-        fn is_appended_array() -> bool {
-            false
-        }
-
-        fn write_appended_dataarray_headers<W: Write>(
+    impl super::DataArray<Binary> for SpanData {
+        fn write_array_header<W: Write>(
             &self,
             writer: &mut EventWriter<W>,
             starting_offset: i64,
         ) -> Result<(), crate::Error> {
             Ok(())
         }
-        fn write_appended_dataarrays<W: Write>(
+
+        /// If the encoding is binary, write all of the binary information to the appended
+        /// section of the binary file (raw bytes)
+        fn write_array_appended<W: Write>(
             &self,
             writer: &mut EventWriter<W>,
         ) -> Result<(), crate::Error> {
@@ -114,26 +106,26 @@ mod helpers {
         }
     }
 
-    impl super::ParseDataArray for SpanData {
-        fn parse_dataarrays(
-            rest: &[u8],
-            span_info: &crate::LocationSpans,
-            partial: crate::parse::LocationsPartial,
-        ) -> Result<(Self, crate::Locations), crate::parse::ParseError> {
-            let (rest, u) = crate::parse::parse_dataarray_or_lazy(rest, b"u", 1000)?;
-            let locations = crate::Locations {
-                x_locations: partial.x.unwrap_parsed(),
-                y_locations: partial.y.unwrap_parsed(),
-                z_locations: partial.z.unwrap_parsed(),
-            };
-            Ok((
-                Self {
-                    u: u.unwrap_parsed(),
-                },
-                locations,
-            ))
-        }
-    }
+    //impl super::ParseDataArray for SpanData {
+    //    fn parse_dataarrays(
+    //        rest: &[u8],
+    //        span_info: &crate::LocationSpans,
+    //        partial: crate::parse::LocationsPartial,
+    //    ) -> Result<(Self, crate::Locations), crate::parse::ParseError> {
+    //        let (rest, u) = crate::parse::parse_dataarray_or_lazy(rest, b"u", 1000)?;
+    //        let locations = crate::Locations {
+    //            x_locations: partial.x.unwrap_parsed(),
+    //            y_locations: partial.y.unwrap_parsed(),
+    //            z_locations: partial.z.unwrap_parsed(),
+    //        };
+    //        Ok((
+    //            Self {
+    //                u: u.unwrap_parsed(),
+    //            },
+    //            locations,
+    //        ))
+    //    }
+    //}
 
     impl Add for SpanData {
         type Output = Self;
@@ -305,8 +297,11 @@ mod helpers {
 #[cfg(all(test, feature = "derive"))]
 mod parsing_writing_compare {
     use crate as vtk;
+    use vtk::Mesh3D;
+    use vtk::Span3D;
 
-    #[derive(super::ParseDataArray, super::DataArray, Clone, Debug)]
+    #[derive(super::DataArray, Clone, Debug)]
+    #[derive(super::ParseDataArray)]
     #[vtk(encoding = "binary")]
     struct Binary {
         rho: Vec<f64>,
@@ -315,7 +310,8 @@ mod parsing_writing_compare {
         w: Vec<f64>,
     }
 
-    #[derive(vtk::ParseDataArray, vtk::DataArray, Clone)]
+    #[derive(vtk::DataArray, Clone)]
+    #[derive(vtk::ParseDataArray)]
     #[vtk(encoding = "base64")]
     struct Base64 {
         rho: Vec<f64>,
@@ -332,22 +328,17 @@ mod parsing_writing_compare {
     }
 
     fn create_data() -> super::VtkData<Binary> {
-        let locations = super::Locations {
+        let spans = super::Spans3D::new(5,5,5);
+
+        let length = spans.x_len() * spans.y_len() * spans.z_len();
+
+        let mesh = super::Mesh3D{
             x_locations: vec![0., 1., 2., 3., 4.],
             y_locations: vec![0., 1., 2., 3., 4.],
             z_locations: vec![0., 1., 2., 3., 4.],
+            spans
         };
 
-        let spans = super::LocationSpans {
-            x_start: 0,
-            x_end: 4,
-            y_start: 0,
-            y_end: 4,
-            z_start: 0,
-            z_end: 4,
-        };
-
-        let length = spans.x_len() * spans.y_len() * spans.z_len();
 
         let rho: Vec<_> = std::iter::repeat(0)
             .take(length)
@@ -375,8 +366,7 @@ mod parsing_writing_compare {
         let data = Binary { rho, u, v, w };
 
         let data = super::VtkData {
-            locations,
-            spans,
+            mesh,
             data,
         };
 
@@ -387,7 +377,7 @@ mod parsing_writing_compare {
     fn inline_ascii_points_appended_binary_data() {
         let data = create_data();
         let mut writer = Vec::new();
-        vtk::write_vtk(&mut writer, data.clone(), false).unwrap();
+        vtk::write_vtk(&mut writer, data.clone()).unwrap();
 
         let output_data: vtk::VtkData<Binary> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
@@ -404,7 +394,7 @@ mod parsing_writing_compare {
     fn appended_ascii_points_appended_binary_data() {
         let data = create_data();
         let mut writer = Vec::new();
-        vtk::write_vtk(&mut writer, data.clone(), true).unwrap();
+        vtk::write_vtk(&mut writer, data.clone()).unwrap();
 
         let output_data: vtk::VtkData<Binary> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
@@ -422,17 +412,12 @@ mod parsing_writing_compare {
         let data = create_data();
         let mut writer = Vec::new();
 
-        let locations = data.locations.clone();
-        let spans = data.spans.clone();
+        let mesh = data.mesh.clone();
         let data = data.data.clone();
 
-        let base64 = vtk::VtkData {
-            locations: locations.clone(),
-            spans: spans.clone(),
-            data: Base64::from(data.clone()),
-        };
+        let base64 = data.new_data(Base64::from(data.clone()));
 
-        vtk::write_vtk(&mut writer, base64.clone(), true).unwrap();
+        vtk::write_vtk(&mut writer, base64.clone()).unwrap();
 
         let output_data: vtk::VtkData<Base64> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();

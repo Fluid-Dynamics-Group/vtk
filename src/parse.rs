@@ -4,6 +4,7 @@
 //! instead derive `ParseDataArray`
 use super::data::{LocationSpans, VtkData};
 use super::ParseDataArray;
+use crate::traits::{Visitor, ParseMesh, ParseArray};
 
 use crate::utils;
 use crate::Error;
@@ -67,7 +68,7 @@ impl fmt::Display for ParseError {
 }
 
 /// read in and parse an entire vtk file for a given path
-pub fn read_and_parse<D: ParseDataArray>(path: &std::path::Path) -> Result<VtkData<D>, Error> {
+pub fn read_and_parse<D: ParseDataArray, MESH>(path: &std::path::Path) -> Result<VtkData<MESH, D>, Error> {
     let mut file = std::fs::File::open(path)?;
     let mut buffer = Vec::with_capacity(1024 * 1024 * 3);
     file.read_to_end(&mut buffer)?;
@@ -75,7 +76,13 @@ pub fn read_and_parse<D: ParseDataArray>(path: &std::path::Path) -> Result<VtkDa
     parse_xml_document(&buffer)
 }
 
-pub(crate) fn parse_xml_document<D: ParseDataArray>(i: &[u8]) -> Result<VtkData<D>, Error> {
+pub(crate) fn parse_xml_document<D, MESH, ArrayVisitor, MeshVisitor>(i: &[u8]) -> Result<VtkData<MESH, D>, Error>
+where
+    D: ParseArray<Visitor=ArrayVisitor>,
+    ArrayVisitor: Visitor,
+    MESH: ParseMesh<Visitor=MeshVisitor>,
+    MeshVisitor: Visitor
+{
     let (rest_of_document, spans) = find_extent(i).map_err(|e: NomErr| {
         ParseError::from_nom(
             e,

@@ -7,6 +7,7 @@
 //!
 
 use crate::Error;
+use crate::ParseError;
 use std::io::Write;
 use xml::writer::EventWriter;
 
@@ -161,16 +162,7 @@ pub trait DataArray<Encoding> {
 ///     </RectilinearGrid>
 /// </VTKFile>
 /// ```
-
-//pub trait ParseDataArray {
-//    fn parse_dataarrays(
-//        data: &[u8],
-//        span_info: &super::LocationSpans,
-//        locations: super::parse::LocationsPartial,
-//    ) -> Result<(Self, super::Locations), super::parse::ParseError>
-//    where
-//        Self: Sized;
-//}
+pub trait Temp {}
 
 pub trait Array {
     fn write_ascii<W: Write>(
@@ -242,6 +234,22 @@ pub trait Mesh<Encoding> {
 
     /// number of raw bytes (not encoded in base64 / ascii) that are contained in this mesh
     fn mesh_bytes(&self) -> usize;
+}
+
+pub trait ParseMesh {
+    type Visitor;
+}
+
+pub trait Visitor<Spans>: {
+    type Output;
+
+    fn read_headers(&mut self, spans: &Spans) -> Result<(), ParseError>;
+    fn read_apppended(&mut self) -> Result<(), ParseError>;
+    fn finish(self) -> Result<Self::Output, ParseError>;
+}
+
+pub trait ParseArray {
+    type Visitor;
 }
 
 pub trait Encode {
