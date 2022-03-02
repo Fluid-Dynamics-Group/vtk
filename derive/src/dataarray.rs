@@ -33,7 +33,7 @@ impl Default for Encoding {
 #[derive(Debug, FromDeriveInput)]
 // This line says that we want to process all attributes declared with `my_trait`,
 // and that darling should panic if this receiver is given an enum.
-#[darling(attributes(vtk), supports(struct_any))]
+#[darling(attributes(vtk_write), supports(struct_any))]
 struct MyInputReceiver {
     /// The struct ident.
     ident: syn::Ident,

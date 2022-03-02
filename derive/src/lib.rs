@@ -5,7 +5,7 @@ mod utils;
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput};
 
-#[proc_macro_derive(DataArray, attributes(vtk))]
+#[proc_macro_derive(DataArray, attributes(vtk_write))]
 pub fn derive_dataarray(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
@@ -16,7 +16,7 @@ pub fn derive_dataarray(input: TokenStream) -> TokenStream {
         .into()
 }
 
-#[proc_macro_derive(ParseArray)]
+#[proc_macro_derive(ParseArray, attributes(vtk_parse))]
 pub fn derive_parse_dataarray(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);

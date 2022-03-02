@@ -10,8 +10,16 @@ use crate::dataarray::Encoding;
 
 use darling::{ast, FromDeriveInput, FromField, FromMeta};
 
+//#[derive(FromMeta, Debug)]
+//struct SpanInfo {
+//    path: String
+//}
+//
+#[derive(FromMeta, Debug)]
+struct SpanInfo(syn::Path);
+
 #[derive(Debug, FromDeriveInput)]
-#[darling(attributes(vtk), supports(struct_any))]
+#[darling(attributes(vtk_parse), supports(struct_any))]
 struct InputReceiver{
     /// The struct ident.
     ident: syn::Ident,
@@ -22,12 +30,11 @@ struct InputReceiver{
     // only work on structs
     data: ast::Data<(), FieldReceiver>,
 
-    #[darling(default)]
-    encoding: Encoding,
+    span: SpanInfo
 }
 
 #[derive(Debug, FromField)]
-#[darling(attributes(vtk))]
+#[darling(attributes(vtk_parse))]
 struct FieldReceiver {
     /// Get the ident of the field. For fields in tuple or newtype structs or
     /// enum bodies, this can be `None`.
@@ -49,14 +56,14 @@ struct Visitor {
     tokens: proc_macro2::TokenStream
 }
 
-fn create_visitor(original_struct: &syn::Ident, fields: &[ValidatedField]) -> Visitor {
+fn create_visitor(original_struct: &syn::Ident, fields: &[ValidatedField], span_type: &syn::Path) -> Visitor {
     // first find out what we are naming the struct
     let mut visitor_name = original_struct.to_string();
     visitor_name.push_str("Visitor");
     let ident = syn::Ident::new(&visitor_name, original_struct.span());
 
     
-    let trait_impl = create_visitor_trait_impl(&ident, original_struct, fields);
+    let trait_impl = create_visitor_trait_impl(&ident, original_struct, fields, span_type);
     let struct_def = create_visitor_struct_definition(&ident, fields);
     let tokens = quote!(
         #struct_def
@@ -85,9 +92,7 @@ fn create_visitor_struct_definition(visitor_name: &syn::Ident, fields: &[Validat
     )
 }
 
-fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ident, fields: &[ValidatedField]) -> proc_macro2::TokenStream {
-    let span_type = quote!(vtk::mesh::Spans3D);
-
+fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ident, fields: &[ValidatedField], span_type: &syn::Path) -> proc_macro2::TokenStream {
     let read_headers = visitor_read_headers(visitor_name, fields);
     let append_to_buffer = visitor_buffer_append(fields);
     let finish = visitor_finish(original_name, fields);
@@ -124,11 +129,9 @@ fn visitor_read_headers(visitor_name: &syn::Ident, fields: &[ValidatedField]) ->
     );
 
     for field in fields {
-        println!(":::::: HERE");
 
         let fieldname = &field.ident;
         let lit = syn::LitByteStr::new(&fieldname.to_string().as_bytes(), fieldname.span());
-        dbg!(&lit);
 
         // TODO: fix this size estimation somehow?
         out = quote!(
@@ -221,6 +224,7 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
         ref ident,
         ref generics,
         data,
+        ref span,
         ..
     } = receiver;
 
@@ -245,7 +249,7 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
     let fields = fields?;
 
 
-    let Visitor { name: visitor_name, tokens: visitor_tokens}  = create_visitor(&ident, &fields);
+    let Visitor { name: visitor_name, tokens: visitor_tokens}  = create_visitor(&ident, &fields, &span.0);
 
     let out = quote!(
         #visitor_tokens

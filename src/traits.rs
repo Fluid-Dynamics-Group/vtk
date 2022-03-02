@@ -272,11 +272,12 @@ pub trait Encode {
 #[cfg(feature = "derive")]
 use crate as vtk;
 #[cfg(feature = "derive")]
-#[derive(vtk_derive::DataArray)]
-pub struct Info<'a> {
+#[derive(vtk_derive::DataArray, vtk_derive::ParseArray)]
+#[vtk_parse(span="vtk::Spans3D")]
+#[vtk_write(encoding="binary")]
+pub struct Info {
     a: Vec<f64>,
 }
-
 
 //#[cfg(feature = "derive")]
 //#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
@@ -287,5 +288,4 @@ pub struct Info<'a> {
 //    #[allow(dead_code)]
 //    b: Vec<f64>,
 //    #[allow(dead_code)]
-//    c: Vec<f64>,
-//}
+//    c: Vec<f64>, }
