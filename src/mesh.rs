@@ -8,11 +8,11 @@ use crate::ParseError;
 use crate::ParseMesh;
 use crate::Visitor;
 use nom::IResult;
-use std::cell::RefCell;
 use std::cell::RefMut;
 use std::io::Write;
 use std::marker::PhantomData;
 
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Rectilinear3D<Encoding> {
     pub spans: Spans3D,
     pub mesh: Mesh3D<Encoding>,
@@ -134,6 +134,12 @@ impl Spans3D {
             "{} {} {} {} {} {}",
             self.x_start, self.x_end, self.y_start, self.y_end, self.z_start, self.z_end
         )
+    }
+}
+
+impl ParseSpan for Spans3D {
+    fn from_str(extent: &str) -> Self {
+        Spans3D::from_span_string(extent)
     }
 }
 

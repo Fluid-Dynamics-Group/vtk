@@ -20,6 +20,9 @@ mod tests {
 
     use crate as vtk;
     use crate::Array;
+    use vtk::Spans3D;
+    use vtk::Mesh3D;
+    use vtk::Rectilinear3D;
 
     #[test]
     fn data_add() {
@@ -48,29 +51,19 @@ mod tests {
         assert_eq!(data / 3., expected)
     }
 
-    #[derive(crate::DataArray, crate::ParseDataArray, Debug, Clone)]
+    #[derive(crate::DataArray, crate::ParseArray, Debug, Clone)]
+    #[vtk_parse(spans="vtk::Spans3D")]
     struct SimpleArray {
         array: ndarray::Array4<f64>,
     }
 
-    fn setup_vtk() -> VtkData<SimpleArray> {
+    fn setup_vtk() -> VtkData<Rectilinear3D<vtk::Binary>, SimpleArray> {
         let x_locations = vec![0.0, 1.0, 2.0];
         let y_locations = vec![0.0, 1.0, 2.0];
         let z_locations = vec![0.0, 1.0, 2.0];
-        let locations = Locations {
-            x_locations,
-            y_locations,
-            z_locations,
-        };
+        let mesh = Mesh3D::new( x_locations, y_locations, z_locations);
 
-        let spans = LocationSpans {
-            x_start: 1,
-            x_end: 3,
-            y_start: 1,
-            y_end: 3,
-            z_start: 1,
-            z_end: 3,
-        };
+        let spans = Spans3D::new(3,3,3);
 
         let data = vec![
             0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
@@ -97,13 +90,13 @@ mod tests {
         dbg!(arr[[0, 0, 0, 0]], arr[[0, 0, 0, 1]], arr[[0, 0, 0, 2]],);
 
         let data = SimpleArray { array: arr };
+        let domain = Rectilinear3D::new(mesh, spans);
 
         dbg!(&data);
 
         crate::VtkData {
             data,
-            spans,
-            locations,
+            domain
         }
     }
 

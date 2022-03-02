@@ -30,7 +30,7 @@ struct InputReceiver{
     // only work on structs
     data: ast::Data<(), FieldReceiver>,
 
-    span: SpanInfo
+    spans: SpanInfo
 }
 
 #[derive(Debug, FromField)]
@@ -108,7 +108,7 @@ fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ide
 
             fn add_to_appended_reader<'a, 'b>(
                 &'a self,
-                buffer: &'b mut Vec<std::cell::RefMut<'a, parse::OffsetBuffer>>,
+                buffer: &'b mut Vec<std::cell::RefMut<'a, vtk::parse::OffsetBuffer>>,
             ) {
                 #append_to_buffer
             }
@@ -137,7 +137,7 @@ fn visitor_read_headers(visitor_name: &syn::Ident, fields: &[ValidatedField]) ->
         out = quote!(
             #out
             let (rest, #fieldname) = vtk::parse::parse_dataarray_or_lazy(rest, #lit, 0)?;
-            let #fieldname = parse::PartialDataArrayBuffered::new(#fieldname, 0);
+            let #fieldname = vtk::parse::PartialDataArrayBuffered::new(#fieldname, 0);
         );
     }
 
@@ -224,7 +224,7 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
         ref ident,
         ref generics,
         data,
-        ref span,
+        ref spans,
         ..
     } = receiver;
 
@@ -249,7 +249,7 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
     let fields = fields?;
 
 
-    let Visitor { name: visitor_name, tokens: visitor_tokens}  = create_visitor(&ident, &fields, &span.0);
+    let Visitor { name: visitor_name, tokens: visitor_tokens}  = create_visitor(&ident, &fields, &spans.0);
 
     let out = quote!(
         #visitor_tokens

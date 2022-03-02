@@ -87,7 +87,8 @@ where
     parse_xml_document(&buffer)
 }
 
-pub(crate) fn parse_xml_document<DOMAIN, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
+#[doc(hidden)]
+pub fn parse_xml_document<DOMAIN, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
     i: &[u8],
 ) -> Result<VtkData<DOMAIN, D>, Error>
 where
