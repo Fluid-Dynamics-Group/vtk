@@ -27,11 +27,11 @@ impl<T> From<(Mesh3D<T>, Spans3D)> for Rectilinear3D<T> {
 /// Describes the computational stencil for 3D rectilinear geometry
 ///
 /// ## Encoding Type
-/// 
+///
 /// This type carries type level information on what kind of encoding to use with the mesh.
 /// While this is not explicitly required for any `impl` or trait, it is useful to prevent
 /// the end user from having to specify several generic types when using
-/// [write_vtk](`crate::write_vtk()`). 
+/// [write_vtk](`crate::write_vtk()`).
 ///
 #[derive(Debug, Clone)]
 pub struct Mesh3D<Encoding> {
@@ -57,14 +57,14 @@ impl<Encoding> Mesh3D<Encoding> {
         }
     }
 
-    /// swap encodings for this type. This does not change any 
+    /// swap encodings for this type. This does not change any
     /// of the underlying data
     pub fn change_enconding<T>(self) -> Mesh3D<T> {
         let Mesh3D {
             x_locations,
             y_locations,
             z_locations,
-            _marker
+            _marker,
         } = self;
 
         Mesh3D {
@@ -73,15 +73,14 @@ impl<Encoding> Mesh3D<Encoding> {
             z_locations,
             _marker: PhantomData::<T>,
         }
-
     }
 }
 
-impl <T, V> PartialEq<Mesh3D<V>> for Mesh3D<T> {
+impl<T, V> PartialEq<Mesh3D<V>> for Mesh3D<T> {
     fn eq(&self, other: &Mesh3D<V>) -> bool {
-        self.x_locations == other.x_locations &&
-        self.y_locations == other.y_locations &&
-        self.z_locations == other.z_locations
+        self.x_locations == other.x_locations
+            && self.y_locations == other.y_locations
+            && self.z_locations == other.z_locations
     }
 }
 
@@ -305,7 +304,7 @@ impl ParseArray for ArrayContainer {
 }
 
 #[cfg(test)]
-impl <T> Visitor<T> for ArrayContainerVisitor {
+impl<T> Visitor<T> for ArrayContainerVisitor {
     type Output = ArrayContainer;
 
     fn read_headers<'a>(spans: &T, buffer: &'a [u8]) -> IResult<&'a [u8], Self> {
@@ -324,13 +323,10 @@ impl <T> Visitor<T> for ArrayContainerVisitor {
     }
 }
 
-
 #[test]
 fn compile_dim3_write() {
-
     let data = Mesh3D::<Binary>::new(vec![], vec![], vec![]);
-    let spans = Spans3D::new(1,1,1);
+    let spans = Spans3D::new(1, 1, 1);
     let domain = Rectilinear3D::new(data, spans);
-    //let data = 
-
+    //let data =
 }

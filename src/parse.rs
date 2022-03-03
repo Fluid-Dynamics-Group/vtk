@@ -7,8 +7,8 @@ use crate::prelude::*;
 use crate::utils;
 use nom::bytes::complete::{tag, take, take_till, take_until};
 
-use std::io::Read;
 use std::fmt;
+use std::io::Read;
 
 type NomErr<'a> = nom::Err<nom::error::Error<&'a [u8]>>;
 
@@ -565,10 +565,10 @@ pub fn parse_appended_binary<'a>(
 mod tests {
     use super::*;
     use crate::Array;
-    use crate::Rectilinear3D;
-    use crate::Mesh3D;
-    use crate::Spans3D;
     use crate::Binary;
+    use crate::Mesh3D;
+    use crate::Rectilinear3D;
+    use crate::Spans3D;
     use crate::Visitor;
     type Domain = Rectilinear3D<Binary>;
 
@@ -599,9 +599,9 @@ mod tests {
                 </DataArray>
             "#;
 
-        let (_rest, locations) = crate::mesh::Mesh3DVisitor::read_headers(&spans, input.as_bytes()).unwrap();
+        let (_rest, locations) =
+            crate::mesh::Mesh3DVisitor::read_headers(&spans, input.as_bytes()).unwrap();
         let out = locations.finish(&spans).unwrap();
-
 
         assert_eq!(out.x_locations.len(), 4);
         assert_eq!(out.y_locations.len(), 4);
@@ -640,11 +640,11 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature="derive")]
+    #[cfg(feature = "derive")]
     fn full_vtk_binary() {
         use crate as vtk;
         #[derive(vtk::DataArray, vtk::ParseArray, Debug)]
-        #[vtk_parse(spans="vtk::Spans3D")]
+        #[vtk_parse(spans = "vtk::Spans3D")]
         pub struct SpanDataBinary {
             u: Vec<f64>,
             v: Vec<f64>,

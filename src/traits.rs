@@ -197,19 +197,19 @@ pub trait FromBuffer<SPAN> {
     fn from_buffer(buffer: Vec<f64>, spans: &SPAN, components: usize) -> Self;
 }
 
-impl <T>FromBuffer<T> for Vec<f64> {
-    fn from_buffer(
-        buffer: Vec<f64>,
-        _spans: &T,
-        _components: usize,
-    ) -> Self {
+impl<T> FromBuffer<T> for Vec<f64> {
+    fn from_buffer(buffer: Vec<f64>, _spans: &T, _components: usize) -> Self {
         buffer
     }
 }
 
 impl FromBuffer<crate::Spans3D> for ndarray::Array4<f64> {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans3D, components: usize) -> Self {
-        let mut arr = Self::from_shape_vec((spans.x_len(), spans.y_len(), spans.z_len(), components), buffer).unwrap();
+        let mut arr = Self::from_shape_vec(
+            (spans.x_len(), spans.y_len(), spans.z_len(), components),
+            buffer,
+        )
+        .unwrap();
         // this axes swap accounts for how the data is read. It shoud now match _exactly_
         // how the information is input
         arr.swap_axes(0, 2);
@@ -269,15 +269,14 @@ pub trait Encode {
     fn is_binary() -> bool;
 }
 
-
 #[cfg(feature = "derive")]
 mod testgen {
     //use vtk::prelude::*;
     use crate as vtk;
 
     #[derive(vtk::DataArray, vtk::ParseArray)]
-    #[vtk_parse(spans="vtk::Spans3D")]
-    #[vtk_write(encoding="binary")]
+    #[vtk_parse(spans = "vtk::Spans3D")]
+    #[vtk_write(encoding = "binary")]
     pub struct Info {
         a: Vec<f64>,
     }

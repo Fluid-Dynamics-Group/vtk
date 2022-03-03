@@ -1,13 +1,12 @@
-
 #[cfg(all(test, feature = "derive"))]
 mod inner {
     use vtk::Mesh3D;
-    use vtk::Spans3D;
     use vtk::Rectilinear3D;
+    use vtk::Spans3D;
 
     #[derive(vtk::DataArray, Clone, Debug, vtk::ParseArray)]
     #[vtk_write(encoding = "binary")]
-    #[vtk_parse(spans="vtk::Spans3D")]
+    #[vtk_parse(spans = "vtk::Spans3D")]
     pub struct Binary {
         rho: Vec<f64>,
         u: Vec<f64>,
@@ -17,7 +16,7 @@ mod inner {
 
     #[derive(vtk::DataArray, Clone, vtk::ParseArray)]
     #[vtk_write(encoding = "base64")]
-    #[vtk_parse(spans="vtk::Spans3D")]
+    #[vtk_parse(spans = "vtk::Spans3D")]
     pub struct Base64 {
         rho: Vec<f64>,
         u: Vec<f64>,
@@ -33,7 +32,7 @@ mod inner {
     }
 
     impl From<Base64> for Binary {
-        fn from(x: Base64 ) -> Self {
+        fn from(x: Base64) -> Self {
             let Base64 { rho, u, v, w } = x;
             Binary { rho, u, v, w }
         }
@@ -77,21 +76,24 @@ mod inner {
 
         let domain = Rectilinear3D::new(mesh, spans);
 
-        let data = vtk::VtkData { domain , data };
+        let data = vtk::VtkData { domain, data };
 
         data
     }
 
-    fn check_assertions<T,V>(left: vtk::VtkData<Rectilinear3D<T>, Binary>, right: vtk::VtkData<Rectilinear3D<V>, Binary>) 
-    where V: std::fmt::Debug,T: std::fmt::Debug,
-  {
+    fn check_assertions<T, V>(
+        left: vtk::VtkData<Rectilinear3D<T>, Binary>,
+        right: vtk::VtkData<Rectilinear3D<V>, Binary>,
+    ) where
+        V: std::fmt::Debug,
+        T: std::fmt::Debug,
+    {
         assert_eq!(left.domain.spans, right.domain.spans);
         assert_eq!(left.domain.mesh, right.domain.mesh);
         assert_eq!(left.data.rho, right.data.rho);
         assert_eq!(left.data.u, right.data.u);
         assert_eq!(left.data.v, right.data.v);
         assert_eq!(left.data.w, right.data.w);
-        
     }
 
     #[test]
@@ -103,7 +105,7 @@ mod inner {
         let output_data: vtk::VtkData<Rectilinear3D<vtk::Binary>, Binary> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
 
-        check_assertions(data,output_data);
+        check_assertions(data, output_data);
     }
 
     #[test]
@@ -115,7 +117,7 @@ mod inner {
         let output_data: vtk::VtkData<Rectilinear3D<vtk::Binary>, Binary> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
 
-        check_assertions(data,output_data);
+        check_assertions(data, output_data);
     }
 
     #[test]

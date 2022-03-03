@@ -26,32 +26,32 @@
 //!
 //! The domain trait is not important for writing vtk files. Instead, the
 //! [ParseMesh](`crate::ParseMesh`) trait is used to provide type-level information
-//! on what type your `Mesh` will use to parse information from coordinate arrays 
+//! on what type your `Mesh` will use to parse information from coordinate arrays
 //! or appended binary. The type is responsible for holding parts of the information
 //! from the file is called a "`Visitor`". Incidentally, the data arrays you are reading
 //! from the file automatically implement this `Visitor` type through the derive interface.
 //!
-//! The visitor has type-level information to what the spans of the file are. This 
-//! `Span` type must implement the [`ParseSpan`](`crate::ParseSpan`) trait in 
+//! The visitor has type-level information to what the spans of the file are. This
+//! `Span` type must implement the [`ParseSpan`](`crate::ParseSpan`) trait in
 //! instantiate itself from the file as it is being parsed.
 //!
-//! Lastly, your `Domain` type must implement `From` trait for a tuple of your 
-//! mesh type and your span type: `From<(Mesh, Span)>`. 
+//! Lastly, your `Domain` type must implement `From` trait for a tuple of your
+//! mesh type and your span type: `From<(Mesh, Span)>`.
 //!
 //!
 //! ## Encoding types and their interactions with reading files
 //!
 //! `vtk` makes no assumptions about the layout of the data arrays (and the location of their
 //! information), barring that they must appear in the same order in the file as they are in
-//! the struct you are deriving on. Similarly, **the encoding type on a `Domain` type is not 
+//! the struct you are deriving on. Similarly, **the encoding type on a `Domain` type is not
 //! used for parsing data**. If you have specified that your `Rectilinear3D` domain has a `Binary`
 //! encoding, a file with `Ascii` coordinate arrays will be read without issue.
 
-mod dim_3;
 mod dim_2;
+mod dim_3;
 
-pub use dim_3::{Rectilinear3D, Mesh3D, Spans3D};
-pub use dim_2::{Rectilinear2D, Mesh2D, Spans2D};
+pub use dim_2::{Mesh2D, Rectilinear2D, Spans2D};
+pub use dim_3::{Mesh3D, Rectilinear3D, Spans3D};
 
 #[doc(hidden)]
 pub use dim_3::Mesh3DVisitor;

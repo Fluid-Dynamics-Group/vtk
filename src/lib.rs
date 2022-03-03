@@ -1,24 +1,24 @@
 #![doc = include_str!("../README.md")]
 
-pub mod prelude;
 mod array;
 mod data;
 pub mod mesh;
 pub mod parse;
+pub mod prelude;
 mod traits;
 mod utils;
 mod write_vtk;
 
 pub use traits::DataArray;
+pub use traits::Domain;
 pub use traits::ParseArray;
 pub use traits::ParseMesh;
 pub use traits::Visitor;
-pub use traits::Domain;
 
 pub use data::VtkData;
 
-pub use mesh::{Rectilinear3D, Mesh3D, Spans3D};
-pub use mesh::{Rectilinear2D, Mesh2D, Spans2D};
+pub use mesh::{Mesh2D, Rectilinear2D, Spans2D};
+pub use mesh::{Mesh3D, Rectilinear3D, Spans3D};
 
 pub use traits::*;
 pub use traits::{Array, FromBuffer};
@@ -84,10 +84,10 @@ impl traits::Encode for Base64 {
 mod helpers {
     use super::write_vtk::Encoding;
     use super::EventWriter;
+    use crate as vtk;
     use crate::Binary;
     use std::io::Write;
     use std::ops::{Add, Div, Sub};
-    use crate as vtk;
 
     #[derive(Debug, Clone, Default, PartialEq)]
     pub struct SpanData {

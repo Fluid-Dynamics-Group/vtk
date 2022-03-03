@@ -27,11 +27,11 @@ impl<T> From<(Mesh2D<T>, Spans2D)> for Rectilinear2D<T> {
 /// Describes the computational stencil for 2D rectilinear geometry
 ///
 /// ## Encoding Type
-/// 
+///
 /// This type carries type level information on what kind of encoding to use with the mesh.
 /// While this is not explicitly required for any `impl` or trait, it is useful to prevent
 /// the end user from having to specify several generic types when using
-/// [write_vtk](`crate::write_vtk()`). 
+/// [write_vtk](`crate::write_vtk()`).
 ///
 #[derive(Debug, Clone)]
 pub struct Mesh2D<Encoding> {
@@ -43,10 +43,7 @@ pub struct Mesh2D<Encoding> {
 impl<Encoding> Mesh2D<Encoding> {
     /// Constructor for the 2D mesh. Encoding can easily
     /// be specified with a turbofish or type inference in later code.
-    pub fn new(
-        x_locations: Vec<f64>,
-        y_locations: Vec<f64>,
-    ) -> Mesh2D<Encoding> {
+    pub fn new(x_locations: Vec<f64>, y_locations: Vec<f64>) -> Mesh2D<Encoding> {
         Self {
             x_locations,
             y_locations,
@@ -54,13 +51,13 @@ impl<Encoding> Mesh2D<Encoding> {
         }
     }
 
-    /// swap encodings for this type. This does not change any 
+    /// swap encodings for this type. This does not change any
     /// of the underlying data
     pub fn change_enconding<T>(self) -> Mesh2D<T> {
         let Mesh2D {
             x_locations,
             y_locations,
-            _marker
+            _marker,
         } = self;
 
         Mesh2D {
@@ -68,14 +65,12 @@ impl<Encoding> Mesh2D<Encoding> {
             y_locations,
             _marker: PhantomData::<T>,
         }
-
     }
 }
 
-impl <T, V> PartialEq<Mesh2D<V>> for Mesh2D<T> {
+impl<T, V> PartialEq<Mesh2D<V>> for Mesh2D<T> {
     fn eq(&self, other: &Mesh2D<V>) -> bool {
-        self.x_locations == other.x_locations &&
-        self.y_locations == other.y_locations
+        self.x_locations == other.x_locations && self.y_locations == other.y_locations
     }
 }
 
@@ -261,4 +256,3 @@ impl Visitor<Spans2D> for Mesh2DVisitor {
         Ok(Mesh2D::new(x_locations, y_locations))
     }
 }
-

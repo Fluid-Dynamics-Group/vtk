@@ -7,10 +7,7 @@ pub struct VtkData<DOMAIN, D> {
 impl<DOMAIN, D> VtkData<DOMAIN, D> {
     /// Construct a `vtk` container for writing to a file
     pub fn new(domain: DOMAIN, data: D) -> VtkData<DOMAIN, D> {
-        VtkData {
-            domain,
-            data,
-        }
+        VtkData { domain, data }
     }
 
     /// change the datatype of the data stored in this container
@@ -29,12 +26,12 @@ mod tests {
 
     use crate as vtk;
     use crate::Array;
-    use vtk::Spans3D;
     use vtk::Mesh3D;
     use vtk::Rectilinear3D;
+    use vtk::Spans3D;
 
     #[derive(crate::DataArray, crate::ParseArray, Debug, Clone)]
-    #[vtk_parse(spans="vtk::Spans3D")]
+    #[vtk_parse(spans = "vtk::Spans3D")]
     pub struct SimpleArray {
         array: ndarray::Array4<f64>,
     }
@@ -43,9 +40,9 @@ mod tests {
         let x_locations = vec![0.0, 1.0, 2.0];
         let y_locations = vec![0.0, 1.0, 2.0];
         let z_locations = vec![0.0, 1.0, 2.0];
-        let mesh = Mesh3D::new( x_locations, y_locations, z_locations);
+        let mesh = Mesh3D::new(x_locations, y_locations, z_locations);
 
-        let spans = Spans3D::new(3,3,3);
+        let spans = Spans3D::new(3, 3, 3);
 
         let data = vec![
             0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, //
@@ -76,10 +73,7 @@ mod tests {
 
         dbg!(&data);
 
-        crate::VtkData {
-            data,
-            domain
-        }
+        crate::VtkData { data, domain }
     }
 
     #[test]
@@ -97,7 +91,8 @@ mod tests {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
-        let out_vtk : vtk::VtkData<Rectilinear3D<vtk::Binary>, SimpleArray> = crate::parse::parse_xml_document(&file).unwrap();
+        let out_vtk: vtk::VtkData<Rectilinear3D<vtk::Binary>, SimpleArray> =
+            crate::parse::parse_xml_document(&file).unwrap();
         let out_data = out_vtk.data;
 
         assert_eq!(data.array, out_data.array);
