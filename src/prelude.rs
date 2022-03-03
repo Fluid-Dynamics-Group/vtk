@@ -3,7 +3,7 @@
 
 pub use crate::data::VtkData;
 pub use crate::traits::{
-    Array, DataArray, Domain, Encode, ParseArray, ParseMesh, ParseSpan, Visitor,
+    Array, DataArray, Domain, Encode, ParseArray, ParseMesh, ParseSpan, Visitor, FromBuffer
 };
 pub use crate::EventWriter;
 

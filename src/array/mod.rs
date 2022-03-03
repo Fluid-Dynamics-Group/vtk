@@ -12,6 +12,9 @@ use std::io::Write;
 use xml::writer::{EventWriter, XmlEvent};
 
 pub use field_2d::Field2D;
+pub use field_3d::Field3D;
+pub use scalar_2d::Scalar2D;
+pub use scalar_3d::Scalar3D;
 
 pub trait Components {
     type Iter;
@@ -25,18 +28,16 @@ pub trait Components {
     fn iter(&self) -> Self::Iter;
 }
 
-
-
-impl <T> Array for T
-where T: Components,
-      <T as Components>::Iter : Iterator<Item=f64>
+impl<T> Array for T
+where
+    T: Components,
+    <T as Components>::Iter: Iterator<Item = f64>,
 {
     fn write_ascii<W: Write>(
         &self,
         writer: &mut EventWriter<W>,
         name: &str,
     ) -> Result<(), crate::Error> {
-
         crate::write_vtk::write_inline_array_header(
             writer,
             crate::write_vtk::Encoding::Ascii,

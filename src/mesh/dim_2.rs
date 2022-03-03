@@ -138,7 +138,7 @@ impl Spans2D {
     /// Format the spans into a string that would be written to a vtk file
     pub(crate) fn to_string(&self) -> String {
         format!(
-            "{} {} {} {}",
+            "{} {} {} {} 0 0",
             self.x_start, self.x_end, self.y_start, self.y_end
         )
     }
@@ -159,7 +159,10 @@ impl Domain<Binary> for Rectilinear2D<Binary> {
         offset += (std::mem::size_of::<f64>() * (self.mesh.x_locations.len())) as i64;
 
         write_vtk::write_appended_dataarray_header(writer, "Y", offset, 1)?;
-        //offset += (std::mem::size_of::<f64>() * (self.mesh.y_locations.len())) as i64;
+        offset += (std::mem::size_of::<f64>() * (self.mesh.y_locations.len())) as i64;
+
+        write_vtk::write_appended_dataarray_header(writer, "Z", offset, 1)?;
+        //offset += std::mem::size_of::<f64>() as i64;
 
         Ok(())
     }
@@ -180,6 +183,7 @@ impl Domain<Binary> for Rectilinear2D<Binary> {
 
         offset += std::mem::size_of::<f64>() * (self.mesh.x_locations.len());
         offset += std::mem::size_of::<f64>() * (self.mesh.y_locations.len());
+        offset += std::mem::size_of::<f64>() ;
 
         offset
     }
@@ -190,6 +194,7 @@ impl Domain<Ascii> for Rectilinear2D<Ascii> {
     fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
         self.mesh.x_locations.write_ascii(writer, "X")?;
         self.mesh.y_locations.write_ascii(writer, "Y")?;
+        vec![0.].write_ascii(writer, "Z")?;
 
         Ok(())
     }
@@ -208,6 +213,7 @@ impl Domain<Ascii> for Rectilinear2D<Ascii> {
 
         offset += std::mem::size_of::<f64>() * (self.mesh.x_locations.len());
         offset += std::mem::size_of::<f64>() * (self.mesh.y_locations.len());
+        offset += std::mem::size_of::<f64>();
 
         offset
     }
@@ -229,6 +235,7 @@ impl Visitor<Spans2D> for Mesh2DVisitor {
     fn read_headers<'a>(spans: &Spans2D, buffer: &'a [u8]) -> IResult<&'a [u8], Self> {
         let (rest, x) = parse::parse_dataarray_or_lazy(buffer, b"X", spans.x_len())?;
         let (rest, y) = parse::parse_dataarray_or_lazy(rest, b"Y", spans.y_len())?;
+        let (rest, _) = parse::parse_dataarray_or_lazy(rest, b"Z", spans.y_len())?;
 
         let x_locations = parse::PartialDataArrayBuffered::new(x, spans.x_len());
         let y_locations = parse::PartialDataArrayBuffered::new(y, spans.y_len());

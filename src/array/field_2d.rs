@@ -1,13 +1,31 @@
-use crate::prelude::*;
 use super::Components;
+use crate::prelude::*;
 
-#[derive(Constructor, Deref, DerefMut, Into)]
+#[derive(Constructor, Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
 pub struct Field2D(Array3<f64>);
 
+impl FromBuffer<crate::Spans2D> for Field2D {
+    fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans2D, components: usize) -> Self {
+        let mut arr = Array4::from_shape_vec(
+            (components, spans.x_len(), spans.y_len(), 1),
+            buffer,
+        )
+        .unwrap();
+        
+        arr.swap_axes(0,3);
+        arr.swap_axes(1,2);
+
+        dbg!(&arr);
+
+
+        Field2D::new(arr.into_shape((components, spans.x_len(), spans.y_len())).unwrap())
+    }
+}
+
 #[derive(Deref)]
-pub struct Field2DIter{
+pub struct Field2DIter {
     #[deref]
-    arr: Array3<f64> ,
+    arr: Array3<f64>,
     x: usize,
     y: usize,
     n: usize,
@@ -19,7 +37,7 @@ impl Field2DIter {
             arr,
             x: 0,
             y: 0,
-            n: 0
+            n: 0,
         }
     }
 }
@@ -30,8 +48,8 @@ impl Iterator for Field2DIter {
     fn next(&mut self) -> Option<Self::Item> {
         let (nn, nx, ny) = self.dim();
 
-        if self.y ==  ny {
-            return None
+        if self.y == ny {
+            return None;
         }
 
         let value = *self.arr.get((self.n, self.x, self.y)).unwrap();
@@ -45,19 +63,17 @@ impl Iterator for Field2DIter {
         }
 
         // second inner most loop
-        if self.x ==  nx {
+        if self.x == nx {
             self.x = 0;
             self.y += 1;
         }
-
 
         Some(value)
     }
 }
 
-
 impl Components for Field2D {
-    type Iter = Field2DIter ;
+    type Iter = Field2DIter;
 
     fn array_components(&self) -> usize {
         self.dim().0
@@ -76,17 +92,19 @@ impl Components for Field2D {
 fn iter_order() {
     let nx = 3;
     let ny = 3;
-    let nn = 3;
+    let nn = 1;
 
-    let arr : Array3<f64> = ndarray::Array1::range(0., (nx * ny *nn) as f64, 1.).into_shape((nx,ny,nn)).unwrap();
+    let arr: Array3<f64> = ndarray::Array1::range(0., (nx * ny * nn) as f64, 1.)
+        .into_shape((nn, nx, ny))
+        .unwrap();
     dbg!(&arr);
     let mut expected = Vec::new();
 
     for j in 0..ny {
         for i in 0..nx {
             for n in 0..nn {
-                println!("GOAL INDEXING AT {} {}", i,j);
-                expected.push(*arr.get((n,i, j)).unwrap());
+                println!("GOAL INDEXING AT {} {} {}", n, i, j);
+                expected.push(*arr.get((n, i, j)).unwrap());
             }
         }
     }

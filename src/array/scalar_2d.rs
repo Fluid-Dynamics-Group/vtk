@@ -1,24 +1,38 @@
-use crate::prelude::*;
 use super::Components;
+use crate::prelude::*;
 
-#[derive(Constructor, Deref, DerefMut, Into)]
+#[derive(Constructor, Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
 pub struct Scalar2D(Array2<f64>);
 
+impl FromBuffer<crate::Spans2D> for Scalar2D {
+    fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans2D, _: usize) -> Self {
+        let mut arr = Array4::from_shape_vec(
+            (spans.x_len(), spans.y_len(), 1, 1),
+            buffer,
+        )
+        .unwrap();
+
+        // this axes swap accounts for how the data is read. It shoud now match _exactly_
+        // how the information is input
+        
+        arr.swap_axes(0,3);
+        arr.swap_axes(1,2);
+
+        Scalar2D::new(arr.into_shape((spans.x_len(), spans.y_len())).unwrap())
+    }
+}
+
 #[derive(Deref)]
-pub struct Scalar2DIter{
+pub struct Scalar2DIter {
     #[deref]
-    arr: Array2<f64> ,
+    arr: Array2<f64>,
     x: usize,
     y: usize,
 }
 
 impl Scalar2DIter {
     fn new(arr: Array2<f64>) -> Self {
-        Self {
-            arr,
-            x: 0,
-            y: 0 
-        }
+        Self { arr, x: 0, y: 0 }
     }
 }
 
@@ -29,24 +43,21 @@ impl Iterator for Scalar2DIter {
         let (nx, ny) = self.dim();
 
         if self.y == ny {
-            return None
+            return None;
         }
 
         let value = *self.arr.get((self.x, self.y)).unwrap();
 
         self.x += 1;
 
-        if self.x ==  nx {
+        if self.x == nx {
             self.x = 0;
             self.y += 1;
         }
 
-
         Some(value)
-
     }
 }
-
 
 impl Components for Scalar2D {
     type Iter = Scalar2DIter;
@@ -64,16 +75,15 @@ impl Components for Scalar2D {
     }
 }
 
-
 #[test]
 fn iter_order() {
-    let arr = ndarray::arr2(&[[1.,2.], [3.,4.]]);
+    let arr = ndarray::arr2(&[[1., 2.], [3., 4.]]);
     let mut expected = Vec::new();
 
     for j in 0..2 {
         for i in 0..2 {
-            println!("GOAL INDEXING AT {} {}", i,j);
-            expected.push(*arr.get((i,j)).unwrap());
+            println!("GOAL INDEXING AT {} {}", i, j);
+            expected.push(*arr.get((i, j)).unwrap());
         }
     }
 
