@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-mod array;
+pub mod array;
 mod data;
 pub mod mesh;
 pub mod parse;

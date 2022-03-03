@@ -15,90 +15,136 @@
 	* Binary
 	* Base64
 
-## Quickstart
+## Example
 
-Lets say you have the following struct that you have read in from some CSV file:
+```rust
+use ndarray::{Array1, Array2, Array3};
+use vtk::{Spans2D, Mesh2D, Rectilinear2D};
 
-```rust,ignore
+let nx = 100;
+let ny = 100;
+
+// define all the points and their location in the grid
+let x_locations : Vec<f64> = Array1::linspace(0., (nx * ny) as f64, nx*ny).to_vec();
+let y_locations : Vec<f64> = x_locations.clone();
+
+// create a mesh object from the point locations and specify that 
+// you want mesh information to be encoded as binary (could also 
+// use `vtk::Ascii` or `vtk::Base64`.
+let mesh = Mesh2D::<vtk::Binary>::new(x_locations, y_locations);
+
+// define the global location of this data in the domain
+// most of the time, you want something like this:
+let spans = Spans2D::new(nx, ny);
+
+// create an object to describe the entire domain
+let domain = Rectilinear2D::new(mesh, spans);
+
+// now lets make a container that holds all the information 
+// we want to store in the file
+#[derive(vtk::DataArray)]
+#[vtk_write(encoding="binary")] // could also be "ascii" or "base64"
+pub struct OurData {
+    pressure: vtk::Scalar2D,
+    velocity: vtk::Field2D
+}
+
+let pressure =vtk::Scalar2D::new(Array2::ones((nx,ny)));
+// Note here that the velocities u,v,w are switched between using the first 
+// index. This is for memory performance when writing and reading arrays. 
+// You must store your data like this if you expect it to be interpreted 
+// by paraview correctly
+let velocity =vtk::Field2D::new(Array3::ones((3, nx, ny)));
+
+let data = OurData { pressure, velocity };
+
+// in order to write to a file, the vtk object needs to have information on the 
+// domain and the data as it exists in that domain.
+let vtk_data = vtk::VtkData::new(domain, data);
+
+let file = std::fs::File::create("./test_vtks/your_file.vtk").unwrap();
+let writer = std::io::BufWriter::new(file);
+
+// finally, write all the data to the file
+vtk::write_vtk(writer, vtk_data);
+```
+
+## Deriving Traits
+The implementation for [`DataArray`](crate::DataArray) and [`ParseArray`](crate::ParseArray) 
+on all your types can be tedious. If you add a new member to your data struct,
+you must also remember to add an additional call to `write_dataarray`.  Instead, you can derive 
+the traits.
+
+If you want to write data to a file derive the `DataArray` trait. If you are parsing
+data from a file, derive the `ParseArray` trait. Both traits accept attributes for
+code generation. All fields in the struct must implement the [FromBuffer](FromBuffer) trait.
+If you stick to the types in [vtk::array](crate::array) such as [`Field3D`](Field3D) you wont have
+much issue with this.
+
+The `DataArray` derive accepts `vtk_write`. It is used to specify the encoding of
+the data being written to the file. It defaults to binary encoding:
+
+```rust
+#[derive(vtk::DataArray)]
+#[vtk_write(encoding="base64")] // could also be "binary" (default) and "ascii"
 struct VelocityField {
-    u: Vec<f64>,
-    v: Vec<f64>,
-    w: Vec<f64>,
+    a: Vec<f64>,
+    b: vtk::Field3D,
+    c: vtk::Scalar3D
 }
 ```
 
-Lets say we know this data has come from a X/Y/Z grid of 100/100/400 in size, with 1000 divisions 
-in each direction. We need to tell `vtk` about the locations of each cell so that they can be 
-plotted correctly. We can create, for example, the x locations with a dx of X/1000:
+For deriving `ParseArray` you **must** specify what spans you are parsing:
 
-```rust,ignore
-let x_total = 100.;
-let x_divisions = 1000.;
-let dx = x_total / x_divisions;
-
-let x_locations: Vec<f64> = std::iter::repeat(0)
-    .take(100)
-    .enumerate()
-    .map(|(x, _)| x as f64 * dx)
-    .collect();
-```
-
-Once we know all the locations in the x, y, and z directions we map it into a `vtk::Locations`:
-
-```rust,ignore
-let global_locations = vtk::Locations {
-    x_locations: x_locations,
-    y_locations: y_locations,
-    z_locations: z_locations,
-};
-```
-
-Then, we need to tell `vtk` for what section of the global locations does this data correspond to. This
-is because vtk can combine several different "spans" of information (`LocationSpans`) into a single
-flow field. Since we already know the X/Y/Z maximums, and are only making a singular `.vtk` file,
-the spans are easy:
-
-```rust,ignore
-let location_spans = vtk::LocationSpans {
-    x_start: 0,
-    x_end: 100,
-    y_start: 0,
-    y_end: 100,
-    z_start: 0,
-    z_end: 400,
-};
-```
-
-With this, we can combine our file into a `vtk::VtkData` and write it to a file to view in paraview!:
-
-```rust,ignore
-let velocity_field : VelocityField = ...;
-
-let vtk_file = vtk::VtkData {
-    data: velocity_field,
-    locations: global_locations,
-    spans: location_spans,
-};
-
-// make sure to use a write buffer to speed things up
-let file = std::io::WriteBuf::new(std::fs::File::create("your_file.vtk").unwrap());
-vtk::write_vtk(file, vtk_file).unwrap()
-```
-
-### Deriving Traits
-The implementation for `DataArray` on all your types can be tedious. If you add a new member to your data struct
-you must also remember to add an additional call to `write_dataarray`.  Instead, you can add the `derive` feature
-to your crate and this trait (along with `vtk::traits::ParseDataArray`) can be automatically generated. 
-
-```rust,ignore
-#[derive(vtk::DataArray, vtk::ParseDataArray)]
-#[vtk(encoding="base64")] // could also be "binary" (default) and "ascii"
-struct VelocityField {
-    u: Vec<f64>,
-    v: Vec<f64>,
-    w: Vec<f64>,
+```rust
+#[derive(vtk::ParseArray)]
+#[vtk_parse(spans="vtk::Spans3D")]
+pub struct VelocityField {
+    a: Vec<f64>,
+    b: vtk::Field3D,
+    c: vtk::Scalar3D
 }
 ```
+
+If you specify the wrong spans there will be a compiler error:
+
+```rust,ignore
+#[derive(vtk::ParseArray)]
+// specified 2d geometry with 3d arrays in the struct
+#[vtk_parse(spans="vtk::Spans2D")]
+pub struct VelocityField {
+    a: Vec<f64>,
+    b: vtk::Field3D,
+    c: vtk::Scalar3D
+}
+```
+
+```bash
+error[E0277]: the trait bound `Scalar3D: FromBuffer<Spans2D>` is not satisfied
+ --> src/lib.rs:112:10
+  |
+4 | #[derive(vtk::ParseArray)]
+  |          ^^^^^^^^^^^^^^^ the trait `FromBuffer<Spans2D>` is not implemented for `Scalar3D`
+  |
+  = help: the following implementations were found:
+            <Scalar3D as FromBuffer<Spans3D>>
+  = note: this error originates in the derive macro `vtk::ParseArray` (in Nightly builds, run with -Z macro-backtrace for more info)
+```
+
+If you forget to specify the spans with the attribute `vtk_parse` you will get a sligtly ambiguous compiler error:
+
+```bash
+error: proc-macro derive panicked
+ --> src/lib.rs:114:10
+  |
+4 | #[derive(vtk::ParseArray)]
+  |          ^^^^^^^^^^^^^^^
+  |
+  = help: message: called `Result::unwrap()` on an `Err` value: Error { kind: MissingField("spans"), locations: [], span: None }
+```
+
+
+If you are reading data from a file, then you 
 
 ## Encoding Sizes
 
@@ -113,7 +159,11 @@ are the most human readable while the base64 / binary files are not.
 | Base64               | 8.1       | 35.00      |
 | Ascii                | 10.0      | 66.67      |
 
-## A note on ordering of data
+## Working with vectors
+
+It is highly discouraged to work with raw vectors when reading and writing arrays of data. It is
+usually preferable to use a wrapper around a `ndarray` array such as those in
+[vtk::array](crate::array). If you insist on using vectors the following is important.
 
 Since the data is usually ordered in a `Vec<_>` it is ambiguous how `vtk` expects the data to be inputted. This is 
 best illustrated code:
@@ -124,7 +174,7 @@ data_to_write_vtk = []
 for k in range(0, NZ):
     for j in range(0, NY):
         for i in range(0, NX):
-	    data_to_write_vtk.append(u_velocity[i,j,k])
+            data_to_write_vtk.append(u_velocity[i,j,k])
 ```
 
 In other words, iterate though your data in this order: Z, Y, X. This is illustrated for rectilinear systems
