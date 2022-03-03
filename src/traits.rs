@@ -170,8 +170,8 @@ pub trait Temp {}
 /// Information on how to write data from a given array (as part of a larger collection
 /// implementing `DataArray.
 ///
-/// This trait is required to be implemented on any types that are being written to a vtk file. 
-/// You probably want to use one of the provided implementations in 
+/// This trait is required to be implemented on any types that are being written to a vtk file.
+/// You probably want to use one of the provided implementations in
 /// [Scalar3D](crate::Scalar3D) [Scalar2D](crate::Scalar2D) [Field3D](crate::Field3D) [Field2D](crate::Field2D)
 pub trait Array {
     /// outputs the information in the data array to ascii encoded data
@@ -243,12 +243,12 @@ pub trait ParseMesh {
 
 /// Handles the bulk of parsing. This trait should be derived.
 ///
-/// Visitors are a pattern the `vtk` crate uses to track partial data throughout the 
-/// parsing process in a file. Since data can either be stored in where its metadata is 
-/// specified (ascii and base64 encoded data) or appended to the end of the file at 
+/// Visitors are a pattern the `vtk` crate uses to track partial data throughout the
+/// parsing process in a file. Since data can either be stored in where its metadata is
+/// specified (ascii and base64 encoded data) or appended to the end of the file at
 /// an ambiguous offset, the `Visitor` trait is implemented on a type (From [ParseMesh::Visitor](ParseMesh)
 /// for [ParseArray::Visitor](ParseArray)
-/// and `Output`'s the type that `ParseMesh` or `ParseArray` is implemented for. 
+/// and `Output`'s the type that `ParseMesh` or `ParseArray` is implemented for.
 ///
 ///
 /// ## Example
@@ -258,11 +258,11 @@ pub trait ParseMesh {
 /// pub struct SpanData {
 ///     pub u: Vec<f64>,
 /// }
-/// 
+///
 /// pub struct SpanDataVisitor {
 ///     u: vtk::parse::PartialDataArrayBuffered,
 /// }
-/// 
+///
 /// impl vtk::Visitor<vtk::Spans3D> for SpanDataVisitor {
 ///     type Output = SpanData;
 ///     fn read_headers<'a>(
@@ -299,7 +299,7 @@ pub trait ParseMesh {
 ///     pub u: Vec<f64>,
 /// }
 /// ```
-/// 
+///
 pub trait Visitor<Spans>
 where
     Self: Sized,
@@ -323,7 +323,7 @@ where
     fn finish(self, spans: &Spans) -> Result<Self::Output, ParseError>;
 }
 
-/// Helper trait to provide type information on a dataarray 
+/// Helper trait to provide type information on a dataarray
 ///
 /// This trait should almost certainly be derived. See the documentation on the [`Visitor`]
 /// trait for information on how the visitor works.
@@ -336,7 +336,7 @@ where
 /// ```
 /// #[derive(Debug, Clone, Default, PartialEq, vtk::ParseArray)]
 /// // we have 3D data so it makes sense to use `Spans3D` here.
-/// #[vtk_parse(spans="vtk::Spans3D")] 
+/// #[vtk_parse(spans="vtk::Spans3D")]
 /// pub struct SpanData {
 ///     pub velocity: vtk::Field3D,
 ///     pub pressure: vtk::Scalar3D,

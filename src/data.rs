@@ -2,7 +2,7 @@
 /// Container type to read and write vtk files from.
 ///
 /// `VtkData` contains two objects: a `D` in data and a `DOMAIN`. For reading files,
-/// `D` must implement `ParseArray` which is most easily accomplished with the derive 
+/// `D` must implement `ParseArray` which is most easily accomplished with the derive
 /// proc macro.
 ///
 /// For writing files, `domain` must implement the [`Domain`](`crate::Domain`) trait and `data` must implement
@@ -21,7 +21,7 @@ impl<DOMAIN, D> VtkData<DOMAIN, D> {
         VtkData { domain, data }
     }
 
-    /// change the datatype of the data stored in this container while leaving the 
+    /// change the datatype of the data stored in this container while leaving the
     /// domain information constant
     pub fn new_data<T>(self, new_data: T) -> VtkData<DOMAIN, T> {
         VtkData {

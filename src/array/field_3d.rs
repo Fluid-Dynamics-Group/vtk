@@ -24,9 +24,9 @@ impl FromBuffer<crate::Spans3D> for Field3D {
         .unwrap();
         // this axes swap accounts for how the data is read. It shoud now match _exactly_
         // how the information is input
-        
-        arr.swap_axes(0,3);
-        arr.swap_axes(1,2);
+
+        arr.swap_axes(0, 3);
+        arr.swap_axes(1, 2);
 
         Field3D::new(arr)
     }

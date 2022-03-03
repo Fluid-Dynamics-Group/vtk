@@ -1,5 +1,4 @@
-
-#[cfg(feature="derive")]
+#[cfg(feature = "derive")]
 mod field3d {
     use vtk::prelude::*;
 
@@ -10,7 +9,7 @@ mod field3d {
     #[derive(vtk::DataArray, vtk::ParseArray, Debug, Clone)]
     #[vtk_parse(spans = "vtk::Spans3D")]
     pub struct SimpleArray {
-        array: vtk::Field3D
+        array: vtk::Field3D,
     }
 
     fn setup_vtk() -> VtkData<Rectilinear3D<vtk::Binary>, SimpleArray> {
@@ -43,7 +42,9 @@ mod field3d {
 
         dbg!(arr[[0, 0, 0, 0]], arr[[0, 0, 0, 1]], arr[[0, 0, 0, 2]],);
 
-        let data = SimpleArray { array: vtk::Field3D::new(arr) };
+        let data = SimpleArray {
+            array: vtk::Field3D::new(arr),
+        };
         let domain = Rectilinear3D::new(mesh, spans);
 
         dbg!(&data);
@@ -74,7 +75,7 @@ mod field3d {
     }
 }
 
-#[cfg(feature="derive")]
+#[cfg(feature = "derive")]
 mod field2d {
     use vtk::prelude::*;
 
@@ -86,7 +87,7 @@ mod field2d {
     #[vtk_parse(spans = "vtk::Spans2D")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
-        array: vtk::Field2D
+        array: vtk::Field2D,
     }
 
     fn setup_vtk() -> VtkData<Rectilinear2D<vtk::Ascii>, SimpleArray> {
@@ -100,13 +101,15 @@ mod field2d {
 
         let spans = Spans2D::new(4, 4);
 
-        let arr : ndarray::Array3<f64> = ndarray::Array1::range(0., (nx * ny * nn) as f64, 1.)
+        let arr: ndarray::Array3<f64> = ndarray::Array1::range(0., (nx * ny * nn) as f64, 1.)
             .into_shape((nn, nx, ny))
             .unwrap();
 
         assert_eq!(nx * ny * nn, arr.len());
 
-        let data = SimpleArray { array: vtk::Field2D::new(arr) };
+        let data = SimpleArray {
+            array: vtk::Field2D::new(arr),
+        };
         let domain = Rectilinear2D::new(mesh, spans);
 
         dbg!(&data);
@@ -120,18 +123,17 @@ mod field2d {
 
         let file = std::fs::File::create("./test_vtks/simple_vector_array_field_2d.vtr").unwrap();
         vtk::write_vtk(file, vtk.clone()).unwrap();
-        
+
         let (nn, nx, ny) = vtk.data.array.dim();
 
         for j in 0..ny {
             for i in 0..nx {
-                for n in 0..nn{
+                for n in 0..nn {
                     let value = vtk.data.array.get((n, i, j)).unwrap();
                     println!("{value}")
                 }
             }
         }
-
     }
 
     #[test]
@@ -149,7 +151,7 @@ mod field2d {
     }
 }
 
-#[cfg(feature="derive")]
+#[cfg(feature = "derive")]
 mod scalar_3d {
     use vtk::prelude::*;
 
@@ -161,7 +163,7 @@ mod scalar_3d {
     #[vtk_parse(spans = "vtk::Spans3D")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
-        array: vtk::Scalar3D
+        array: vtk::Scalar3D,
     }
 
     fn setup_vtk() -> VtkData<Rectilinear3D<vtk::Ascii>, SimpleArray> {
@@ -176,13 +178,15 @@ mod scalar_3d {
 
         let spans = Spans3D::new(4, 4, 4);
 
-        let arr : ndarray::Array3<f64> = ndarray::Array1::range(0., (nx * ny * nz) as f64, 1.)
+        let arr: ndarray::Array3<f64> = ndarray::Array1::range(0., (nx * ny * nz) as f64, 1.)
             .into_shape((nx, ny, nz))
             .unwrap();
 
         assert_eq!(nx * ny * nz, arr.len());
 
-        let data = SimpleArray { array: vtk::Scalar3D::new(arr) };
+        let data = SimpleArray {
+            array: vtk::Scalar3D::new(arr),
+        };
         let domain = Rectilinear3D::new(mesh, spans);
 
         dbg!(&data);
@@ -196,18 +200,17 @@ mod scalar_3d {
 
         let file = std::fs::File::create("./test_vtks/simple_vector_array_scalar_3d.vtr").unwrap();
         vtk::write_vtk(file, vtk.clone()).unwrap();
-        
+
         let (nn, nx, ny) = vtk.data.array.dim();
 
         for j in 0..ny {
             for i in 0..nx {
-                for n in 0..nn{
+                for n in 0..nn {
                     let value = vtk.data.array.get((n, i, j)).unwrap();
                     println!("{value}")
                 }
             }
         }
-
     }
 
     #[test]
@@ -225,7 +228,7 @@ mod scalar_3d {
     }
 }
 
-#[cfg(feature="derive")]
+#[cfg(feature = "derive")]
 mod scalar_2d {
     use vtk::prelude::*;
 
@@ -237,7 +240,7 @@ mod scalar_2d {
     #[vtk_parse(spans = "vtk::Spans2D")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
-        array: vtk::Scalar2D
+        array: vtk::Scalar2D,
     }
 
     fn setup_vtk() -> VtkData<Rectilinear2D<vtk::Ascii>, SimpleArray> {
@@ -250,13 +253,15 @@ mod scalar_2d {
 
         let spans = Spans2D::new(4, 4);
 
-        let arr : ndarray::Array2<f64> = ndarray::Array1::range(0., (nx * ny) as f64, 1.)
+        let arr: ndarray::Array2<f64> = ndarray::Array1::range(0., (nx * ny) as f64, 1.)
             .into_shape((nx, ny))
             .unwrap();
 
         assert_eq!(nx * ny, arr.len());
 
-        let data = SimpleArray { array: vtk::Scalar2D::new(arr) };
+        let data = SimpleArray {
+            array: vtk::Scalar2D::new(arr),
+        };
         let domain = Rectilinear2D::new(mesh, spans);
 
         dbg!(&data);

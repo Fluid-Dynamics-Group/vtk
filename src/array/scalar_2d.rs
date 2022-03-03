@@ -7,17 +7,13 @@ pub struct Scalar2D(Array2<f64>);
 
 impl FromBuffer<crate::Spans2D> for Scalar2D {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans2D, _: usize) -> Self {
-        let mut arr = Array4::from_shape_vec(
-            (spans.x_len(), spans.y_len(), 1, 1),
-            buffer,
-        )
-        .unwrap();
+        let mut arr = Array4::from_shape_vec((spans.x_len(), spans.y_len(), 1, 1), buffer).unwrap();
 
         // this axes swap accounts for how the data is read. It shoud now match _exactly_
         // how the information is input
-        
-        arr.swap_axes(0,3);
-        arr.swap_axes(1,2);
+
+        arr.swap_axes(0, 3);
+        arr.swap_axes(1, 2);
 
         Scalar2D::new(arr.into_shape((spans.x_len(), spans.y_len())).unwrap())
     }

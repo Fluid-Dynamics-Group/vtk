@@ -183,7 +183,7 @@ impl Domain<Binary> for Rectilinear2D<Binary> {
 
         offset += std::mem::size_of::<f64>() * (self.mesh.x_locations.len());
         offset += std::mem::size_of::<f64>() * (self.mesh.y_locations.len());
-        offset += std::mem::size_of::<f64>() ;
+        offset += std::mem::size_of::<f64>();
 
         offset
     }
