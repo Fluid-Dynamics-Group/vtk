@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+pub mod prelude;
 mod array;
 mod data;
 pub mod mesh;
@@ -12,11 +13,12 @@ pub use traits::DataArray;
 pub use traits::ParseArray;
 pub use traits::ParseMesh;
 pub use traits::Visitor;
+pub use traits::Domain;
 
 pub use data::VtkData;
-pub use mesh::Mesh3D;
-pub use mesh::Spans3D;
-pub use mesh::Rectilinear3D;
+
+pub use mesh::{Rectilinear3D, Mesh3D, Spans3D};
+pub use mesh::{Rectilinear2D, Mesh2D, Spans2D};
 
 pub use traits::*;
 pub use traits::{Array, FromBuffer};
@@ -86,13 +88,6 @@ mod helpers {
     use std::io::Write;
     use std::ops::{Add, Div, Sub};
     use crate as vtk;
-
-    #[derive(vtk::DataArray)]
-    struct SpanDataBinary {
-        u: Vec<f64>,
-        v: Vec<f64>,
-        w: Vec<f64>,
-    }
 
     #[derive(Debug, Clone, Default, PartialEq)]
     pub struct SpanData {

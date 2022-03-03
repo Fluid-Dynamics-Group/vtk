@@ -1,12 +1,6 @@
-use super::data::VtkData;
-use super::Array;
-use super::DataArray;
-use crate::Encode;
-use crate::Error;
-use crate::Mesh;
+use crate::prelude::*;
 
 use std::borrow::Cow;
-use std::io::Write;
 
 use xml::attribute::Attribute;
 use xml::name::Name;
@@ -16,14 +10,14 @@ use xml::writer::{EventWriter, XmlEvent};
 const STARTING_OFFSET: i64 = 0;
 
 /// Write a given vtk file to a `Writer`
-pub fn write_vtk<W, D, MESH, EncMesh, EncArray>(
+pub fn write_vtk<W, D, DOMAIN, EncMesh, EncArray>(
     writer: W,
-    data: VtkData<MESH, D>,
+    data: VtkData<DOMAIN, D>,
 ) -> Result<(), Error>
 where
     W: Write,
     D: DataArray<EncArray>,
-    MESH: Mesh<EncMesh>,
+    DOMAIN: Domain<EncMesh>,
     EncArray: Encode,
     EncMesh: Encode,
 {
@@ -250,17 +244,3 @@ fn make_att<'a>(name: &'static str, value: &'a str) -> Attribute<'a> {
     let name = Name::from(name);
     Attribute::new(name, value)
 }
-
-//#[inline]
-//fn ascii_coordinates_inline<W: Write>(
-//    writer: &mut EventWriter<W>,
-//    locations: &super::Locations,
-//) -> Result<(), Error> {
-//    write_inline_dataarray(writer, &locations.x_locations, "X", Encoding::Ascii)?;
-//
-//    write_inline_dataarray(writer, &locations.y_locations, "Y", Encoding::Ascii)?;
-//
-//    write_inline_dataarray(writer, &locations.z_locations, "Z", Encoding::Ascii)?;
-//
-//    Ok(())
-//}

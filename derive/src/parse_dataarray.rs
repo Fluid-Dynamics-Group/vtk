@@ -1,20 +1,11 @@
-use super::utils;
-
 use proc_macro::TokenStream;
 use quote::quote;
-use proc_macro2::TokenStream as TokenStream2;
 
 use syn::spanned::Spanned;
 use syn::Result;
-use crate::dataarray::Encoding;
 
 use darling::{ast, FromDeriveInput, FromField, FromMeta};
 
-//#[derive(FromMeta, Debug)]
-//struct SpanInfo {
-//    path: String
-//}
-//
 #[derive(FromMeta, Debug)]
 struct SpanInfo(syn::Path);
 
@@ -48,6 +39,8 @@ struct FieldReceiver {
 #[derive(Debug)]
 struct ValidatedField {
     ident: syn::Ident,
+
+    #[allow(dead_code)]
     ty: syn::Type
 }
 
@@ -86,6 +79,7 @@ fn create_visitor_struct_definition(visitor_name: &syn::Ident, fields: &[Validat
     }
 
     quote!(
+        #[doc(hidden)]
         pub struct #visitor_name {
             #out
         }

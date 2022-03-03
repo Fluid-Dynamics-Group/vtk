@@ -207,8 +207,8 @@ impl <T>FromBuffer<T> for Vec<f64> {
     }
 }
 
-impl FromBuffer<vtk::Spans3D> for ndarray::Array4<f64> {
-    fn from_buffer(buffer: Vec<f64>, spans: &vtk::Spans3D, components: usize) -> Self {
+impl FromBuffer<crate::Spans3D> for ndarray::Array4<f64> {
+    fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans3D, components: usize) -> Self {
         let mut arr = Self::from_shape_vec((spans.x_len(), spans.y_len(), spans.z_len(), components), buffer).unwrap();
         // this axes swap accounts for how the data is read. It shoud now match _exactly_
         // how the information is input
@@ -217,7 +217,7 @@ impl FromBuffer<vtk::Spans3D> for ndarray::Array4<f64> {
     }
 }
 
-pub trait Mesh<Encoding> {
+pub trait Domain<Encoding> {
     /// Write the mesh information within the `<Coordinates>` section of the file
     ///
     /// If the encoding is base64 or ascii, this function should write the data in the element.
@@ -269,29 +269,16 @@ pub trait Encode {
     fn is_binary() -> bool;
 }
 
-#[cfg(feature = "derive")]
-use crate as vtk;
-#[cfg(feature = "derive")]
-#[derive(vtk_derive::DataArray, vtk_derive::ParseArray)]
-#[vtk_parse(spans="vtk::Spans3D")]
-#[vtk_write(encoding="binary")]
-pub struct Info {
-    a: Vec<f64>,
-}
 
+#[cfg(feature = "derive")]
 mod testgen {
+    //use vtk::prelude::*;
     use crate as vtk;
 
-
+    #[derive(vtk::DataArray, vtk::ParseArray)]
+    #[vtk_parse(spans="vtk::Spans3D")]
+    #[vtk_write(encoding="binary")]
+    pub struct Info {
+        a: Vec<f64>,
+    }
 }
-
-//#[cfg(feature = "derive")]
-//#[derive(vtk_derive::ParseDataArray, vtk_derive::DataArray)]
-////#[derive(vtk_derive::DataArray)]
-//struct Parse {
-//    #[allow(dead_code)]
-//    a: Vec<f64>,
-//    #[allow(dead_code)]
-//    b: Vec<f64>,
-//    #[allow(dead_code)]
-//    c: Vec<f64>, }

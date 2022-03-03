@@ -1,6 +1,5 @@
 mod dataarray;
 mod parse_dataarray;
-mod utils;
 
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput};

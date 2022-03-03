@@ -2,19 +2,12 @@
 //!
 //! most of the time you will not need to interact with this file,
 //! instead derive `ParseDataArray`
-use super::data::VtkData;
-use crate::traits::{ParseArray, ParseMesh, ParseSpan, Visitor, FromBuffer};
 
+use crate::prelude::*;
 use crate::utils;
-use crate::Error;
-use std::cell::RefCell;
-use std::cell::RefMut;
+use nom::bytes::complete::{tag, take, take_till, take_until};
 
 use std::io::Read;
-
-use nom::bytes::complete::{tag, take, take_till, take_until};
-use nom::IResult;
-
 use std::fmt;
 
 type NomErr<'a> = nom::Err<nom::error::Error<&'a [u8]>>;
