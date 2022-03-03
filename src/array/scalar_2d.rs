@@ -1,113 +1,83 @@
 use crate::prelude::*;
+use super::Components;
 
 #[derive(Constructor, Deref, DerefMut, Into)]
 pub struct Scalar2D(Array2<f64>);
 
-impl Array for Scalar2D {
-    fn write_ascii<W: Write>(
-        &self,
-        writer: &mut EventWriter<W>,
-        name: &str,
-    ) -> Result<(), crate::Error> {
-        let (nx, ny) = self.dim();
+#[derive(Deref)]
+pub struct Scalar2DIter{
+    #[deref]
+    arr: Array2<f64> ,
+    x: usize,
+    y: usize,
+}
 
-        crate::write_vtk::write_inline_array_header(
-            writer,
-            crate::write_vtk::Encoding::Ascii,
-            name,
-            1,
-        )?;
-        let mut data = String::new();
-
-        // convert the x-space array to bytes that can be written to a vtk file
-        for j in 0..ny {
-            for i in 0..nx {
-                let float = self.get((i, j)).unwrap();
-                let mut buffer = ryu::Buffer::new();
-                let mut num = buffer.format(*float).to_string();
-                num.push(' ');
-                data.push_str(&num)
-            }
+impl Scalar2DIter {
+    fn new(arr: Array2<f64>) -> Self {
+        Self {
+            arr,
+            x: 0,
+            y: 0 
         }
-
-        writer.write(XmlEvent::Characters(&data))?;
-
-        crate::write_vtk::close_inline_array_header(writer)?;
-
-        Ok(())
     }
+}
 
-    fn write_base64<W: Write>(
-        &self,
-        writer: &mut EventWriter<W>,
-        name: &str,
-    ) -> Result<(), crate::Error> {
+impl Iterator for Scalar2DIter {
+    type Item = f64;
+
+    fn next(&mut self) -> Option<Self::Item> {
         let (nx, ny) = self.dim();
 
-        crate::write_vtk::write_inline_array_header(
-            writer,
-            crate::write_vtk::Encoding::Base64,
-            name,
-            1,
-        )?;
-        let mut byte_data: Vec<u8> = Vec::with_capacity((self.len() + 1) * 8);
-
-        // for some reason paraview expects the first 8 bytes to be garbage information -
-        // I have no idea why this is the case but the first 8 bytes must be ignored
-        // for things to work correctly
-        byte_data.extend_from_slice("12345678".as_bytes());
-
-        // convert the x-space array to bytes that can be written to a vtk file
-        for j in 0..ny {
-            for i in 0..nx {
-                let float = self.get((i, j)).unwrap();
-                byte_data.extend_from_slice(&float.to_le_bytes());
-            }
+        if self.y == ny {
+            return None
         }
 
-        // encode as base64
-        let data = base64::encode(byte_data.as_slice());
+        let value = *self.arr.get((self.x, self.y)).unwrap();
 
-        writer.write(XmlEvent::Characters(&data))?;
+        self.x += 1;
 
-        crate::write_vtk::close_inline_array_header(writer)?;
+        if self.x ==  nx {
+            self.x = 0;
+            self.y += 1;
+        }
 
-        Ok(())
+
+        Some(value)
+
     }
+}
 
-    fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error> {
-        let writer = writer.inner_mut();
-        let mut bytes = Vec::with_capacity(self.len() * 8);
 
-        let (nx, ny) = self.dim();
+impl Components for Scalar2D {
+    type Iter = Scalar2DIter;
 
-        // convert the x-space array to bytes that can be written to a vtk file
-        for j in 0..ny {
-            for i in 0..nx {
-                let float = self.get((i, j)).unwrap();
-                bytes.extend(float.to_le_bytes());
-            }
-        }
-
-        // handle the edge case of the last element in the array being zero
-        if *self.get((nx - 1, ny - 1)).unwrap() == 0.0 {
-            let mut index = bytes.len() - 9;
-            for i in 0.000001_f64.to_le_bytes() {
-                bytes[index] = i;
-                index += 1
-            }
-        }
-
-        writer.write_all(&bytes)?;
-
-        Ok(())
+    fn array_components(&self) -> usize {
+        1
     }
 
     fn length(&self) -> usize {
         self.len()
     }
 
-    fn components(&self) -> usize {
-        1
+    fn iter(&self) -> Scalar2DIter {
+        Scalar2DIter::new(self.0.clone())
     }
+}
+
+
+#[test]
+fn iter_order() {
+    let arr = ndarray::arr2(&[[1.,2.], [3.,4.]]);
+    let mut expected = Vec::new();
+
+    for j in 0..2 {
+        for i in 0..2 {
+            println!("GOAL INDEXING AT {} {}", i,j);
+            expected.push(*arr.get((i,j)).unwrap());
+        }
+    }
+
+    let actual = Scalar2D(arr).iter().collect::<Vec<_>>();
+
+    assert_eq!(expected, actual)
 }

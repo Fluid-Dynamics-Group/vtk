@@ -1,119 +1,95 @@
 use crate::prelude::*;
+use super::Components;
 
 #[derive(Constructor, Deref, DerefMut, Into)]
 pub struct Scalar3D(Array3<f64>);
 
-impl Array for Scalar3D {
-    fn write_ascii<W: Write>(
-        &self,
-        writer: &mut EventWriter<W>,
-        name: &str,
-    ) -> Result<(), crate::Error> {
-        let (nx, ny, nz) = self.dim();
+#[derive(Deref)]
+pub struct Scalar3DIter{
+    #[deref]
+    arr: Array3<f64> ,
+    x: usize,
+    y: usize,
+    z: usize,
+}
 
-        crate::write_vtk::write_inline_array_header(
-            writer,
-            crate::write_vtk::Encoding::Ascii,
-            name,
-            1,
-        )?;
-        let mut data = String::new();
-
-        // convert the x-space array to bytes that can be written to a vtk file
-        for k in 0..nz {
-            for j in 0..ny {
-                for i in 0..nx {
-                    let float = self.get((i, j, k)).unwrap();
-                    let mut buffer = ryu::Buffer::new();
-                    let mut num = buffer.format(*float).to_string();
-                    num.push(' ');
-                    data.push_str(&num)
-                }
-            }
+impl Scalar3DIter {
+    fn new(arr: Array3<f64>) -> Self {
+        Self {
+            arr,
+            x: 0,
+            y: 0,
+            z: 0
         }
-
-        writer.write(XmlEvent::Characters(&data))?;
-
-        crate::write_vtk::close_inline_array_header(writer)?;
-
-        Ok(())
     }
+}
 
-    fn write_base64<W: Write>(
-        &self,
-        writer: &mut EventWriter<W>,
-        name: &str,
-    ) -> Result<(), crate::Error> {
+impl Iterator for Scalar3DIter {
+    type Item = f64;
+
+    fn next(&mut self) -> Option<Self::Item> {
         let (nx, ny, nz) = self.dim();
 
-        crate::write_vtk::write_inline_array_header(
-            writer,
-            crate::write_vtk::Encoding::Base64,
-            name,
-            1,
-        )?;
-        let mut byte_data: Vec<u8> = Vec::with_capacity((self.len() + 1) * 8);
-
-        // for some reason paraview expects the first 8 bytes to be garbage information -
-        // I have no idea why this is the case but the first 8 bytes must be ignored
-        // for things to work correctly
-        byte_data.extend_from_slice("12345678".as_bytes());
-
-        // convert the x-space array to bytes that can be written to a vtk file
-        for k in 0..nz {
-            for j in 0..ny {
-                for i in 0..nx {
-                    let float = self.get((i, j, k)).unwrap();
-                    byte_data.extend_from_slice(&float.to_le_bytes());
-                }
-            }
+        if self.z == nz {
+            return None
         }
 
-        // encode as base64
-        let data = base64::encode(byte_data.as_slice());
+        let value = *self.arr.get((self.x, self.y, self.z)).unwrap();
 
-        writer.write(XmlEvent::Characters(&data))?;
+        self.x += 1;
 
-        crate::write_vtk::close_inline_array_header(writer)?;
+        if self.x ==  nx {
+            self.x = 0;
+            self.y += 1;
+        }
 
-        Ok(())
+        if self.y ==  ny {
+            self.y = 0;
+            self.z += 1;
+        }
+
+        Some(value)
+
     }
+}
 
-    fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error> {
-        let writer = writer.inner_mut();
-        let mut bytes = Vec::with_capacity(self.len() * 8);
 
-        let (nx, ny, nz) = self.dim();
+impl Components for Scalar3D {
+    type Iter = Scalar3DIter;
 
-        // convert the x-space array to bytes that can be written to a vtk file
-        for k in 0..nz {
-            for j in 0..ny {
-                for i in 0..nx {
-                    let float = self.get((i, j, k)).unwrap();
-                    bytes.extend(float.to_le_bytes());
-                }
-            }
-        }
-
-        // handle the edge case of the last element in the array being zero
-        if *self.get((nx - 1, ny - 1, nz - 1)).unwrap() == 0.0 {
-            let mut index = bytes.len() - 9;
-            for i in 0.000001_f64.to_le_bytes() {
-                bytes[index] = i;
-                index += 1
-            }
-        }
-
-        writer.write_all(&bytes)?;
-
-        Ok(())
+    fn array_components(&self) -> usize {
+        1
     }
 
     fn length(&self) -> usize {
         self.len()
     }
 
-    fn components(&self) -> usize {
-        1
+    fn iter(&self) -> Self::Iter {
+        Scalar3DIter::new(self.0.clone())
     }
+}
+
+#[test]
+fn iter_order() {
+    let nx = 3;
+    let ny = 3;
+    let nz = 3;
+
+    let arr = ndarray::Array1::range(0., (nx * ny *nz) as f64, 1.).into_shape((nx,ny,nz)).unwrap();
+    dbg!(&arr);
+    let mut expected = Vec::new();
+
+    for k in 0..nz {
+        for j in 0..ny {
+            for i in 0..nx {
+            println!("GOAL INDEXING AT {} {}", i,j);
+            expected.push(*arr.get((i,j, k)).unwrap());
+            }
+        }
+    }
+
+    let actual = Scalar3D(arr).iter().collect::<Vec<_>>();
+
+    assert_eq!(expected, actual)
 }

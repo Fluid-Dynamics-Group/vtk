@@ -1,120 +1,97 @@
 use crate::prelude::*;
+use super::Components;
 
 #[derive(Constructor, Deref, DerefMut, Into)]
 pub struct Field2D(Array3<f64>);
 
-impl Array for Field2D {
-    fn write_ascii<W: Write>(
-        &self,
-        writer: &mut EventWriter<W>,
-        name: &str,
-    ) -> Result<(), crate::Error> {
-        let (nx, ny, components) = self.dim();
+#[derive(Deref)]
+pub struct Field2DIter{
+    #[deref]
+    arr: Array3<f64> ,
+    x: usize,
+    y: usize,
+    n: usize,
+}
 
-        crate::write_vtk::write_inline_array_header(
-            writer,
-            crate::write_vtk::Encoding::Ascii,
-            name,
-            components,
-        )?;
-        let mut data = String::new();
-
-        // convert the x-space array to bytes that can be written to a vtk file
-        for j in 0..ny {
-            for i in 0..nx {
-                for n in 0..components {
-                    let float = self.get((i, j, n)).unwrap();
-                    let mut buffer = ryu::Buffer::new();
-                    let mut num = buffer.format(*float).to_string();
-                    num.push(' ');
-                    data.push_str(&num)
-                }
-            }
+impl Field2DIter {
+    fn new(arr: Array3<f64>) -> Self {
+        Self {
+            arr,
+            x: 0,
+            y: 0,
+            n: 0
         }
-
-        writer.write(XmlEvent::Characters(&data))?;
-
-        crate::write_vtk::close_inline_array_header(writer)?;
-
-        Ok(())
     }
+}
 
-    fn write_base64<W: Write>(
-        &self,
-        writer: &mut EventWriter<W>,
-        name: &str,
-    ) -> Result<(), crate::Error> {
-        let (nx, ny, components) = self.dim();
+impl Iterator for Field2DIter {
+    type Item = f64;
 
-        crate::write_vtk::write_inline_array_header(
-            writer,
-            crate::write_vtk::Encoding::Base64,
-            name,
-            components,
-        )?;
-        let mut byte_data: Vec<u8> = Vec::with_capacity((self.len() + 1) * 8);
+    fn next(&mut self) -> Option<Self::Item> {
+        let (nn, nx, ny) = self.dim();
 
-        // for some reason paraview expects the first 8 bytes to be garbage information -
-        // I have no idea why this is the case but the first 8 bytes must be ignored
-        // for things to work correctly
-        byte_data.extend_from_slice("12345678".as_bytes());
-
-        // convert the x-space array to bytes that can be written to a vtk file
-        for j in 0..ny {
-            for i in 0..nx {
-                for n in 0..components {
-                    let float = self.get((i, j, n)).unwrap();
-                    byte_data.extend_from_slice(&float.to_le_bytes());
-                }
-            }
+        if self.y ==  ny {
+            return None
         }
 
-        // encode as base64
-        let data = base64::encode(byte_data.as_slice());
+        let value = *self.arr.get((self.n, self.x, self.y)).unwrap();
 
-        writer.write(XmlEvent::Characters(&data))?;
+        self.n += 1;
 
-        crate::write_vtk::close_inline_array_header(writer)?;
+        // inner most loop
+        if self.n == nn {
+            self.n = 0;
+            self.x += 1;
+        }
 
-        Ok(())
+        // second inner most loop
+        if self.x ==  nx {
+            self.x = 0;
+            self.y += 1;
+        }
+
+
+        Some(value)
     }
+}
 
-    fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error> {
-        let writer = writer.inner_mut();
-        let mut bytes = Vec::with_capacity(self.len() * 8);
 
-        let (nx, ny, components) = self.dim();
+impl Components for Field2D {
+    type Iter = Field2DIter ;
 
-        // convert the x-space array to bytes that can be written to a vtk file
-        for j in 0..ny {
-            for i in 0..nx {
-                for n in 0..components {
-                    let float = self.get((i, j, n)).unwrap();
-                    bytes.extend(float.to_le_bytes());
-                }
-            }
-        }
-
-        // handle the edge case of the last element in the array being zero
-        if *self.get((nx - 1, ny - 1, components - 1)).unwrap() == 0.0 {
-            let mut index = bytes.len() - 9;
-            for i in 0.000001_f64.to_le_bytes() {
-                bytes[index] = i;
-                index += 1
-            }
-        }
-
-        writer.write_all(&bytes)?;
-
-        Ok(())
+    fn array_components(&self) -> usize {
+        self.dim().0
     }
 
     fn length(&self) -> usize {
         self.len()
     }
 
-    fn components(&self) -> usize {
-        let (_, _, components) = self.dim();
-        components
+    fn iter(&self) -> Self::Iter {
+        Field2DIter::new(self.0.clone())
     }
+}
+
+#[test]
+fn iter_order() {
+    let nx = 3;
+    let ny = 3;
+    let nn = 3;
+
+    let arr : Array3<f64> = ndarray::Array1::range(0., (nx * ny *nn) as f64, 1.).into_shape((nx,ny,nn)).unwrap();
+    dbg!(&arr);
+    let mut expected = Vec::new();
+
+    for j in 0..ny {
+        for i in 0..nx {
+            for n in 0..nn {
+                println!("GOAL INDEXING AT {} {}", i,j);
+                expected.push(*arr.get((n,i, j)).unwrap());
+            }
+        }
+    }
+
+    let actual = Field2D::new(arr).iter().collect::<Vec<_>>();
+
+    assert_eq!(expected, actual)
 }
