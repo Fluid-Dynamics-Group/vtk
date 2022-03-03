@@ -2,6 +2,7 @@ use super::Components;
 use crate::prelude::*;
 
 #[derive(Constructor, Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
+/// Array container for scalar information in a 3D domain such as velocity
 pub struct Field3D(Array4<f64>);
 
 #[derive(Deref)]

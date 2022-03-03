@@ -2,6 +2,7 @@ use super::Components;
 use crate::prelude::*;
 
 #[derive(Constructor, Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
+/// Array data container for scalar information in a 2D domain such as pressure
 pub struct Scalar2D(Array2<f64>);
 
 impl FromBuffer<crate::Spans2D> for Scalar2D {

@@ -2,6 +2,7 @@ use super::Components;
 use crate::prelude::*;
 
 #[derive(Constructor, Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
+/// Array container for scalar information in a 2D domain such as velocity
 pub struct Field2D(Array3<f64>);
 
 impl FromBuffer<crate::Spans2D> for Field2D {

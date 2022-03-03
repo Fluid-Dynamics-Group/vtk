@@ -7,9 +7,13 @@
 ## Supported Features
 
 * writing XML Rectilinear grids
-* Outputting data in both binary and ascii
-* Parsing XML rectilinear grids with ascii input
-* Adding, subtracting, dividing, and multiplying vtk data together or by constants
+	* Ascii
+	* Binary
+	* Base64
+* Parsing XML rectilinear grids 
+	* Ascii
+	* Binary
+	* Base64
 
 ## Quickstart
 

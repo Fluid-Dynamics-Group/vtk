@@ -167,13 +167,21 @@ pub trait DataArray<Encoding> {
 /// ```
 pub trait Temp {}
 
+/// Information on how to write data from a given array (as part of a larger collection
+/// implementing `DataArray.
+///
+/// This trait is required to be implemented on any types that are being written to a vtk file. 
+/// You probably want to use one of the provided implementations in 
+/// [Scalar3D](crate::Scalar3D) [Scalar2D](crate::Scalar2D) [Field3D](crate::Field3D) [Field2D](crate::Field2D)
 pub trait Array {
+    /// outputs the information in the data array to ascii encoded data
     fn write_ascii<W: Write>(
         &self,
         writer: &mut EventWriter<W>,
         name: &str,
     ) -> Result<(), crate::Error>;
 
+    /// outputs the information in the data array to base64 encoded data
     fn write_base64<W: Write>(
         &self,
         writer: &mut EventWriter<W>,
@@ -181,42 +189,31 @@ pub trait Array {
     ) -> Result<(), crate::Error>;
 
     /// write the file data to the file to the appended section in binary form
-    ///
-    /// You must ensure that you have called `write_appended_dataarray_header` with
-    /// the correct offset before calling this function.
     fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error>;
 
+    // the number of elements in this array
     fn length(&self) -> usize;
 
-    fn components(&self) -> usize {
-        1
-    }
+    // the number of components at each point. For a scalar field this is 1, for a cartesian vector (such as
+    // velocity) is 3.
+    fn components(&self) -> usize;
 }
 
+/// Converts a buffer of bytes (as read from a VTK file) to the correct order
+/// for your [`Array`] type
 pub trait FromBuffer<SPAN> {
     fn from_buffer(buffer: Vec<f64>, spans: &SPAN, components: usize) -> Self;
 }
 
-impl<T> FromBuffer<T> for Vec<f64> {
-    fn from_buffer(buffer: Vec<f64>, _spans: &T, _components: usize) -> Self {
-        buffer
-    }
-}
-
-impl FromBuffer<crate::Spans3D> for ndarray::Array4<f64> {
-    fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans3D, components: usize) -> Self {
-        let mut arr = Self::from_shape_vec(
-            (spans.x_len(), spans.y_len(), spans.z_len(), components),
-            buffer,
-        )
-        .unwrap();
-        // this axes swap accounts for how the data is read. It shoud now match _exactly_
-        // how the information is input
-        arr.swap_axes(0, 2);
-        arr
-    }
-}
-
+/// Description on how to write the mesh and span information to a vtk file.
+///
+/// This trait is required to be implemented on the type in the `domain` field
+/// of [VtkData](crate::VtkData).
+///
+/// This type trait is implemented for the [Rectilinear3D](crate::Rectilinear3D)
+/// and [Rectilinear2D](crate::Rectilinear2D) types. You probably want to use one of those
+/// instead of creating your own.
+///
 pub trait Domain<Encoding> {
     /// Write the mesh information within the `<Coordinates>` section of the file
     ///
@@ -237,34 +234,138 @@ pub trait Domain<Encoding> {
     fn mesh_bytes(&self) -> usize;
 }
 
+/// Helper trait to provide type information on a mesh
+///
+/// For rectilinear data, you can use either [Mesh3D](crate::Mesh3D) or [Mesh2D](crate::Mesh2D).
 pub trait ParseMesh {
     type Visitor;
 }
 
+/// Handles the bulk of parsing. This trait should be derived.
+///
+/// Visitors are a pattern the `vtk` crate uses to track partial data throughout the 
+/// parsing process in a file. Since data can either be stored in where its metadata is 
+/// specified (ascii and base64 encoded data) or appended to the end of the file at 
+/// an ambiguous offset, the `Visitor` trait is implemented on a type (From [ParseMesh::Visitor](ParseMesh)
+/// for [ParseArray::Visitor](ParseArray)
+/// and `Output`'s the type that `ParseMesh` or `ParseArray` is implemented for. 
+///
+///
+/// ## Example
+///
+/// ```
+/// #[derive(Debug, Clone, Default, PartialEq)]
+/// pub struct SpanData {
+///     pub u: Vec<f64>,
+/// }
+/// 
+/// pub struct SpanDataVisitor {
+///     u: vtk::parse::PartialDataArrayBuffered,
+/// }
+/// 
+/// impl vtk::Visitor<vtk::Spans3D> for SpanDataVisitor {
+///     type Output = SpanData;
+///     fn read_headers<'a>(
+///         _spans: &vtk::Spans3D,
+///         buffer: &'a [u8],
+///     ) -> nom::IResult<&'a [u8], Self> {
+///         let rest = buffer;
+///         let (rest, u) = vtk::parse::parse_dataarray_or_lazy(rest, b"u", 0)?;
+///         let u = vtk::parse::PartialDataArrayBuffered::new(u, 0);
+///         let visitor = SpanDataVisitor { u };
+///         Ok((rest, visitor))
+///     }
+///     fn add_to_appended_reader<'a, 'b>(
+///         &'a self,
+///         buffer: &'b mut Vec<std::cell::RefMut<'a, vtk::parse::OffsetBuffer>>,
+///     ) {
+///         self.u.append_to_reader_list(buffer);
+///     }
+///     fn finish(self, spans: &vtk::Spans3D) -> Result<Self::Output, vtk::ParseError> {
+///         let comp = self.u.components();
+///         let u = self.u.into_buffer();
+///         let u = vtk::FromBuffer::from_buffer(u, &spans, comp);
+///         Ok(SpanData { u })
+///     }
+/// }
+/// ```
+///
+/// Equivalently, this data can simply be created if the derive feature is enabled:
+///
+/// ```
+/// #[derive(Debug, Clone, Default, PartialEq, vtk::ParseArray)]
+/// #[vtk_parse(spans="vtk::Spans3D")]
+/// pub struct SpanData {
+///     pub u: Vec<f64>,
+/// }
+/// ```
+/// 
 pub trait Visitor<Spans>
 where
     Self: Sized,
 {
+    /// The type that will be output from the visitor once parsing is complete
     type Output;
 
+    /// The implementing type is constructed with the `read_headers` function.
     fn read_headers<'a>(spans: &Spans, buffer: &'a [u8]) -> IResult<&'a [u8], Self>;
 
+    /// all the internal buffers that are stored in the visitor type
+    /// are added to a vector here so that they can be sorted and read (in order by offset) from the
+    /// appended binary section of the vtk file.
     fn add_to_appended_reader<'a, 'b>(
         &'a self,
         buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>,
     );
 
+    /// After all the binary data has been read, the `finish` function finalizes any last-minute
+    /// changes before returning the full information of the type we have been parsing towards.
     fn finish(self, spans: &Spans) -> Result<Self::Output, ParseError>;
 }
 
+/// Helper trait to provide type information on a dataarray 
+///
+/// This trait should almost certainly be derived. See the documentation on the [`Visitor`]
+/// trait for information on how the visitor works.
+///
+/// If you are deriving this type, ensure that all the containers within your struct implement
+/// [`FromBuffer`], there are no reference types, your type is public, and you correctly specify the correct `Span`
+/// object that will be used in the parsing. For 3D rectilinear parsing of some fluids data
+/// you could use this:
+///
+/// ```
+/// #[derive(Debug, Clone, Default, PartialEq, vtk::ParseArray)]
+/// // we have 3D data so it makes sense to use `Spans3D` here.
+/// #[vtk_parse(spans="vtk::Spans3D")] 
+/// pub struct SpanData {
+///     pub velocity: vtk::Field3D,
+///     pub pressure: vtk::Scalar3D,
+///     pub density: vtk::Scalar3D,
+/// }
+/// ```
 pub trait ParseArray {
     type Visitor;
 }
 
+/// Transforms a string from the `Extent` or `WholeExtent` header to numerical information
+///
+/// ## Example
+///
+/// ```
+/// use vtk::ParseSpan;
+///
+/// // a 10 x 30 x 10 sized domain
+/// let extent = "0 9 0 29 0 9";
+/// let parsed_extent = vtk::Spans3D::from_str(extent);
+/// assert_eq!(parsed_extent, vtk::Spans3D::new(10,30,10))
+/// ```
 pub trait ParseSpan {
+    /// Takes in the `WholeExtent` or `Extent` attributes from the vtk file
+    /// and returns size information on the domain
     fn from_str(extent: &str) -> Self;
 }
 
+/// Describes the encoding of a marker type
 pub trait Encode {
     fn is_binary() -> bool;
 }

@@ -2,6 +2,7 @@ use super::Components;
 use crate::prelude::*;
 
 #[derive(Constructor, Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
+/// Array container for scalar information in a 3D domain such as pressure
 pub struct Scalar3D(Array3<f64>);
 
 impl FromBuffer<crate::Spans3D> for Scalar3D{

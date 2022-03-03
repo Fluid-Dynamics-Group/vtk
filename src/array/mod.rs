@@ -8,6 +8,7 @@ mod field_3d;
 mod vector;
 
 use crate::traits::Array;
+use crate::traits::FromBuffer;
 use std::io::Write;
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -26,6 +27,26 @@ pub trait Components {
     // TODO: this trait can be done better with GAT
     // since we can use references
     fn iter(&self) -> Self::Iter;
+}
+
+impl<T> FromBuffer<T> for Vec<f64> {
+    fn from_buffer(buffer: Vec<f64>, _spans: &T, _components: usize) -> Self {
+        buffer
+    }
+}
+
+impl FromBuffer<crate::Spans3D> for ndarray::Array4<f64> {
+    fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans3D, components: usize) -> Self {
+        let mut arr = Self::from_shape_vec(
+            (spans.x_len(), spans.y_len(), spans.z_len(), components),
+            buffer,
+        )
+        .unwrap();
+        // this axes swap accounts for how the data is read. It shoud now match _exactly_
+        // how the information is input
+        arr.swap_axes(0, 2);
+        arr
+    }
 }
 
 impl<T> Array for T

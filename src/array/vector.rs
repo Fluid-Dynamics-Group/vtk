@@ -22,6 +22,10 @@ impl Array for Vec<f64> {
     fn length(&self) -> usize {
         self.len()
     }
+
+    fn components(&self) -> usize {
+        1
+    }
 }
 
 impl Array for &[f64] {
@@ -111,5 +115,9 @@ impl Array for &[f64] {
 
     fn length(&self) -> usize {
         self.len()
+    }
+
+    fn components(&self) -> usize {
+        1
     }
 }
