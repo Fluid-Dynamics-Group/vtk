@@ -3,13 +3,13 @@ use std::cell::RefMut;
 use vtk::parse;
 use vtk::prelude::*;
 use vtk::Binary;
-use vtk::Mesh3D;
-use vtk::Rectilinear3D;
-use vtk::Spans3D;
 use vtk::Mesh2D;
-use vtk::Rectilinear2D;
-use vtk::Spans2D;
+use vtk::Mesh3D;
 use vtk::ParseError;
+use vtk::Rectilinear2D;
+use vtk::Rectilinear3D;
+use vtk::Spans2D;
+use vtk::Spans3D;
 
 #[cfg(test)]
 struct ArrayContainer;
