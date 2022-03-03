@@ -101,7 +101,7 @@ mod helpers {
     impl vtk::Visitor<vtk::Spans3D> for SpanDataVisitor {
         type Output = SpanData;
         fn read_headers<'a>(
-            spans: &vtk::Spans3D,
+            _spans: &vtk::Spans3D,
             buffer: &'a [u8],
         ) -> nom::IResult<&'a [u8], Self> {
             let rest = buffer;
@@ -132,12 +132,11 @@ mod helpers {
         fn write_array_header<W: std::io::Write>(
             &self,
             writer: &mut vtk::EventWriter<W>,
-            mut offset: i64,
+            offset: i64,
         ) -> Result<(), vtk::Error> {
             let ref_field = &self.u;
             let comps = vtk::Array::components(ref_field);
             vtk::write_appended_dataarray_header(writer, "u", offset, comps)?;
-            offset += (std::mem::size_of::<f64>() * self.u.len()) as i64;
             Ok(())
         }
         fn write_array_appended<W: std::io::Write>(
