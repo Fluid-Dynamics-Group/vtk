@@ -35,6 +35,7 @@ pub use parse::ParseError;
 pub use vtk_derive::{DataArray, ParseArray};
 
 pub use ndarray;
+pub use nom;
 pub use xml::EventWriter;
 
 /// general purpose error enumeration for possible causes of failure.

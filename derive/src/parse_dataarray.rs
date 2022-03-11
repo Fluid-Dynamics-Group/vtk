@@ -96,7 +96,7 @@ fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ide
         impl vtk::Visitor<#span_type> for #visitor_name {
             type Output = #original_name;
 
-            fn read_headers<'a>(spans: &#span_type, buffer: &'a [u8]) -> nom::IResult<&'a [u8], Self> {
+            fn read_headers<'a>(spans: &#span_type, buffer: &'a [u8]) -> vtk::nom::IResult<&'a [u8], Self> {
                 #read_headers
             }
 
