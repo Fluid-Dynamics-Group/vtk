@@ -196,9 +196,9 @@ pub fn read_appended_array_buffers(
                 let reading_offset = iterator
                     .peek()
                     .map(|offset_buffer| {
-                        crate::parse::AppendedArrayLength::Known(
-                            (offset_buffer.offset - current_offset_buffer.offset) as usize,
-                        )
+                        let diff = offset_buffer.offset - current_offset_buffer.offset;
+                        println!("reading buffer of length {}", diff);
+                        crate::parse::AppendedArrayLength::Known((diff) as usize)
                     })
                     .unwrap_or(crate::parse::AppendedArrayLength::UntilEnd);
 
@@ -207,6 +207,12 @@ pub fn read_appended_array_buffers(
                     reading_offset,
                     &mut current_offset_buffer.buffer,
                 )?;
+
+                println!(
+                    "current buffer length is {}",
+                    current_offset_buffer.buffer.len()
+                );
+
                 appended_data = remaining_appended_data
             } else {
                 // there are not more elements in the array - lets leave
@@ -427,12 +433,6 @@ pub struct OffsetBuffer {
 }
 
 impl Eq for OffsetBuffer {}
-
-impl Ord for OffsetBuffer {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.offset.cmp(&other.offset)
-    }
-}
 
 /// parse the values for a single inline ascii encoded array
 ///
@@ -753,10 +753,19 @@ mod tests {
 
         // need to write a single garbage byte for things to work as expected - this
         // is becasue of how paraview expects things
-        [100f64].as_ref().write_binary(&mut event_writer).unwrap();
+        [100f64]
+            .as_ref()
+            .write_binary(&mut event_writer, false)
+            .unwrap();
 
-        values.as_ref().write_binary(&mut event_writer).unwrap();
-        values2.as_ref().write_binary(&mut event_writer).unwrap();
+        values
+            .as_ref()
+            .write_binary(&mut event_writer, false)
+            .unwrap();
+        values2
+            .as_ref()
+            .write_binary(&mut event_writer, true)
+            .unwrap();
 
         crate::write_vtk::appended_binary_header_end(&mut event_writer).unwrap();
 

@@ -7,19 +7,16 @@ pub struct Field2D(Array3<f64>);
 
 impl FromBuffer<crate::Spans2D> for Field2D {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans2D, components: usize) -> Self {
-        let mut arr = Array4::from_shape_vec(
-            (components, spans.x_len(), spans.y_len(), 1),
-            buffer,
+        let mut arr =
+            Array4::from_shape_vec((components, spans.x_len(), spans.y_len(), 1), buffer).unwrap();
+
+        arr.swap_axes(0, 3);
+        arr.swap_axes(1, 2);
+
+        Field2D::new(
+            arr.into_shape((components, spans.x_len(), spans.y_len()))
+                .unwrap(),
         )
-        .unwrap();
-        
-        arr.swap_axes(0,3);
-        arr.swap_axes(1,2);
-
-        dbg!(&arr);
-
-
-        Field2D::new(arr.into_shape((components, spans.x_len(), spans.y_len())).unwrap())
     }
 }
 

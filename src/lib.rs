@@ -146,7 +146,7 @@ mod helpers {
             &self,
             writer: &mut vtk::EventWriter<W>,
         ) -> Result<(), vtk::Error> {
-            vtk::Array::write_binary(&self.u, writer)?;
+            vtk::Array::write_binary(&self.u, writer, true)?;
             Ok(())
         }
     }

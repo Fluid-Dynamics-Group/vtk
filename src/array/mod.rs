@@ -118,9 +118,17 @@ where
         Ok(())
     }
 
-    fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error> {
+    fn write_binary<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        is_last: bool,
+    ) -> Result<(), crate::Error> {
         let writer = writer.inner_mut();
+        let length = Components::length(self);
         let mut bytes = Vec::with_capacity(self.length() * 8);
+        println!("writing {} bytes as binary", self.length() * 8);
+        dbg!(length);
+        dbg!(self.length());
 
         let iter = self.iter();
 
@@ -131,12 +139,14 @@ where
             last = float;
         }
 
-        // handle the edge case of the last element in the array being zero
-        if last == 0.0 {
-            let mut index = bytes.len() - 9;
-            for i in 0.000001_f64.to_le_bytes() {
-                bytes[index] = i;
-                index += 1
+        if is_last {
+            // handle the edge case of the last element in the array being zero
+            if last == 0.0 {
+                let mut index = bytes.len() - 9;
+                for i in 0.000001_f64.to_le_bytes() {
+                    bytes[index] = i;
+                    index += 1
+                }
             }
         }
 
@@ -146,7 +156,9 @@ where
     }
 
     fn length(&self) -> usize {
-        Components::length(self)
+        dbg!("length called");
+        let len = Components::length(self);
+        len
     }
 
     fn components(&self) -> usize {

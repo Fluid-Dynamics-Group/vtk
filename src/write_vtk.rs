@@ -111,7 +111,7 @@ where
         //      appended point location information + ascii data (was failure)
         //write_appended_dataarray(&mut writer, )?;
 
-        [100f64].as_ref().write_binary(&mut writer)?;
+        [100f64].as_ref().write_binary(&mut writer, false)?;
 
         // implementations will do nothing if they are not responsible for writing any binary
         // information

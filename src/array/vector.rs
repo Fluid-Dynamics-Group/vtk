@@ -15,8 +15,12 @@ impl Array for Vec<f64> {
     ) -> Result<(), crate::Error> {
         self.as_slice().write_base64(writer, name)
     }
-    fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error> {
-        self.as_slice().write_binary(writer)
+    fn write_binary<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        is_last: bool,
+    ) -> Result<(), crate::Error> {
+        self.as_slice().write_binary(writer, is_last)
     }
 
     fn length(&self) -> usize {
@@ -89,13 +93,17 @@ impl Array for &[f64] {
         Ok(())
     }
 
-    fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error> {
+    fn write_binary<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        is_last: bool,
+    ) -> Result<(), crate::Error> {
         let writer = writer.inner_mut();
         let mut bytes = Vec::with_capacity(self.len() * 8);
 
         // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
         // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
-        if self[self.len() - 1] == 0.0 {
+        if self[self.len() - 1] == 0.0 && is_last {
             // skip the last data point (since we know its 0.0 and
             // instead write a very small number in its place
             self[0..self.len() - 1]
