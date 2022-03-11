@@ -7,15 +7,6 @@ pub struct Scalar2D(Array2<f64>);
 
 impl FromBuffer<crate::Spans2D> for Scalar2D {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans2D, _: usize) -> Self {
-        println!(
-            "buffer length {} x * y {} x {} y {}",
-            buffer.len(),
-            spans.x_len() * spans.y_len(),
-            spans.x_len(),
-            spans.y_len()
-        );
-        println!("calling from_buffer for scalar2d");
-
         let mut arr = Array4::from_shape_vec((spans.x_len(), spans.y_len(), 1, 1), buffer).unwrap();
 
         // this axes swap accounts for how the data is read. It shoud now match _exactly_

@@ -124,11 +124,7 @@ where
         is_last: bool,
     ) -> Result<(), crate::Error> {
         let writer = writer.inner_mut();
-        let length = Components::length(self);
         let mut bytes = Vec::with_capacity(self.length() * 8);
-        println!("writing {} bytes as binary", self.length() * 8);
-        dbg!(length);
-        dbg!(self.length());
 
         let iter = self.iter();
 
@@ -156,9 +152,7 @@ where
     }
 
     fn length(&self) -> usize {
-        dbg!("length called");
-        let len = Components::length(self);
-        len
+        Components::length(self)
     }
 
     fn components(&self) -> usize {

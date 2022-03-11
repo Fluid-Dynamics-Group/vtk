@@ -197,7 +197,6 @@ pub fn read_appended_array_buffers(
                     .peek()
                     .map(|offset_buffer| {
                         let diff = offset_buffer.offset - current_offset_buffer.offset;
-                        println!("reading buffer of length {}", diff);
                         crate::parse::AppendedArrayLength::Known((diff) as usize)
                     })
                     .unwrap_or(crate::parse::AppendedArrayLength::UntilEnd);
@@ -207,11 +206,6 @@ pub fn read_appended_array_buffers(
                     reading_offset,
                     &mut current_offset_buffer.buffer,
                 )?;
-
-                println!(
-                    "current buffer length is {}",
-                    current_offset_buffer.buffer.len()
-                );
 
                 appended_data = remaining_appended_data
             } else {

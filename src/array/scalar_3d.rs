@@ -7,19 +7,6 @@ pub struct Scalar3D(Array3<f64>);
 
 impl FromBuffer<crate::Spans3D> for Scalar3D {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans3D, components: usize) -> Self {
-        println!("calling from_buffer for scalar3d");
-        println!(
-            "buffer length {} x * y * z {} x * y * 3 {} x {} y {} z {}, components {}",
-            buffer.len(),
-            spans.x_len() * spans.y_len() * spans.z_len(),
-            // IMPORTANT: buffer 3 times longer than expected is passed in
-            spans.x_len() * spans.y_len() * 3,
-            spans.x_len(),
-            spans.y_len(),
-            spans.z_len(),
-            components
-        );
-
         let mut arr = Array4::from_shape_vec(
             (components, spans.x_len(), spans.y_len(), spans.z_len()),
             buffer,
@@ -94,7 +81,6 @@ impl Components for Scalar3D {
     }
 
     fn length(&self) -> usize {
-        println!("scalar 3d length called");
         self.len()
     }
 
