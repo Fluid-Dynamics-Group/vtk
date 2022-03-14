@@ -13,8 +13,6 @@ impl FromBuffer<crate::Spans2D> for Field2D {
         arr.swap_axes(0, 3);
         arr.swap_axes(1, 2);
 
-        dbg!(&arr);
-
         Field2D::new(
             arr.into_shape((components, spans.x_len(), spans.y_len()))
                 .unwrap(),

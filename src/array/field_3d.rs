@@ -17,8 +17,8 @@ pub struct Field3DIter {
 
 impl FromBuffer<crate::Spans3D> for Field3D {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans3D, components: usize) -> Self {
-        let mut arr = Array4::from_shape_vec(
-            (components, spans.x_len(), spans.y_len(), spans.z_len()),
+        let mut arr = ndarray::Array5::from_shape_vec(
+            (components, spans.x_len(), spans.y_len(), spans.z_len(), 1),
             buffer,
         )
         .unwrap();
@@ -28,6 +28,9 @@ impl FromBuffer<crate::Spans3D> for Field3D {
         arr.swap_axes(0, 3);
         arr.swap_axes(1, 2);
 
+        let arr = arr
+            .into_shape((components, spans.x_len(), spans.y_len(), spans.z_len()))
+            .unwrap();
         Field3D::new(arr)
     }
 }

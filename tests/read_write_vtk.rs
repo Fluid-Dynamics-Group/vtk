@@ -140,4 +140,90 @@ mod inner {
 
         check_assertions(vtk_data_c, output_in_binary);
     }
+
+    #[derive(vtk::DataArray, vtk::ParseArray, Clone, PartialEq, Debug)]
+    #[vtk_parse(spans = "vtk::Spans2D")]
+    /// Information available from a span-wise average of the flowfield
+    pub struct SpanVtkInformation2D {
+        pub(crate) rho: vtk::Scalar2D,
+        pub(crate) velocity: vtk::Field2D,
+        pub(crate) energy: vtk::Scalar2D,
+    }
+
+    #[test]
+    fn read_write_binary_2d() {
+        let nx = 800;
+        let ny = 208;
+
+        let rho = vtk::Scalar2D::new(ndarray::Array2::zeros((nx, ny)));
+        let velocity = vtk::Field2D::new(ndarray::Array3::zeros((3, nx, ny)));
+        let energy = vtk::Scalar2D::new(ndarray::Array2::ones((nx, ny)));
+
+        let mesh_x: Vec<f64> = ndarray::Array1::linspace(0., 1., nx).to_vec();
+        let mesh_y: Vec<f64> = ndarray::Array1::linspace(0., 1., ny).to_vec();
+
+        assert_eq!(mesh_x.len(), nx);
+        assert_eq!(mesh_y.len(), ny);
+        let spans = vtk::Spans2D::new(nx, ny);
+        let mesh = vtk::Mesh2D::<vtk::Binary>::new(mesh_x, mesh_y);
+
+        let span = SpanVtkInformation2D {
+            rho,
+            velocity,
+            energy,
+        };
+        let domain = vtk::Rectilinear2D::new(mesh, spans);
+        let vtk_data = vtk::VtkData::new(domain, span.clone());
+
+        let mut buffer = Vec::new();
+        vtk::write_vtk(&mut buffer, vtk_data).unwrap();
+
+        // now we parse the data back out
+        let out: vtk::VtkData<vtk::Rectilinear2D<vtk::Binary>, SpanVtkInformation2D> =
+            vtk::parse::parse_xml_document(buffer.as_slice()).unwrap();
+        assert_eq!(out.data, span);
+    }
+
+    #[derive(vtk::DataArray, vtk::ParseArray, Clone, PartialEq, Debug)]
+    #[vtk_parse(spans = "vtk::Spans3D")]
+    /// Information available from a span-wise average of the flowfield
+    pub struct SpanVtkInformation3D {
+        pub(crate) rho: vtk::Scalar3D,
+    }
+
+    #[test]
+    fn read_write_binary_3d() {
+        let nx = 800;
+        let ny = 208;
+        let nz = 1;
+
+        let rho = vtk::Scalar3D::new(ndarray::Array3::ones((nx, ny, 1)));
+
+        let mesh_x: Vec<f64> = ndarray::Array1::linspace(0., 1., nx).to_vec();
+        let mesh_y: Vec<f64> = ndarray::Array1::linspace(0., 1., ny).to_vec();
+        let mesh_z: Vec<f64> = ndarray::Array1::linspace(0., 1., nz).to_vec();
+
+        assert_eq!(mesh_x.len(), nx);
+        assert_eq!(mesh_y.len(), ny);
+        assert_eq!(mesh_z.len(), nz);
+
+        let spans = vtk::Spans3D::new(nx, ny, nz);
+        dbg!(&spans);
+        let mesh = vtk::Mesh3D::<vtk::Binary>::new(mesh_x, mesh_y, mesh_z);
+
+        //let span = SpanVtkInformation { rho, velocity, energy };
+        let span = SpanVtkInformation3D { rho };
+        let domain = vtk::Rectilinear3D::new(mesh, spans);
+        let vtk_data = vtk::VtkData::new(domain, span.clone());
+
+        let mut buffer = Vec::new();
+        vtk::write_vtk(&mut buffer, vtk_data).unwrap();
+
+        // now we parse the data back out
+        let out: vtk::VtkData<vtk::Rectilinear3D<vtk::Binary>, SpanVtkInformation3D> =
+            vtk::parse::parse_xml_document(buffer.as_slice()).unwrap();
+        dbg!(out.data.rho.shape());
+        dbg!(span.rho.shape());
+        assert_eq!(out.data, span);
+    }
 }

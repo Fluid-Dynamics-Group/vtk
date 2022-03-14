@@ -35,6 +35,7 @@ pub use parse::ParseError;
 pub use vtk_derive::{DataArray, ParseArray};
 
 pub use ndarray;
+pub use nom;
 pub use xml::EventWriter;
 
 /// general purpose error enumeration for possible causes of failure.
@@ -145,7 +146,7 @@ mod helpers {
             &self,
             writer: &mut vtk::EventWriter<W>,
         ) -> Result<(), vtk::Error> {
-            vtk::Array::write_binary(&self.u, writer)?;
+            vtk::Array::write_binary(&self.u, writer, true)?;
             Ok(())
         }
     }

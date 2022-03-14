@@ -86,15 +86,24 @@ fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::
         }
     }
 
-    for field in &fields {
+    for (idx, field) in fields.iter().enumerate() {
         // convert the field identifier to a string literal
         // so `write_dataarray` understands it
         let field_name = &field.ident.as_ref().unwrap();
 
+        // check to see if this is the last iteration of the loop
+        let new_write = if idx == fields.len() -1 {
+            // there are no more arrays to write, we are last
+            quote!(vtk::Array::write_binary(&self.#field_name, writer, true)?;)
+        } else {
+            // if we have another array to write then we are not the last
+            quote!(vtk::Array::write_binary(&self.#field_name, writer, false)?;)
+        };
+
         appended_body = quote! {
             #appended_body
 
-            vtk::Array::write_binary(&self.#field_name, writer)?;
+            #new_write
         }
     }
 

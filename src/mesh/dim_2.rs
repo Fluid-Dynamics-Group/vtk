@@ -169,8 +169,9 @@ impl Domain<Binary> for Rectilinear2D<Binary> {
 
     //
     fn write_mesh_appended<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
-        self.mesh.x_locations.write_binary(writer)?;
-        self.mesh.y_locations.write_binary(writer)?;
+        self.mesh.x_locations.write_binary(writer, false)?;
+        self.mesh.y_locations.write_binary(writer, false)?;
+        vec![0.].write_binary(writer, false)?;
         Ok(())
     }
 
@@ -227,6 +228,7 @@ impl<T> ParseMesh for Mesh2D<T> {
 pub struct Mesh2DVisitor {
     x_locations: parse::PartialDataArrayBuffered,
     y_locations: parse::PartialDataArrayBuffered,
+    z_locations: parse::PartialDataArrayBuffered,
 }
 
 impl Visitor<Spans2D> for Mesh2DVisitor {
@@ -235,14 +237,16 @@ impl Visitor<Spans2D> for Mesh2DVisitor {
     fn read_headers<'a>(spans: &Spans2D, buffer: &'a [u8]) -> IResult<&'a [u8], Self> {
         let (rest, x) = parse::parse_dataarray_or_lazy(buffer, b"X", spans.x_len())?;
         let (rest, y) = parse::parse_dataarray_or_lazy(rest, b"Y", spans.y_len())?;
-        let (rest, _) = parse::parse_dataarray_or_lazy(rest, b"Z", spans.y_len())?;
+        let (rest, z) = parse::parse_dataarray_or_lazy(rest, b"Z", 1)?;
 
         let x_locations = parse::PartialDataArrayBuffered::new(x, spans.x_len());
         let y_locations = parse::PartialDataArrayBuffered::new(y, spans.y_len());
+        let z_locations = parse::PartialDataArrayBuffered::new(z, 1);
 
         let visitor = Self {
             x_locations,
             y_locations,
+            z_locations,
         };
 
         Ok((rest, visitor))
@@ -254,11 +258,13 @@ impl Visitor<Spans2D> for Mesh2DVisitor {
     ) {
         self.x_locations.append_to_reader_list(buffer);
         self.y_locations.append_to_reader_list(buffer);
+        self.z_locations.append_to_reader_list(buffer);
     }
 
     fn finish(self, _spans: &Spans2D) -> Result<Self::Output, ParseError> {
         let x_locations = self.x_locations.into_buffer();
         let y_locations = self.y_locations.into_buffer();
+        //let z_locations = self.z_locations.into_buffer();
 
         Ok(Mesh2D::new(x_locations, y_locations))
     }

@@ -189,7 +189,13 @@ pub trait Array {
     ) -> Result<(), crate::Error>;
 
     /// write the file data to the file to the appended section in binary form
-    fn write_binary<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), crate::Error>;
+    ///
+    /// if this is the last array written to the file, `is_last` should be set to true
+    fn write_binary<W: Write>(
+        &self,
+        writer: &mut EventWriter<W>,
+        is_last: bool,
+    ) -> Result<(), crate::Error>;
 
     // the number of elements in this array
     fn length(&self) -> usize;
