@@ -88,26 +88,38 @@ impl Components for Field2D {
 
 #[test]
 fn iter_order() {
-    let nx = 3;
-    let ny = 3;
-    let nn = 1;
+    let nx = 4;
+    let ny = 4;
+    let nn = 3;
 
-    let arr: Array3<f64> = ndarray::Array1::range(0., (nx * ny * nn) as f64, 1.)
+    let arr: Array3<f64> = ndarray::Array1::linspace(0., (nx * ny * nn) as f64-1., nx* ny * nn)
         .into_shape((nn, nx, ny))
         .unwrap();
+
+    dbg!(&arr.shape());
     dbg!(&arr);
+
     let mut expected = Vec::new();
 
     for j in 0..ny {
         for i in 0..nx {
             for n in 0..nn {
-                println!("GOAL INDEXING AT {} {} {}", n, i, j);
-                expected.push(*arr.get((n, i, j)).unwrap());
+                let val = *arr.get((n, i, j)).unwrap();
+                println!("GOAL at ({}, {} @ {}) = {val} ",  i, j, n);
+                expected.push(val);
             }
         }
     }
 
+    println!("on current , velocity at (2,3) is");
+    let cv = &arr;
+    println!("({}, {}, {})", cv[(0, 2,3)], cv[(1,2,3)], cv[(2,2,3)]);
+
+    println!("using the field construct, velocity at (2,3) is");
+    let cv = Field2D::new(arr.clone());
+    println!("({}, {}, {})", cv[(0, 2,3)], cv[(1,2,3)], cv[(2,2,3)]);
+
     let actual = Field2D::new(arr).iter().collect::<Vec<_>>();
 
-    assert_eq!(expected, actual)
+    assert_eq!(expected, actual);
 }

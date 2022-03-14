@@ -155,9 +155,9 @@ mod inner {
         let nx = 800;
         let ny = 208;
 
-        let rho = vtk::Scalar2D::new(ndarray::Array2::zeros((nx, ny)));
-        let velocity = vtk::Field2D::new(ndarray::Array3::zeros((3, nx, ny)));
-        let energy = vtk::Scalar2D::new(ndarray::Array2::ones((nx, ny)));
+        let rho = vtk::Scalar2D::new(ndarray::Array2::ones((nx, ny)));
+        let velocity = vtk::Field2D::new(ndarray::Array3::ones((3, nx, ny)));
+        let energy = vtk::Scalar2D::new(ndarray::Array2::zeros((nx, ny)));
 
         let mesh_x: Vec<f64> = ndarray::Array1::linspace(0., 1., nx).to_vec();
         let mesh_y: Vec<f64> = ndarray::Array1::linspace(0., 1., ny).to_vec();

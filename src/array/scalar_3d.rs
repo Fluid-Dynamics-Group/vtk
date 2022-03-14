@@ -92,8 +92,8 @@ impl Components for Scalar3D {
 #[test]
 fn iter_order() {
     let nx = 3;
-    let ny = 3;
-    let nz = 3;
+    let ny = 2;
+    let nz = 4;
 
     let arr = ndarray::Array1::range(0., (nx * ny * nz) as f64, 1.)
         .into_shape((nx, ny, nz))

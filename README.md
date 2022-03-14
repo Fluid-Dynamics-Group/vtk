@@ -62,7 +62,7 @@ let data = OurData { pressure, velocity };
 // domain and the data as it exists in that domain.
 let vtk_data = vtk::VtkData::new(domain, data);
 
-let file = std::fs::File::create("./test_vtks/your_file.vtk").unwrap();
+let file = std::fs::File::create("./test_vtks/your_file.vtr").unwrap();
 let writer = std::io::BufWriter::new(file);
 
 // finally, write all the data to the file

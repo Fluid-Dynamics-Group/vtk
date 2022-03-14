@@ -103,13 +103,8 @@ where
 
         // for some reason paraview expects the first byte that is not '_' to
         // be garbage and it is skipped over. Previously we just used an initial offset=-8
-        // to fix this issue, but it turns out that has unpredictable behavior when
-        // writing :
-        //      inline point location information + binary appended data (previously ok with
-        //          offset)
-        //      appended point loacation information + binary appended data (was failure)
-        //      appended point location information + ascii data (was failure)
-        //write_appended_dataarray(&mut writer, )?;
+        // to fix this issue, but it turns out that has unpredictable behavior when 
+        // writing appended binary coordinate arrays
 
         [100f64].as_ref().write_binary(&mut writer, false)?;
 
@@ -141,7 +136,7 @@ pub(crate) fn appended_binary_header_end<W: Write>(
     writer: &mut EventWriter<W>,
 ) -> Result<(), xml::writer::Error> {
     let inner = writer.inner_mut();
-    inner.write_all(b"\n</AppendedData>")?;
+    inner.write_all(b"</AppendedData>")?;
     Ok(())
 }
 /// the encoding to use when writing an inline dataarray

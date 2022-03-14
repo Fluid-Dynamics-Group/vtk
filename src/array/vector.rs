@@ -103,7 +103,7 @@ impl Array for &[f64] {
 
         // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
         // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
-        if self[self.len() - 1] == 0.0 && is_last {
+        if self[self.len() - 1] == 0.0 && !is_last {
             // skip the last data point (since we know its 0.0 and
             // instead write a very small number in its place
             self[0..self.len() - 1]

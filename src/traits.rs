@@ -361,7 +361,7 @@ pub trait ParseArray {
 /// use vtk::ParseSpan;
 ///
 /// // a 10 x 30 x 10 sized domain
-/// let extent = "0 9 0 29 0 9";
+/// let extent = "1 10 1 30 1 10";
 /// let parsed_extent = vtk::Spans3D::from_str(extent);
 /// assert_eq!(parsed_extent, vtk::Spans3D::new(10,30,10))
 /// ```

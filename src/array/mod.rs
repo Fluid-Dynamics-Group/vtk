@@ -128,21 +128,20 @@ where
 
         let iter = self.iter();
 
-        let mut last = 0.0;
+        let mut last = None;
 
         for float in iter {
             bytes.extend(float.to_le_bytes());
-            last = float;
+            last = Some(float);
         }
 
-        if is_last {
-            // handle the edge case of the last element in the array being zero
-            if last == 0.0 {
-                let mut index = bytes.len() - 9;
-                for i in 0.000001_f64.to_le_bytes() {
-                    bytes[index] = i;
-                    index += 1
-                }
+        // handle the edge case of the last element in the array being zero
+        // while we are not the last appended array
+        if !is_last && last.map(|x| x  == 0.0).unwrap_or(false) {
+            let mut index = bytes.len() - 9;
+            for i in 0.000001_f64.to_le_bytes() {
+                bytes[index] = i;
+                index += 1
             }
         }
 

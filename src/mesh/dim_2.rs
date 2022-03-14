@@ -92,10 +92,10 @@ impl Spans2D {
     /// create a simple span geometry from some known point lengths
     pub fn new(nx: usize, ny: usize) -> Self {
         Self {
-            x_start: 0,
-            x_end: nx - 1,
-            y_start: 0,
-            y_end: ny - 1,
+            x_start: 1,
+            x_end: nx,
+            y_start: 1,
+            y_end: ny,
         }
     }
 
@@ -138,7 +138,7 @@ impl Spans2D {
     /// Format the spans into a string that would be written to a vtk file
     pub(crate) fn to_string(&self) -> String {
         format!(
-            "{} {} {} {} 0 0",
+            "{} {} {} {} 1 1",
             self.x_start, self.x_end, self.y_start, self.y_end
         )
     }
@@ -171,7 +171,7 @@ impl Domain<Binary> for Rectilinear2D<Binary> {
     fn write_mesh_appended<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
         self.mesh.x_locations.write_binary(writer, false)?;
         self.mesh.y_locations.write_binary(writer, false)?;
-        vec![0.].write_binary(writer, false)?;
+        vec![1.].write_binary(writer, false)?;
         Ok(())
     }
 
@@ -195,7 +195,7 @@ impl Domain<Ascii> for Rectilinear2D<Ascii> {
     fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
         self.mesh.x_locations.write_ascii(writer, "X")?;
         self.mesh.y_locations.write_ascii(writer, "Y")?;
-        vec![0.].write_ascii(writer, "Z")?;
+        vec![1.].write_ascii(writer, "Z")?;
 
         Ok(())
     }

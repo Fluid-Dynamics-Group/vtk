@@ -104,12 +104,12 @@ impl Spans3D {
     /// create a simple span geometry from some known point lengths
     pub fn new(nx: usize, ny: usize, nz: usize) -> Self {
         Self {
-            x_start: 0,
-            x_end: nx - 1,
-            y_start: 0,
-            y_end: ny - 1,
-            z_start: 0,
-            z_end: nz - 1,
+            x_start: 1,
+            x_end: nx,
+            y_start: 1,
+            y_end: ny,
+            z_start: 1,
+            z_end: nz,
         }
     }
 
