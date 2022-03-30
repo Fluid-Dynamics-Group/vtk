@@ -53,7 +53,7 @@ impl<Encoding> Mesh2D<Encoding> {
 
     /// swap encodings for this type. This does not change any
     /// of the underlying data
-    pub fn change_enconding<T>(self) -> Mesh2D<T> {
+    pub fn change_encoding<T>(self) -> Mesh2D<T> {
         let Mesh2D {
             x_locations,
             y_locations,

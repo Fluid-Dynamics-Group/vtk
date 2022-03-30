@@ -59,7 +59,7 @@ impl<Encoding> Mesh3D<Encoding> {
 
     /// swap encodings for this type. This does not change any
     /// of the underlying data
-    pub fn change_enconding<T>(self) -> Mesh3D<T> {
+    pub fn change_encoding<T>(self) -> Mesh3D<T> {
         let Mesh3D {
             x_locations,
             y_locations,
