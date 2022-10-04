@@ -5,10 +5,20 @@ use syn::Result;
 use darling::{ast, FromDeriveInput, FromField, FromMeta};
 
 #[derive(FromMeta, Debug, Clone, Copy)]
-enum Encoding {
+pub(crate) enum Encoding {
     Ascii,
     Base64,
     Binary,
+}
+
+impl Encoding {
+    fn to_type(&self) -> proc_macro2::TokenStream {
+        match &self {
+            Self::Ascii => quote!(vtk::Ascii),
+            Self::Base64 => quote!(vtk::Base64),
+            Self::Binary => quote!(vtk::Binary),
+        }
+    }
 }
 
 impl Default for Encoding {
@@ -23,7 +33,7 @@ impl Default for Encoding {
 #[derive(Debug, FromDeriveInput)]
 // This line says that we want to process all attributes declared with `my_trait`,
 // and that darling should panic if this receiver is given an enum.
-#[darling(attributes(vtk), supports(struct_any))]
+#[darling(attributes(vtk_write), supports(struct_any))]
 struct MyInputReceiver {
     /// The struct ident.
     ident: syn::Ident,
@@ -50,14 +60,13 @@ struct MyFieldReceiver {
     ident: Option<syn::Ident>,
 
     /// This magic field name pulls the type from the input.
+    #[allow(dead_code)]
     ty: syn::Type,
 }
 
 fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::TokenStream> {
 
-    let inline_arrays = quote!(Ok(()));
-    let is_appended = quote!(true);
-    let mut headers_body = quote!();
+    let mut array_headers = quote!();
     let mut appended_body = quote!();
 
     for field in &fields {
@@ -66,8 +75,8 @@ fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::
         let field_name = &field.ident.as_ref().unwrap();
         let lit = syn::LitStr::new(&field_name.to_string(), proc_macro2::Span::call_site());
 
-        headers_body = quote! {
-            #headers_body
+        array_headers = quote! {
+            #array_headers
 
             let ref_field = &self.#field_name;
             let comps = vtk::Array::components(ref_field);
@@ -77,20 +86,29 @@ fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::
         }
     }
 
-    for field in &fields {
+    for (idx, field) in fields.iter().enumerate() {
         // convert the field identifier to a string literal
         // so `write_dataarray` understands it
         let field_name = &field.ident.as_ref().unwrap();
 
+        // check to see if this is the last iteration of the loop
+        let new_write = if idx == fields.len() -1 {
+            // there are no more arrays to write, we are last
+            quote!(vtk::Array::write_binary(&self.#field_name, writer, true)?;)
+        } else {
+            // if we have another array to write then we are not the last
+            quote!(vtk::Array::write_binary(&self.#field_name, writer, false)?;)
+        };
+
         appended_body = quote! {
             #appended_body
 
-            vtk::Array::write_binary(&self.#field_name, writer)?;
+            #new_write
         }
     }
 
-    headers_body = quote!(
-        #headers_body
+    array_headers = quote!(
+        #array_headers
         Ok(())
     );
 
@@ -100,17 +118,13 @@ fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::
     );
 
     Ok(assemble_trait(
-        inline_arrays,
-        is_appended,
-        headers_body,
+        array_headers,
         appended_body,
     ))
 }
 
 fn inline_encoding(fields: Vec<&MyFieldReceiver>, encoding: Encoding) -> Result<proc_macro2::TokenStream> {
-    let mut inline_arrays = quote!();
-    let is_appended = quote!(false);
-    let headers_body = quote!(Ok(()));
+    let mut array_headers = quote!();
     let appended_body = quote!(Ok(()));
 
     let vtk_encoding = match encoding {
@@ -125,54 +139,38 @@ fn inline_encoding(fields: Vec<&MyFieldReceiver>, encoding: Encoding) -> Result<
         let field_name = &field.ident.as_ref().unwrap();
         let lit = syn::LitStr::new(&field_name.to_string(), proc_macro2::Span::call_site());
 
-        inline_arrays = quote! {
-            #inline_arrays
+        array_headers = quote! {
+            #array_headers
 
             vtk::write_inline_dataarray(writer, &self.#field_name, #lit, #vtk_encoding)?;
         }
     }
 
-    inline_arrays = quote!(
-        #inline_arrays
+    array_headers = quote!(
+        #array_headers
         Ok(())
     );
 
     Ok(assemble_trait(
-        inline_arrays,
-        is_appended,
-        headers_body,
+        array_headers,
         appended_body,
     ))
 }
 
 fn assemble_trait(
-    inline_arrays: proc_macro2::TokenStream,
-    is_appended: proc_macro2::TokenStream,
-    appended_headers: proc_macro2::TokenStream,
+    array_headers: proc_macro2::TokenStream,
     appended_arrays: proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
     quote!(
-        fn write_inline_dataarrays<W: std::io::Write>(
+        fn write_array_header<W: std::io::Write>(
             &self,
-            #[allow(unused_variables)] writer: &mut vtk::EventWriter<W>,
-        ) -> Result<(), vtk::Error> {
-            #inline_arrays
-        }
-        fn is_appended_array() -> bool {
-            #is_appended
-        }
-        fn write_appended_dataarray_headers<W: std::io::Write>(
-            &self,
-            #[allow(unused_variables)]
             writer: &mut vtk::EventWriter<W>,
-            #[allow(unused_variables)]
-            mut offset: i64,
+            mut offset: i64
         ) -> Result<(), vtk::Error> {
-            #appended_headers
+            #array_headers
         }
-        fn write_appended_dataarrays<W: std::io::Write>(
+        fn write_array_appended<W: std::io::Write>(
             &self,
-            #[allow(unused_variables)]
             writer: &mut vtk::EventWriter<W>,
         ) -> Result<(), vtk::Error> {
             #appended_arrays
@@ -203,8 +201,10 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
             Encoding::Binary => appended_encoding_body(fields)?
         };
 
+    let encoding_type = receiver.encoding.to_type();
+
     let out = quote! {
-        impl #imp vtk::traits::DataArray for #ident #ty #wher {
+        impl #imp vtk::DataArray<#encoding_type> for #ident #ty #wher {
             #trait_body
         }
     };

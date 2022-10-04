@@ -2,18 +2,13 @@
 //!
 //! most of the time you will not need to interact with this file,
 //! instead derive `ParseDataArray`
-use super::data::{LocationSpans, VtkData};
-use super::ParseDataArray;
 
+use crate::prelude::*;
 use crate::utils;
-use crate::Error;
-
-use std::io::Read;
-
 use nom::bytes::complete::{tag, take, take_till, take_until};
-use nom::IResult;
 
 use std::fmt;
+use std::io::Read;
 
 type NomErr<'a> = nom::Err<nom::error::Error<&'a [u8]>>;
 
@@ -67,7 +62,17 @@ impl fmt::Display for ParseError {
 }
 
 /// read in and parse an entire vtk file for a given path
-pub fn read_and_parse<D: ParseDataArray>(path: &std::path::Path) -> Result<VtkData<D>, Error> {
+pub fn read_and_parse<GEOMETRY, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
+    path: &std::path::Path,
+) -> Result<VtkData<GEOMETRY, D>, Error>
+where
+    D: ParseArray<Visitor = ArrayVisitor>,
+    ArrayVisitor: Visitor<SPAN, Output = D>,
+    MESH: ParseMesh<Visitor = MeshVisitor>,
+    MeshVisitor: Visitor<SPAN, Output = MESH>,
+    SPAN: ParseSpan,
+    GEOMETRY: From<(MESH, SPAN)>,
+{
     let mut file = std::fs::File::open(path)?;
     let mut buffer = Vec::with_capacity(1024 * 1024 * 3);
     file.read_to_end(&mut buffer)?;
@@ -75,26 +80,45 @@ pub fn read_and_parse<D: ParseDataArray>(path: &std::path::Path) -> Result<VtkDa
     parse_xml_document(&buffer)
 }
 
-pub(crate) fn parse_xml_document<D: ParseDataArray>(i: &[u8]) -> Result<VtkData<D>, Error> {
-    let (rest_of_document, spans) = find_extent(i).map_err(|e: NomErr| {
+#[doc(hidden)]
+pub fn parse_xml_document<DOMAIN, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
+    i: &[u8],
+) -> Result<VtkData<DOMAIN, D>, Error>
+where
+    D: ParseArray<Visitor = ArrayVisitor>,
+    ArrayVisitor: Visitor<SPAN, Output = D>,
+    MESH: ParseMesh<Visitor = MeshVisitor>,
+    MeshVisitor: Visitor<SPAN, Output = MESH>,
+    SPAN: ParseSpan,
+    DOMAIN: From<(MESH, SPAN)>,
+{
+    let (rest, spans) = find_extent::<SPAN>(i).map_err(|e: NomErr| {
         ParseError::from_nom(
             e,
             "Error in parsing find_extent for the WholeExtent span information",
         )
     })?;
 
-    let (rest_of_document, locations) =
-        parse_locations(rest_of_document, &spans).map_err(|e: NomErr| {
-            ParseError::from_nom(e, "Error in parsing the location data of the document")
+    let (rest, location_visitor) =
+        MeshVisitor::read_headers(&spans, rest).map_err(|e: NomErr| {
+            ParseError::from_nom(e, "could not read the values of the coordinate arrays")
         })?;
 
-    let (data, locations) = D::parse_dataarrays(rest_of_document, &spans, locations)?;
+    let (rest, array_visitor) = ArrayVisitor::read_headers(&spans, rest).map_err(|e: NomErr| {
+        ParseError::from_nom(e, "could not read the values of the data arrays. Attributes of <DataArray> Elements may be in an unexpected order")
+    })?;
 
-    Ok(VtkData {
-        spans,
-        locations,
-        data,
-    })
+    let mut reader_buffer = Vec::new();
+    location_visitor.add_to_appended_reader(&mut reader_buffer);
+    array_visitor.add_to_appended_reader(&mut reader_buffer);
+
+    read_appended_array_buffers(reader_buffer, rest)?;
+
+    let data: D = array_visitor.finish(&spans)?;
+    let mesh: MESH = location_visitor.finish(&spans)?;
+    let domain = DOMAIN::from((mesh, spans));
+
+    Ok(VtkData { domain, data })
 }
 
 #[allow(dead_code)]
@@ -110,27 +134,14 @@ fn print_n_chars(i: &[u8], chars: usize) {
     }
 }
 
-pub(crate) fn find_extent(i: &[u8]) -> IResult<&[u8], LocationSpans> {
+pub(crate) fn find_extent<SPAN: ParseSpan>(i: &[u8]) -> IResult<&[u8], SPAN> {
     let (start_extent, _xml_header_info) = take_until("WholeExtent")(i)?;
     let (extent_string_start, _whole_extent_header) = tag("WholeExtent=\"")(start_extent)?;
     let (rest_of_document, extent_string) = take_till(|c| c == b'\"')(extent_string_start)?;
 
-    let spans = LocationSpans::new(std::str::from_utf8(extent_string).unwrap());
+    let spans = SPAN::from_str(std::str::from_utf8(extent_string).unwrap());
 
     Ok((rest_of_document, spans))
-}
-
-pub(crate) fn parse_locations<'a>(
-    i: &'a [u8],
-    span_info: &LocationSpans,
-) -> IResult<&'a [u8], LocationsPartial> {
-    let (rest, x) = parse_dataarray_or_lazy(i, b"X", span_info.x_len())?;
-    let (rest, y) = parse_dataarray_or_lazy(rest, b"Y", span_info.y_len())?;
-    let (rest, z) = parse_dataarray_or_lazy(rest, b"Z", span_info.z_len())?;
-
-    let locations = LocationsPartial { x, y, z };
-
-    Ok((rest, locations))
 }
 
 /// Parse a data array (if its inline) or return the offset in the appended section
@@ -165,12 +176,46 @@ pub fn parse_dataarray_or_lazy<'a>(
     Ok((rest, lazy_array))
 }
 
-/// all of the location data - either containing already parsed informatoin
-/// or references to the offsets in the appended binary section
-pub struct LocationsPartial {
-    pub x: PartialDataArray,
-    pub y: PartialDataArray,
-    pub z: PartialDataArray,
+/// cycle through buffers (and their offsets) and read the binary information from the
+/// <AppendedBinary> section in order
+pub fn read_appended_array_buffers(
+    mut buffers: Vec<RefMut<'_, OffsetBuffer>>,
+    bytes: &[u8],
+) -> Result<(), ParseError> {
+    // if we have any binary data:
+    if buffers.len() > 0 {
+        //we have some data to read - first organize all of the data by the offsets
+        buffers.sort_unstable_by_key(|x| x.offset);
+
+        let mut iterator = buffers.iter_mut().peekable();
+        let (mut appended_data, _) = crate::parse::setup_appended_read(bytes)?;
+
+        loop {
+            if let Some(current_offset_buffer) = iterator.next() {
+                // get the number of bytes to read based on the next element's offset
+                let reading_offset = iterator
+                    .peek()
+                    .map(|offset_buffer| {
+                        let diff = offset_buffer.offset - current_offset_buffer.offset;
+                        crate::parse::AppendedArrayLength::Known((diff) as usize)
+                    })
+                    .unwrap_or(crate::parse::AppendedArrayLength::UntilEnd);
+
+                let (remaining_appended_data, _) = crate::parse::parse_appended_binary(
+                    appended_data,
+                    reading_offset,
+                    &mut current_offset_buffer.buffer,
+                )?;
+
+                appended_data = remaining_appended_data
+            } else {
+                // there are not more elements in the array - lets leave
+                break;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// read through a DataArray header and consume up to the ending `>` character of the
@@ -321,7 +366,7 @@ impl PartialDataArray {
 /// Useful for implementing `traits::ParseDataArray`
 pub enum PartialDataArrayBuffered {
     Parsed { buffer: Vec<f64>, components: usize },
-    AppendedBinary(OffsetBuffer),
+    AppendedBinary(RefCell<OffsetBuffer>),
 }
 
 impl<'a> PartialDataArrayBuffered {
@@ -332,11 +377,11 @@ impl<'a> PartialDataArrayBuffered {
                 PartialDataArrayBuffered::Parsed { buffer, components }
             }
             PartialDataArray::AppendedBinary { offset, components } => {
-                PartialDataArrayBuffered::AppendedBinary(OffsetBuffer {
+                PartialDataArrayBuffered::AppendedBinary(RefCell::new(OffsetBuffer {
                     offset,
                     buffer: Vec::with_capacity(size_hint),
                     components,
-                })
+                }))
             }
         }
     }
@@ -346,7 +391,7 @@ impl<'a> PartialDataArrayBuffered {
     pub fn into_buffer(self) -> Vec<f64> {
         match self {
             Self::Parsed { buffer, .. } => buffer,
-            Self::AppendedBinary(offset_buffer) => offset_buffer.buffer,
+            Self::AppendedBinary(offset_buffer) => offset_buffer.into_inner().buffer,
         }
     }
 
@@ -354,7 +399,20 @@ impl<'a> PartialDataArrayBuffered {
     pub fn components(&self) -> usize {
         match self {
             Self::Parsed { components, .. } => *components,
-            Self::AppendedBinary(offset_buffer) => offset_buffer.components,
+            Self::AppendedBinary(offset_buffer) => offset_buffer.borrow().components,
+        }
+    }
+
+    /// helper function to put the array in a vector so that we can read all the binary data in
+    /// order
+    pub fn append_to_reader_list<'c, 'b>(&'c self, buffer: &'b mut Vec<RefMut<'c, OffsetBuffer>>) {
+        match self {
+            PartialDataArrayBuffered::AppendedBinary(offset_buffer) => {
+                buffer.push(offset_buffer.borrow_mut())
+            }
+            // if this is here then we have already read the data inline, and we dont need to worry
+            // about any appended data for this item
+            _ => (),
         }
     }
 }
@@ -369,12 +427,6 @@ pub struct OffsetBuffer {
 }
 
 impl Eq for OffsetBuffer {}
-
-impl Ord for OffsetBuffer {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.offset.cmp(&other.offset)
-    }
-}
 
 /// parse the values for a single inline ascii encoded array
 ///
@@ -507,26 +559,25 @@ pub fn parse_appended_binary<'a>(
 mod tests {
     use super::*;
     use crate::Array;
+    use crate::Binary;
+    use crate::Mesh3D;
+    use crate::Rectilinear3D;
+    use crate::Spans3D;
+    use crate::Visitor;
+    type Domain = Rectilinear3D<Binary>;
 
     #[test]
     fn shred_to_extent() {
         let input = r#"<VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
             <RectilinearGrid WholeExtent="1 220 1 200 1 1">
             <Piece Extent="1 220 1 200 1 1">"#;
-        let out = find_extent(input.as_bytes());
+        let out = find_extent::<Spans3D>(input.as_bytes());
         out.unwrap();
     }
 
     #[test]
     fn shred_to_locations() {
-        let locations = LocationSpans {
-            x_start: 1,
-            x_end: 4,
-            y_start: 1,
-            y_end: 4,
-            z_start: 1,
-            z_end: 4,
-        };
+        let spans = Spans3D::new(4, 4, 4);
 
         let input = r#"
             <Piece Extent="1 220 1 200 1 1">
@@ -541,12 +592,14 @@ mod tests {
                     .0000000000E+00 .3981797497E-01 .7963594994E-01 .1194539249E+00
                 </DataArray>
             "#;
-        let out = parse_locations(input.as_bytes(), &locations);
-        let out = out.unwrap().1;
 
-        assert_eq!(out.x.unwrap_parsed().len(), 4);
-        assert_eq!(out.y.unwrap_parsed().len(), 4);
-        assert_eq!(out.z.unwrap_parsed().len(), 4);
+        let (_rest, locations) =
+            crate::mesh::Mesh3DVisitor::read_headers(&spans, input.as_bytes()).unwrap();
+        let out = locations.finish(&spans).unwrap();
+
+        assert_eq!(out.x_locations.len(), 4);
+        assert_eq!(out.y_locations.len(), 4);
+        assert_eq!(out.z_locations.len(), 4);
     }
 
     #[test]
@@ -568,7 +621,7 @@ mod tests {
     fn full_vtk_ascii() {
         let out = read_and_parse(std::path::Path::new("./static/sample_vtk_file.vtk"));
         dbg!(&out);
-        let out: crate::VtkData<crate::helpers::SpanData> = out.unwrap();
+        let out: crate::VtkData<Domain, crate::helpers::SpanData> = out.unwrap();
         assert!(out.data.u.len() > 1000);
     }
 
@@ -576,15 +629,25 @@ mod tests {
     fn full_vtk_base64() {
         let out = read_and_parse(std::path::Path::new("./static/base64.vtk"));
         dbg!(&out);
-        let out: crate::VtkData<crate::helpers::SpanData> = out.unwrap();
+        let out: crate::VtkData<Domain, crate::helpers::SpanData> = out.unwrap();
         assert!(out.data.u.len() > 1000);
     }
 
     #[test]
+    #[cfg(feature = "derive")]
     fn full_vtk_binary() {
+        use crate as vtk;
+        #[derive(vtk::DataArray, vtk::ParseArray, Debug)]
+        #[vtk_parse(spans = "vtk::Spans3D")]
+        pub struct SpanDataBinary {
+            u: Vec<f64>,
+            v: Vec<f64>,
+            w: Vec<f64>,
+        }
+
         let out = read_and_parse(std::path::Path::new("./static/binary.vtk"));
         dbg!(&out);
-        let out: crate::VtkData<crate::helpers::SpanDataBinary> = out.unwrap();
+        let out: crate::VtkData<Domain, SpanDataBinary> = out.unwrap();
         assert!(out.data.u.len() > 1000);
         assert!(out.data.v.len() > 1000);
         assert!(out.data.w.len() > 1000);
@@ -649,7 +712,7 @@ mod tests {
         let mut event_writer = crate::EventWriter::new(&mut output);
         crate::write_inline_dataarray(
             &mut event_writer,
-            values.as_ref(),
+            &values.as_slice(),
             "X",
             crate::Encoding::Base64,
         )
@@ -684,10 +747,19 @@ mod tests {
 
         // need to write a single garbage byte for things to work as expected - this
         // is becasue of how paraview expects things
-        [100f64].as_ref().write_binary(&mut event_writer).unwrap();
+        [100f64]
+            .as_ref()
+            .write_binary(&mut event_writer, false)
+            .unwrap();
 
-        values.as_ref().write_binary(&mut event_writer).unwrap();
-        values2.as_ref().write_binary(&mut event_writer).unwrap();
+        values
+            .as_ref()
+            .write_binary(&mut event_writer, false)
+            .unwrap();
+        values2
+            .as_ref()
+            .write_binary(&mut event_writer, true)
+            .unwrap();
 
         crate::write_vtk::appended_binary_header_end(&mut event_writer).unwrap();
 

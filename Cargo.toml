@@ -1,13 +1,12 @@
 [package]
 name = "vtk"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["VanillaBrooks <brooks@karlik.org>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-derive_builder = "0.10.2"
 nom = "7.0.0"
 ryu = "1.0.5"
 thiserror = "1.0.25"
@@ -16,6 +15,7 @@ base64 = "0.13.0"
 
 vtk-derive = {path="./derive", optional=true}
 ndarray = "0.15.4"
+derive_more = "0.99.17"
 
 [features]
 default = ["derive"]
