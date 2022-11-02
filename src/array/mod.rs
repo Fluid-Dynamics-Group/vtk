@@ -7,8 +7,10 @@ mod field_2d;
 mod field_3d;
 mod vector;
 
+use crate::prelude::*;
 use crate::traits::Array;
 use crate::traits::FromBuffer;
+use crate::traits::Numeric;
 use std::io::Write;
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -49,10 +51,11 @@ impl FromBuffer<crate::Spans3D> for ndarray::Array4<f64> {
     }
 }
 
-impl<T> Array for T
+impl<T, NUM> Array for T
 where
     T: Components,
-    <T as Components>::Iter: Iterator<Item = f64>,
+    <T as Components>::Iter: Iterator<Item = NUM>,
+    NUM: Numeric,
 {
     fn write_ascii<W: Write>(
         &self,
@@ -64,6 +67,7 @@ where
             crate::write_vtk::Encoding::Ascii,
             name,
             self.array_components(),
+            NUM::as_precision(),
         )?;
 
         let mut data = String::new();
@@ -93,6 +97,7 @@ where
             crate::write_vtk::Encoding::Base64,
             name,
             self.array_components(),
+            NUM::as_precision(),
         )?;
 
         let mut byte_data: Vec<u8> = Vec::with_capacity((self.length() + 1) * 8);
@@ -105,7 +110,7 @@ where
         let iter = self.iter();
 
         for float in iter {
-            byte_data.extend_from_slice(&float.to_le_bytes());
+            float.extend_le_bytes(&mut byte_data);
         }
 
         // encode as base64
@@ -131,13 +136,13 @@ where
         let mut last = None;
 
         for float in iter {
-            bytes.extend(float.to_le_bytes());
+            float.extend_le_bytes(&mut bytes);
             last = Some(float);
         }
 
         // handle the edge case of the last element in the array being zero
         // while we are not the last appended array
-        if !is_last && last.map(|x| x  == 0.0).unwrap_or(false) {
+        if !is_last && last.map(|x| x == NUM::zero()).unwrap_or(false) {
             let mut index = bytes.len() - 9;
             for i in 0.000001_f64.to_le_bytes() {
                 bytes[index] = i;
@@ -156,5 +161,13 @@ where
 
     fn components(&self) -> usize {
         Components::array_components(self)
+    }
+
+    fn precision(&self) -> Precision {
+        NUM::as_precision()
+    }
+
+    fn size_of_elem(&self) -> usize {
+        NUM::SIZE
     }
 }

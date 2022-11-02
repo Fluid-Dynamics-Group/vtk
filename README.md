@@ -31,7 +31,7 @@ let y_locations : Vec<f64> = x_locations.clone();
 // create a mesh object from the point locations and specify that 
 // you want mesh information to be encoded as binary (could also 
 // use `vtk::Ascii` or `vtk::Base64`.
-let mesh = Mesh2D::<vtk::Binary>::new(x_locations, y_locations);
+let mesh = Mesh2D::<f64, vtk::Binary>::new(x_locations, y_locations);
 
 // define the global location of this data in the domain
 // most of the time, you want something like this:
@@ -45,8 +45,8 @@ let domain = Rectilinear2D::new(mesh, spans);
 #[derive(vtk::DataArray)]
 #[vtk_write(encoding="binary")] // could also be "ascii" or "base64"
 pub struct OurData {
-    pressure: vtk::Scalar2D,
-    velocity: vtk::Field2D
+    pressure: vtk::Scalar2D<f64>,
+    velocity: vtk::Field2D<f64>
 }
 
 let pressure =vtk::Scalar2D::new(Array2::ones((nx,ny)));
@@ -89,8 +89,8 @@ the data being written to the file. It defaults to binary encoding:
 #[vtk_write(encoding="base64")] // could also be "binary" (default) and "ascii"
 struct VelocityField {
     a: Vec<f64>,
-    b: vtk::Field3D,
-    c: vtk::Scalar3D
+    b: vtk::Field3D<f64>,
+    c: vtk::Scalar3D<f64>
 }
 ```
 
@@ -101,8 +101,8 @@ For deriving `ParseArray` you **must** specify what spans you are parsing:
 #[vtk_parse(spans="vtk::Spans3D")]
 pub struct VelocityField {
     a: Vec<f64>,
-    b: vtk::Field3D,
-    c: vtk::Scalar3D
+    b: vtk::Field3D<f64>,
+    c: vtk::Scalar3D<f64>
 }
 ```
 
@@ -114,8 +114,8 @@ If you specify the wrong spans there will be a compiler error:
 #[vtk_parse(spans="vtk::Spans2D")]
 pub struct VelocityField {
     a: Vec<f64>,
-    b: vtk::Field3D,
-    c: vtk::Scalar3D
+    b: vtk::Field3D<f64>,
+    c: vtk::Scalar3D<f64>
 }
 ```
 

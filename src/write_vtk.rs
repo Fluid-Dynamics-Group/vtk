@@ -103,7 +103,7 @@ where
 
         // for some reason paraview expects the first byte that is not '_' to
         // be garbage and it is skipped over. Previously we just used an initial offset=-8
-        // to fix this issue, but it turns out that has unpredictable behavior when 
+        // to fix this issue, but it turns out that has unpredictable behavior when
         // writing appended binary coordinate arrays
 
         [100f64].as_ref().write_binary(&mut writer, false)?;
@@ -154,16 +154,31 @@ impl Encoding {
     }
 }
 
+pub enum Precision {
+    Float64,
+    Float32,
+}
+
+impl Precision {
+    fn to_str(&self) -> &'static str {
+        match &self {
+            Self::Float64 => "Float64",
+            Self::Float32 => "Float32",
+        }
+    }
+}
+
 pub fn write_inline_array_header<W: Write>(
     writer: &mut EventWriter<W>,
     format: Encoding,
     name: &str,
     components: usize,
+    precision: Precision,
 ) -> Result<(), Error> {
     writer.write(XmlEvent::StartElement {
         name: Name::from("DataArray"),
         attributes: vec![
-            make_att("type", "Float64"),
+            make_att("type", precision.to_str()),
             make_att("NumberOfComponents", &components.to_string()),
             make_att("Name", name),
             make_att("format", format.to_str()),
@@ -214,11 +229,12 @@ pub fn write_appended_dataarray_header<W: Write>(
     name: &str,
     offset: i64,
     components: usize,
+    precision: Precision,
 ) -> Result<(), Error> {
     writer.write(XmlEvent::StartElement {
         name: Name::from("DataArray"),
         attributes: vec![
-            make_att("type", "Float64"),
+            make_att("type", precision.to_str()),
             make_att("NumberOfComponents", &components.to_string()),
             make_att("Name", name),
             make_att("format", "appended"),

@@ -38,7 +38,7 @@ mod inner {
         }
     }
 
-    fn create_data() -> vtk::VtkData<Rectilinear3D<vtk::Ascii>, Binary> {
+    fn create_data() -> vtk::VtkData<Rectilinear3D<f64, vtk::Ascii>, Binary> {
         let spans = Spans3D::new(5, 5, 5);
 
         let length = spans.x_len() * spans.y_len() * spans.z_len();
@@ -82,8 +82,8 @@ mod inner {
     }
 
     fn check_assertions<T, V>(
-        left: vtk::VtkData<Rectilinear3D<T>, Binary>,
-        right: vtk::VtkData<Rectilinear3D<V>, Binary>,
+        left: vtk::VtkData<Rectilinear3D<f64, T>, Binary>,
+        right: vtk::VtkData<Rectilinear3D<f64, V>, Binary>,
     ) where
         V: std::fmt::Debug,
         T: std::fmt::Debug,
@@ -102,7 +102,7 @@ mod inner {
         let mut writer = Vec::new();
         vtk::write_vtk(&mut writer, data.clone()).unwrap();
 
-        let output_data: vtk::VtkData<Rectilinear3D<vtk::Binary>, Binary> =
+        let output_data: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, Binary> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
 
         check_assertions(data, output_data);
@@ -114,7 +114,7 @@ mod inner {
         let mut writer = Vec::new();
         vtk::write_vtk(&mut writer, data.clone()).unwrap();
 
-        let output_data: vtk::VtkData<Rectilinear3D<vtk::Binary>, Binary> =
+        let output_data: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, Binary> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
 
         check_assertions(data, output_data);
@@ -132,7 +132,7 @@ mod inner {
 
         vtk::write_vtk(&mut writer, base64.clone()).unwrap();
 
-        let output_data: vtk::VtkData<Rectilinear3D<vtk::Binary>, Base64> =
+        let output_data: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, Base64> =
             vtk::parse::parse_xml_document(writer.as_slice()).unwrap();
 
         let output_data_inner = output_data.data.clone();
@@ -145,9 +145,9 @@ mod inner {
     #[vtk_parse(spans = "vtk::Spans2D")]
     /// Information available from a span-wise average of the flowfield
     pub struct SpanVtkInformation2D {
-        pub(crate) rho: vtk::Scalar2D,
-        pub(crate) velocity: vtk::Field2D,
-        pub(crate) energy: vtk::Scalar2D,
+        pub(crate) rho: vtk::Scalar2D<f64>,
+        pub(crate) velocity: vtk::Field2D<f64>,
+        pub(crate) energy: vtk::Scalar2D<f64>,
     }
 
     #[test]
@@ -165,7 +165,7 @@ mod inner {
         assert_eq!(mesh_x.len(), nx);
         assert_eq!(mesh_y.len(), ny);
         let spans = vtk::Spans2D::new(nx, ny);
-        let mesh = vtk::Mesh2D::<vtk::Binary>::new(mesh_x, mesh_y);
+        let mesh = vtk::Mesh2D::<f64, vtk::Binary>::new(mesh_x, mesh_y);
 
         let span = SpanVtkInformation2D {
             rho,
@@ -179,7 +179,7 @@ mod inner {
         vtk::write_vtk(&mut buffer, vtk_data).unwrap();
 
         // now we parse the data back out
-        let out: vtk::VtkData<vtk::Rectilinear2D<vtk::Binary>, SpanVtkInformation2D> =
+        let out: vtk::VtkData<vtk::Rectilinear2D<f64, vtk::Binary>, SpanVtkInformation2D> =
             vtk::parse::parse_xml_document(buffer.as_slice()).unwrap();
         assert_eq!(out.data, span);
     }
@@ -188,7 +188,7 @@ mod inner {
     #[vtk_parse(spans = "vtk::Spans3D")]
     /// Information available from a span-wise average of the flowfield
     pub struct SpanVtkInformation3D {
-        pub(crate) rho: vtk::Scalar3D,
+        pub(crate) rho: vtk::Scalar3D<f64>,
     }
 
     #[test]
@@ -209,7 +209,7 @@ mod inner {
 
         let spans = vtk::Spans3D::new(nx, ny, nz);
         dbg!(&spans);
-        let mesh = vtk::Mesh3D::<vtk::Binary>::new(mesh_x, mesh_y, mesh_z);
+        let mesh = vtk::Mesh3D::<f64, vtk::Binary>::new(mesh_x, mesh_y, mesh_z);
 
         //let span = SpanVtkInformation { rho, velocity, energy };
         let span = SpanVtkInformation3D { rho };
@@ -220,7 +220,7 @@ mod inner {
         vtk::write_vtk(&mut buffer, vtk_data).unwrap();
 
         // now we parse the data back out
-        let out: vtk::VtkData<vtk::Rectilinear3D<vtk::Binary>, SpanVtkInformation3D> =
+        let out: vtk::VtkData<vtk::Rectilinear3D<f64, vtk::Binary>, SpanVtkInformation3D> =
             vtk::parse::parse_xml_document(buffer.as_slice()).unwrap();
         dbg!(out.data.rho.shape());
         dbg!(span.rho.shape());
