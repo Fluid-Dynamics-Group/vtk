@@ -115,25 +115,22 @@ where
         is_last: bool,
     ) -> Result<(), crate::Error> {
         let writer = writer.inner_mut();
-        let mut bytes = Vec::with_capacity(self.len() * 8);
 
-        // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
-        // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
-        if self[self.len() - 1] == NUM::zero() && !is_last {
-            // skip the last data point (since we know its 0.0 and
-            // instead write a very small number in its place
-            self[0..self.len() - 1]
-                .into_iter()
-                .for_each(|float| float.extend_le_bytes(&mut bytes));
+        let mut iter = self.iter().peekable();
 
-            bytes.extend(0.000001_f64.to_le_bytes());
-        } else {
-            self.into_iter()
-                .for_each(|float| float.extend_le_bytes(&mut bytes));
+        loop {
+            if let Some(float) = iter.next() {
+                // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
+                // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
+                if !is_last && iter.peek().is_none() && *float == NUM::ZERO {
+                    NUM::SMALL.write_le_bytes(writer)?;
+                } else {
+                    float.write_le_bytes(writer)?;
+                }
+            } else {
+                break;
+            }
         }
-
-        writer.write_all(&bytes)?;
-
         Ok(())
     }
 

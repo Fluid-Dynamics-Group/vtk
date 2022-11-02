@@ -19,6 +19,8 @@ pub use field_3d::Field3D;
 pub use scalar_2d::Scalar2D;
 pub use scalar_3d::Scalar3D;
 
+pub use field_3d::Field3DIter;
+
 pub trait Components {
     type Iter;
 
@@ -129,28 +131,22 @@ where
         is_last: bool,
     ) -> Result<(), crate::Error> {
         let writer = writer.inner_mut();
-        let mut bytes = Vec::with_capacity(self.length() * 8);
 
-        let iter = self.iter();
+        let mut iter = self.iter().peekable();
 
-        let mut last = None;
-
-        for float in iter {
-            float.extend_le_bytes(&mut bytes);
-            last = Some(float);
-        }
-
-        // handle the edge case of the last element in the array being zero
-        // while we are not the last appended array
-        if !is_last && last.map(|x| x == NUM::zero()).unwrap_or(false) {
-            let mut index = bytes.len() - 9;
-            for i in 0.000001_f64.to_le_bytes() {
-                bytes[index] = i;
-                index += 1
+        loop {
+            if let Some(float) = iter.next() {
+                // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
+                // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
+                if !is_last && iter.peek().is_none() && float == NUM::ZERO {
+                    NUM::SMALL.write_le_bytes(writer)?;
+                } else {
+                    float.write_le_bytes(writer)?;
+                }
+            } else {
+                break;
             }
         }
-
-        writer.write_all(&bytes)?;
 
         Ok(())
     }

@@ -13,14 +13,17 @@ use crate::prelude::*;
 /// the shape `(3, 100, 200, 300)`
 pub struct Field3D<NUM>(Array4<NUM>);
 
-impl <NUM> Field3D<NUM> where NUM: Numeric {
+impl<NUM> Field3D<NUM>
+where
+    NUM: Numeric,
+{
     /// Construct a `Field3D` from an array.
     pub fn new(arr: Array4<NUM>) -> Self {
         Self(arr)
     }
 
     /// get the array that this type wraps.
-    /// usually this method is not required because `Field3D` implements [`DerefMut`](std::ops::DerefMut) and 
+    /// usually this method is not required because `Field3D` implements [`DerefMut`](std::ops::DerefMut) and
     /// [`Deref`](std::ops::Deref)
     pub fn inner(self) -> Array4<NUM> {
         self.0
@@ -30,7 +33,7 @@ impl <NUM> Field3D<NUM> where NUM: Numeric {
 #[derive(Deref)]
 pub struct Field3DIter<NUM> {
     #[deref]
-    arr: Array4<NUM>,
+    pub arr: Array4<NUM>,
     n: usize,
     x: usize,
     y: usize,
@@ -76,13 +79,21 @@ where
     type Item = NUM;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (nn, nx, ny, nz) = self.dim();
+        let (nz, ny, nx, nn) = self.dim();
 
         if self.z == nz {
             return None;
         }
 
-        let value = *self.arr.get((self.n, self.x, self.y, self.z)).unwrap();
+        let indexing = (self.z, self.y, self.x, self.n);
+
+        // indexing if we are in debug mode
+        #[cfg(debug_assertions)]
+        let value = *self.arr.get(indexing).unwrap();
+
+        // indexing if we are in release mode
+        #[cfg(not(debug_assertions))]
+        let value = *unsafe { self.arr.uget(indexing) };
 
         self.n += 1;
 
@@ -110,7 +121,7 @@ where
 
 impl<NUM> Components for Field3D<NUM>
 where
-    NUM: Clone,
+    NUM: Clone + num_traits::Zero,
 {
     type Iter = Field3DIter<NUM>;
 
@@ -123,7 +134,9 @@ where
     }
 
     fn iter(&self) -> Self::Iter {
-        Field3DIter::new(self.0.clone())
+        let mut arr = ndarray::Array::zeros(self.0.t().dim());
+        arr.assign(&self.0.t());
+        Field3DIter::new(arr)
     }
 }
 
@@ -137,6 +150,7 @@ fn iter_order() {
     let arr: Array4<f64> = ndarray::Array1::range(0., (nx * ny * nz * nn) as f64, 1.)
         .into_shape((nn, nx, ny, nz))
         .unwrap();
+
     dbg!(&arr);
     let mut expected = Vec::new();
 

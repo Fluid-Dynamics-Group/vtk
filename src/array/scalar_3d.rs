@@ -14,20 +14,22 @@ use crate::prelude::*;
 /// `ny=200`, `nz=300` then your array shape should be `(100, 200, 300)`
 pub struct Scalar3D<NUM>(Array3<NUM>);
 
-impl <NUM> Scalar3D<NUM> where NUM: Numeric {
+impl<NUM> Scalar3D<NUM>
+where
+    NUM: Numeric,
+{
     /// Construct a `Scalar3D` from an array.
     pub fn new(arr: Array3<NUM>) -> Self {
         Self(arr)
     }
 
     /// get the array that this type wraps.
-    /// usually this method is not required because `Scalar3D` implements [`DerefMut`](std::ops::DerefMut) and 
+    /// usually this method is not required because `Scalar3D` implements [`DerefMut`](std::ops::DerefMut) and
     /// [`Deref`](std::ops::Deref)
     pub fn inner(self) -> Array3<NUM> {
         self.0
     }
 }
-
 
 impl FromBuffer<crate::Spans3D> for Scalar3D<f64> {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans3D, components: usize) -> Self {
@@ -76,13 +78,21 @@ where
     type Item = NUM;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (nx, ny, nz) = self.dim();
+        let (nz, ny, nx) = self.dim();
 
         if self.z == nz {
             return None;
         }
 
-        let value = *self.arr.get((self.x, self.y, self.z)).unwrap();
+        let indexing = (self.z, self.y, self.x);
+
+        // indexing if we are in debug mode
+        #[cfg(debug_assertions)]
+        let value = *self.arr.get(indexing).unwrap();
+
+        // indexing if we are in release mode
+        #[cfg(not(debug_assertions))]
+        let value = *unsafe { self.arr.uget(indexing) };
 
         self.x += 1;
 
@@ -102,7 +112,7 @@ where
 
 impl<NUM> Components for Scalar3D<NUM>
 where
-    NUM: Clone,
+    NUM: Clone + num_traits::Zero,
 {
     type Iter = Scalar3DIter<NUM>;
 
@@ -115,7 +125,9 @@ where
     }
 
     fn iter(&self) -> Self::Iter {
-        Scalar3DIter::new(self.0.clone())
+        let mut arr = ndarray::Array::zeros(self.0.t().dim());
+        arr.assign(&self.0.t());
+        Scalar3DIter::new(arr)
     }
 }
 

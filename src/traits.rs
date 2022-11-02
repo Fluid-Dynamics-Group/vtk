@@ -352,38 +352,46 @@ mod testgen {
 
 pub trait Numeric: std::cmp::PartialEq<Self> + ryu::Float + Sized {
     const SIZE: usize = std::mem::size_of::<Self>();
+    const ZERO: Self;
+    const SMALL: Self;
 
     fn extend_le_bytes(&self, byte_list: &mut Vec<u8>);
 
-    fn as_precision() -> crate::write_vtk::Precision;
+    fn write_le_bytes<W: Write>(&self, byte_list: &mut W) -> Result<(), std::io::Error>;
 
-    fn zero() -> Self;
+    fn as_precision() -> crate::write_vtk::Precision;
 }
 
 impl Numeric for f32 {
+    const ZERO: Self = 0.0f32;
+    const SMALL: Self = 0.000001f32;
+
     fn extend_le_bytes(&self, byte_list: &mut Vec<u8>) {
         byte_list.extend(self.to_le_bytes())
+    }
+
+    fn write_le_bytes<W: Write>(&self, byte_list: &mut W) -> Result<(), std::io::Error> {
+        byte_list.write_all(&self.to_le_bytes())
     }
 
     fn as_precision() -> crate::write_vtk::Precision {
         crate::write_vtk::Precision::Float32
     }
-
-    fn zero() -> f32 {
-        0.0
-    }
 }
 
 impl Numeric for f64 {
+    const ZERO: Self = 0.0f64;
+    const SMALL: Self = 0.000001f64;
+
     fn extend_le_bytes(&self, byte_list: &mut Vec<u8>) {
         byte_list.extend(self.to_le_bytes())
     }
 
-    fn as_precision() -> crate::write_vtk::Precision {
-        crate::write_vtk::Precision::Float64
+    fn write_le_bytes<W: Write>(&self, byte_list: &mut W) -> Result<(), std::io::Error> {
+        byte_list.write_all(&self.to_le_bytes())
     }
 
-    fn zero() -> f64 {
-        0.0
+    fn as_precision() -> crate::write_vtk::Precision {
+        crate::write_vtk::Precision::Float64
     }
 }

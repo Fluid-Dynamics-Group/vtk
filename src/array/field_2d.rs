@@ -13,14 +13,17 @@ use crate::prelude::*;
 /// the shape `(3, 100, 200)`
 pub struct Field2D<NUM>(Array3<NUM>);
 
-impl <NUM> Field2D<NUM> where NUM: Numeric{
+impl<NUM> Field2D<NUM>
+where
+    NUM: Numeric,
+{
     /// Construct a `Field2D` from an array.
     pub fn new(arr: Array3<NUM>) -> Self {
         Self(arr)
     }
 
     /// get the array that this type wraps.
-    /// usually this method is not required because `Field2D` implements [`DerefMut`](std::ops::DerefMut) and 
+    /// usually this method is not required because `Field2D` implements [`DerefMut`](std::ops::DerefMut) and
     /// [`Deref`](std::ops::Deref)
     pub fn inner(self) -> Array3<NUM> {
         self.0
@@ -69,13 +72,21 @@ where
     type Item = NUM;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (nn, nx, ny) = self.dim();
+        let (ny, nx, nn) = self.dim();
 
         if self.y == ny {
             return None;
         }
 
-        let value = *self.arr.get((self.n, self.x, self.y)).unwrap();
+        let indexing = (self.y, self.x, self.n);
+
+        // debug mode code
+        #[cfg(debug_assertions)]
+        let value = *self.arr.get(indexing).unwrap();
+
+        // release mode code
+        #[cfg(not(debug_assertions))]
+        let value = *unsafe { self.arr.uget(indexing) };
 
         self.n += 1;
 
@@ -97,7 +108,7 @@ where
 
 impl<NUM> Components for Field2D<NUM>
 where
-    NUM: Copy + Clone,
+    NUM: Copy + Clone + num_traits::Zero,
 {
     type Iter = Field2DIter<NUM>;
 
@@ -110,7 +121,9 @@ where
     }
 
     fn iter(&self) -> Self::Iter {
-        Field2DIter::new(self.0.clone())
+        let mut arr = ndarray::Array::zeros(self.0.t().dim());
+        arr.assign(&self.0.t());
+        Field2DIter::new(arr)
     }
 }
 

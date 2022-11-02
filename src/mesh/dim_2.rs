@@ -177,7 +177,7 @@ where
     fn write_mesh_appended<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
         self.mesh.x_locations.write_binary(writer, false)?;
         self.mesh.y_locations.write_binary(writer, false)?;
-        vec![NUM::zero()].write_binary(writer, false)?;
+        vec![NUM::ZERO].write_binary(writer, false)?;
         Ok(())
     }
 
@@ -204,7 +204,7 @@ where
     fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
         self.mesh.x_locations.write_ascii(writer, "X")?;
         self.mesh.y_locations.write_ascii(writer, "Y")?;
-        vec![NUM::zero()].write_ascii(writer, "Z")?;
+        vec![NUM::ZERO].write_ascii(writer, "Z")?;
 
         Ok(())
     }

@@ -14,14 +14,17 @@ use crate::prelude::*;
 /// `ny=200` then your array shape should be `(100, 200)`
 pub struct Scalar2D<NUM>(Array2<NUM>);
 
-impl <NUM> Scalar2D<NUM> where NUM: Numeric {
+impl<NUM> Scalar2D<NUM>
+where
+    NUM: Numeric,
+{
     /// Construct a `Scalar2D` from an array.
     pub fn new(arr: Array2<NUM>) -> Self {
         Self(arr)
     }
 
     /// get the array that this type wraps.
-    /// usually this method is not required because `Scalar2D` implements [`DerefMut`](std::ops::DerefMut) and 
+    /// usually this method is not required because `Scalar2D` implements [`DerefMut`](std::ops::DerefMut) and
     /// [`Deref`](std::ops::Deref)
     pub fn inner(self) -> Array2<NUM> {
         self.0
@@ -63,13 +66,21 @@ where
     type Item = NUM;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (nx, ny) = self.dim();
+        let (ny, nx) = self.dim();
 
         if self.y == ny {
             return None;
         }
 
-        let value = *self.arr.get((self.x, self.y)).unwrap();
+        let indexing = (self.y, self.x);
+
+        // indexing if we are in debug mode
+        #[cfg(debug_assertions)]
+        let value = *self.arr.get(indexing).unwrap();
+
+        // indexing if we are in release mode
+        #[cfg(not(debug_assertions))]
+        let value = *unsafe { self.arr.uget(indexing) };
 
         self.x += 1;
 
@@ -84,7 +95,7 @@ where
 
 impl<NUM> Components for Scalar2D<NUM>
 where
-    NUM: Clone,
+    NUM: Clone + num_traits::Zero,
 {
     type Iter = Scalar2DIter<NUM>;
 
@@ -97,7 +108,9 @@ where
     }
 
     fn iter(&self) -> Scalar2DIter<NUM> {
-        Scalar2DIter::new(self.0.clone())
+        let mut arr = ndarray::Array::zeros(self.0.t().dim());
+        arr.assign(&self.0.t());
+        Scalar2DIter::new(arr)
     }
 }
 
