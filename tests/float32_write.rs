@@ -1,10 +1,10 @@
 #[cfg(all(test, feature = "derive"))]
 mod inner {
-    use vtk::Field3D;
     use vtk::Mesh3D;
     use vtk::Rectilinear3D;
     use vtk::Scalar3D;
     use vtk::Spans3D;
+    use vtk::Vector3D;
 
     use ndarray::Array1;
     use ndarray::Array3;
@@ -14,28 +14,28 @@ mod inner {
     #[vtk_write(encoding = "binary")]
     pub struct Binary {
         rho: Scalar3D<f32>,
-        velocity: Field3D<f32>,
+        velocity: Vector3D<f32>,
     }
 
     #[derive(vtk::DataArray, Clone)]
     #[vtk_write(encoding = "base64")]
     pub struct Base64 {
         rho: Scalar3D<f32>,
-        velocity: Field3D<f32>,
+        velocity: Vector3D<f32>,
     }
 
     #[derive(vtk::DataArray, Clone)]
     #[vtk_write(encoding = "ascii")]
     pub struct Ascii {
         rho: Scalar3D<f32>,
-        velocity: Field3D<f32>,
+        velocity: Vector3D<f32>,
     }
 
     const NX: usize = 10;
     const NY: usize = NX;
     const NZ: usize = NX;
 
-    fn generate_data<ENC>() -> (Scalar3D<f32>, Field3D<f32>, Mesh3D<f32, ENC>, Spans3D) {
+    fn generate_data<ENC>() -> (Scalar3D<f32>, Vector3D<f32>, Mesh3D<f32, ENC>, Spans3D) {
         let mut rho = Array3::<f32>::zeros((NX, NY, NZ));
         let mut velocity = Array4::<f32>::zeros((3, NX, NY, NZ));
 
@@ -65,7 +65,7 @@ mod inner {
 
         (
             Scalar3D::new(rho),
-            Field3D::new(velocity),
+            Vector3D::new(velocity),
             Mesh3D::new(x.to_vec(), y.to_vec(), z.to_vec()),
             Spans3D::new(NX, NY, NZ),
         )

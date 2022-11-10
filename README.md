@@ -46,7 +46,7 @@ let domain = Rectilinear2D::new(mesh, spans);
 #[vtk_write(encoding="binary")] // could also be "ascii" or "base64"
 pub struct OurData {
     pressure: vtk::Scalar2D<f64>,
-    velocity: vtk::Field2D<f64>
+    velocity: vtk::Vector2D<f64>
 }
 
 let pressure =vtk::Scalar2D::new(Array2::ones((nx,ny)));
@@ -54,7 +54,7 @@ let pressure =vtk::Scalar2D::new(Array2::ones((nx,ny)));
 // index. This is for memory performance when writing and reading arrays. 
 // You must store your data like this if you expect it to be interpreted 
 // by paraview correctly
-let velocity =vtk::Field2D::new(Array3::ones((3, nx, ny)));
+let velocity =vtk::Vector2D::new(Array3::ones((3, nx, ny)));
 
 let data = OurData { pressure, velocity };
 
@@ -78,7 +78,7 @@ the traits.
 If you want to write data to a file derive the `DataArray` trait. If you are parsing
 data from a file, derive the `ParseArray` trait. Both traits accept attributes for
 code generation. All fields in the struct must implement the [FromBuffer](FromBuffer) trait.
-If you stick to the types in [vtk::array](crate::array) such as [`Field3D`](Field3D) you wont have
+If you stick to the types in [vtk::array](crate::array) such as [`Vector3D`](Vector3D) you wont have
 much issue with this.
 
 The `DataArray` derive accepts `vtk_write`. It is used to specify the encoding of
@@ -89,7 +89,7 @@ the data being written to the file. It defaults to binary encoding:
 #[vtk_write(encoding="base64")] // could also be "binary" (default) and "ascii"
 struct VelocityField {
     a: Vec<f64>,
-    b: vtk::Field3D<f64>,
+    b: vtk::Vector3D<f64>,
     c: vtk::Scalar3D<f64>
 }
 ```
@@ -101,7 +101,7 @@ For deriving `ParseArray` you **must** specify what spans you are parsing:
 #[vtk_parse(spans="vtk::Spans3D")]
 pub struct VelocityField {
     a: Vec<f64>,
-    b: vtk::Field3D<f64>,
+    b: vtk::Vector3D<f64>,
     c: vtk::Scalar3D<f64>
 }
 ```
@@ -114,7 +114,7 @@ If you specify the wrong spans there will be a compiler error:
 #[vtk_parse(spans="vtk::Spans2D")]
 pub struct VelocityField {
     a: Vec<f64>,
-    b: vtk::Field3D<f64>,
+    b: vtk::Vector3D<f64>,
     c: vtk::Scalar3D<f64>
 }
 ```

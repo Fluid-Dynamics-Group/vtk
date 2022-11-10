@@ -20,7 +20,7 @@ pub use data::VtkData;
 pub use mesh::{Mesh2D, Rectilinear2D, Spans2D};
 pub use mesh::{Mesh3D, Rectilinear3D, Spans3D};
 
-pub use array::{Field2D, Field3D, Scalar2D, Scalar3D};
+pub use array::{Scalar2D, Scalar3D, Vector2D, Vector3D};
 
 pub use traits::*;
 pub use traits::{Array, FromBuffer};

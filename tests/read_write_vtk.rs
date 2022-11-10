@@ -146,7 +146,7 @@ mod inner {
     /// Information available from a span-wise average of the flowfield
     pub struct SpanVtkInformation2D {
         pub(crate) rho: vtk::Scalar2D<f64>,
-        pub(crate) velocity: vtk::Field2D<f64>,
+        pub(crate) velocity: vtk::Vector2D<f64>,
         pub(crate) energy: vtk::Scalar2D<f64>,
     }
 
@@ -156,7 +156,7 @@ mod inner {
         let ny = 208;
 
         let rho = vtk::Scalar2D::new(ndarray::Array2::ones((nx, ny)));
-        let velocity = vtk::Field2D::new(ndarray::Array3::ones((3, nx, ny)));
+        let velocity = vtk::Vector2D::new(ndarray::Array3::ones((3, nx, ny)));
         let energy = vtk::Scalar2D::new(ndarray::Array2::zeros((nx, ny)));
 
         let mesh_x: Vec<f64> = ndarray::Array1::linspace(0., 1., nx).to_vec();

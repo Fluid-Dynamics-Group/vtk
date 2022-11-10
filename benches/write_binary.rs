@@ -10,7 +10,7 @@ use vtk::Array as _;
 fn write_binary(n: usize) -> () {
     let array: Array4<f32> = ndarray::Array::random((3, n, n, n), Uniform::new(0., 10.));
 
-    let container = vtk::Field3D::new(array);
+    let container = vtk::Vector3D::new(array);
 
     let writer: Vec<u8> = Vec::new();
     let buf_writer = std::io::BufWriter::new(writer);

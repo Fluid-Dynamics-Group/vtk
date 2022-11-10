@@ -6,7 +6,7 @@ use crate::prelude::*;
 ///
 /// The first axis should contain X information, and the second axis should contain Y information.
 /// No vector information can be stored in `Scalar3D`. If you need to store vector data, see
-/// [Field3D](crate::Field3D)
+/// [Vector3D](crate::Vector3D)
 ///
 /// ## Example
 ///

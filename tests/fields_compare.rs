@@ -10,7 +10,7 @@ mod field3d {
     #[vtk_parse(spans = "vtk::Spans3D")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
-        array: vtk::Field3D<f64>,
+        array: vtk::Vector3D<f64>,
     }
 
     fn setup_vtk() -> VtkData<Rectilinear3D<f64, vtk::Binary>, SimpleArray> {
@@ -37,7 +37,7 @@ mod field3d {
         assert_eq!(nx * ny * nn * nz, arr.len());
 
         let data = SimpleArray {
-            array: vtk::Field3D::new(arr),
+            array: vtk::Vector3D::new(arr),
         };
         let domain = Rectilinear3D::new(mesh, spans);
 
@@ -82,7 +82,7 @@ mod field2d {
     #[vtk_parse(spans = "vtk::Spans2D")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
-        array: vtk::Field2D<f64>,
+        array: vtk::Vector2D<f64>,
     }
 
     fn setup_vtk() -> VtkData<Rectilinear2D<f64, vtk::Binary>, SimpleArray> {
@@ -106,7 +106,7 @@ mod field2d {
         assert_eq!(mesh.y_locations.len(), spans.y_len());
 
         let data = SimpleArray {
-            array: vtk::Field2D::new(arr),
+            array: vtk::Vector2D::new(arr),
         };
 
         let domain = Rectilinear2D::new(mesh, spans);

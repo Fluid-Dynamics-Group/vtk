@@ -11,19 +11,19 @@ use crate::prelude::*;
 ///
 /// For velocity, in a domain `nx = 100` and `ny = 200`, `nz=300`, the array needs to have
 /// the shape `(3, 100, 200, 300)`
-pub struct Field3D<NUM>(Array4<NUM>);
+pub struct Vector3D<NUM>(Array4<NUM>);
 
-impl<NUM> Field3D<NUM>
+impl<NUM> Vector3D<NUM>
 where
     NUM: Numeric,
 {
-    /// Construct a `Field3D` from an array.
+    /// Construct a `Vector3D` from an array.
     pub fn new(arr: Array4<NUM>) -> Self {
         Self(arr)
     }
 
     /// get the array that this type wraps.
-    /// usually this method is not required because `Field3D` implements [`DerefMut`](std::ops::DerefMut) and
+    /// usually this method is not required because `Vector3D` implements [`DerefMut`](std::ops::DerefMut) and
     /// [`Deref`](std::ops::Deref)
     pub fn inner(self) -> Array4<NUM> {
         self.0
@@ -31,7 +31,7 @@ where
 }
 
 #[derive(Deref)]
-pub struct Field3DIter<NUM> {
+pub struct Vector3DIter<NUM> {
     #[deref]
     pub arr: Array4<NUM>,
     n: usize,
@@ -40,7 +40,7 @@ pub struct Field3DIter<NUM> {
     z: usize,
 }
 
-impl FromBuffer<crate::Spans3D> for Field3D<f64> {
+impl FromBuffer<crate::Spans3D> for Vector3D<f64> {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans3D, components: usize) -> Self {
         let mut arr = ndarray::Array5::from_shape_vec(
             (components, spans.x_len(), spans.y_len(), spans.z_len(), 1),
@@ -56,11 +56,11 @@ impl FromBuffer<crate::Spans3D> for Field3D<f64> {
         let arr = arr
             .into_shape((components, spans.x_len(), spans.y_len(), spans.z_len()))
             .unwrap();
-        Field3D::new(arr)
+        Vector3D::new(arr)
     }
 }
 
-impl<NUM> Field3DIter<NUM> {
+impl<NUM> Vector3DIter<NUM> {
     fn new(arr: Array4<NUM>) -> Self {
         Self {
             arr,
@@ -72,7 +72,7 @@ impl<NUM> Field3DIter<NUM> {
     }
 }
 
-impl<NUM> Iterator for Field3DIter<NUM>
+impl<NUM> Iterator for Vector3DIter<NUM>
 where
     NUM: Clone + Copy,
 {
@@ -119,11 +119,11 @@ where
     }
 }
 
-impl<NUM> Components for Field3D<NUM>
+impl<NUM> Components for Vector3D<NUM>
 where
     NUM: Clone + num_traits::Zero,
 {
-    type Iter = Field3DIter<NUM>;
+    type Iter = Vector3DIter<NUM>;
 
     fn array_components(&self) -> usize {
         self.dim().0
@@ -136,7 +136,7 @@ where
     fn iter(&self) -> Self::Iter {
         let mut arr = ndarray::Array::zeros(self.0.t().dim());
         arr.assign(&self.0.t());
-        Field3DIter::new(arr)
+        Vector3DIter::new(arr)
     }
 }
 
@@ -165,7 +165,7 @@ fn iter_order() {
         }
     }
 
-    let actual = Field3D::new(arr).iter().collect::<Vec<_>>();
+    let actual = Vector3D::new(arr).iter().collect::<Vec<_>>();
 
     assert_eq!(expected, actual)
 }

@@ -128,7 +128,7 @@ pub trait DataArray<Encoding> {
 ///
 /// This trait is required to be implemented on any types that are being written to a vtk file.
 /// You probably want to use one of the provided implementations in
-/// [Scalar3D](crate::Scalar3D) [Scalar2D](crate::Scalar2D) [Field3D](crate::Field3D) [Field2D](crate::Field2D)
+/// [Scalar3D](crate::Scalar3D) [Scalar2D](crate::Scalar2D) [Vector3D](crate::Vector3D) [Vector2D](crate::Vector2D)
 pub trait Array {
     /// outputs the information in the data array to ascii encoded data
     fn write_ascii<W: Write>(
@@ -305,7 +305,7 @@ where
 /// // we have 3D data so it makes sense to use `Spans3D` here.
 /// #[vtk_parse(spans="vtk::Spans3D")]
 /// pub struct SpanData {
-///     pub velocity: vtk::Field3D<f64>,
+///     pub velocity: vtk::Vector3D<f64>,
 ///     pub pressure: vtk::Scalar3D<f64>,
 ///     pub density: vtk::Scalar3D<f64>,
 /// }
@@ -350,6 +350,7 @@ mod testgen {
     }
 }
 
+/// A trait to abstract over [`f64`] and [`f32`] container data types
 pub trait Numeric: std::cmp::PartialEq<Self> + ryu::Float + Sized {
     const SIZE: usize = std::mem::size_of::<Self>();
     const ZERO: Self;

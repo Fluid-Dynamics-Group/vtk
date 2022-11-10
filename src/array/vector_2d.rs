@@ -11,26 +11,26 @@ use crate::prelude::*;
 ///
 /// For velocity, in a domain `nx = 100` and `ny = 200`, the array needs to have
 /// the shape `(3, 100, 200)`
-pub struct Field2D<NUM>(Array3<NUM>);
+pub struct Vector2D<NUM>(Array3<NUM>);
 
-impl<NUM> Field2D<NUM>
+impl<NUM> Vector2D<NUM>
 where
     NUM: Numeric,
 {
-    /// Construct a `Field2D` from an array.
+    /// Construct a `Vector2D` from an array.
     pub fn new(arr: Array3<NUM>) -> Self {
         Self(arr)
     }
 
     /// get the array that this type wraps.
-    /// usually this method is not required because `Field2D` implements [`DerefMut`](std::ops::DerefMut) and
+    /// usually this method is not required because `Vector2D` implements [`DerefMut`](std::ops::DerefMut) and
     /// [`Deref`](std::ops::Deref)
     pub fn inner(self) -> Array3<NUM> {
         self.0
     }
 }
 
-impl FromBuffer<crate::Spans2D> for Field2D<f64> {
+impl FromBuffer<crate::Spans2D> for Vector2D<f64> {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans2D, components: usize) -> Self {
         let mut arr =
             Array4::from_shape_vec((components, spans.x_len(), spans.y_len(), 1), buffer).unwrap();
@@ -38,7 +38,7 @@ impl FromBuffer<crate::Spans2D> for Field2D<f64> {
         arr.swap_axes(0, 3);
         arr.swap_axes(1, 2);
 
-        Field2D::new(
+        Vector2D::new(
             arr.into_shape((components, spans.x_len(), spans.y_len()))
                 .unwrap(),
         )
@@ -46,7 +46,7 @@ impl FromBuffer<crate::Spans2D> for Field2D<f64> {
 }
 
 #[derive(Deref)]
-pub struct Field2DIter<NUM> {
+pub struct Vector2DIter<NUM> {
     #[deref]
     arr: Array3<NUM>,
     x: usize,
@@ -54,7 +54,7 @@ pub struct Field2DIter<NUM> {
     n: usize,
 }
 
-impl<NUM> Field2DIter<NUM> {
+impl<NUM> Vector2DIter<NUM> {
     fn new(arr: Array3<NUM>) -> Self {
         Self {
             arr,
@@ -65,7 +65,7 @@ impl<NUM> Field2DIter<NUM> {
     }
 }
 
-impl<NUM> Iterator for Field2DIter<NUM>
+impl<NUM> Iterator for Vector2DIter<NUM>
 where
     NUM: Copy + Clone,
 {
@@ -106,11 +106,11 @@ where
     }
 }
 
-impl<NUM> Components for Field2D<NUM>
+impl<NUM> Components for Vector2D<NUM>
 where
     NUM: Copy + Clone + num_traits::Zero,
 {
-    type Iter = Field2DIter<NUM>;
+    type Iter = Vector2DIter<NUM>;
 
     fn array_components(&self) -> usize {
         self.dim().0
@@ -123,7 +123,7 @@ where
     fn iter(&self) -> Self::Iter {
         let mut arr = ndarray::Array::zeros(self.0.t().dim());
         arr.assign(&self.0.t());
-        Field2DIter::new(arr)
+        Vector2DIter::new(arr)
     }
 }
 
@@ -157,10 +157,10 @@ fn iter_order() {
     println!("({}, {}, {})", cv[(0, 2, 3)], cv[(1, 2, 3)], cv[(2, 2, 3)]);
 
     println!("using the field construct, velocity at (2,3) is");
-    let cv = Field2D::new(arr.clone());
+    let cv = Vector2D::new(arr.clone());
     println!("({}, {}, {})", cv[(0, 2, 3)], cv[(1, 2, 3)], cv[(2, 2, 3)]);
 
-    let actual = Field2D::new(arr).iter().collect::<Vec<_>>();
+    let actual = Vector2D::new(arr).iter().collect::<Vec<_>>();
 
     assert_eq!(expected, actual);
 }

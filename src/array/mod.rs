@@ -3,9 +3,9 @@
 mod scalar_2d;
 mod scalar_3d;
 
-mod field_2d;
-mod field_3d;
 mod vector;
+mod vector_2d;
+mod vector_3d;
 
 use crate::prelude::*;
 use crate::traits::Array;
@@ -14,12 +14,13 @@ use crate::traits::Numeric;
 use std::io::Write;
 use xml::writer::{EventWriter, XmlEvent};
 
-pub use field_2d::Field2D;
-pub use field_3d::Field3D;
 pub use scalar_2d::Scalar2D;
 pub use scalar_3d::Scalar3D;
+pub use vector_2d::Vector2D;
+pub use vector_3d::Vector3D;
 
-pub use field_3d::Field3DIter;
+pub use vector_2d::Vector2DIter;
+pub use vector_3d::Vector3DIter;
 
 pub trait Components {
     type Iter;
