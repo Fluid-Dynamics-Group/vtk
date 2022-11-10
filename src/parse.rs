@@ -564,7 +564,7 @@ mod tests {
     use crate::Rectilinear3D;
     use crate::Spans3D;
     use crate::Visitor;
-    type Domain = Rectilinear3D<Binary>;
+    type Domain = Rectilinear3D<f64, Binary>;
 
     #[test]
     fn shred_to_extent() {
@@ -730,8 +730,8 @@ mod tests {
 
     #[test]
     fn appended_array() {
-        let values = [1.0, 2.0, 3.0, 4.0];
-        let values2 = [5.0, 6.0, 7.0, 8.0];
+        let values = [1.0f64, 2.0, 3.0, 4.0];
+        let values2 = [5.0f64, 6.0, 7.0, 8.0];
 
         let mut output = Vec::new();
         let mut event_writer = crate::EventWriter::new(&mut output);
@@ -739,8 +739,22 @@ mod tests {
         let offset_1 = -8;
         let offset_2 = -8 + (4 * 8);
 
-        crate::write_appended_dataarray_header(&mut event_writer, "X", offset_1, 1).unwrap();
-        crate::write_appended_dataarray_header(&mut event_writer, "Y", offset_2, 1).unwrap();
+        crate::write_appended_dataarray_header(
+            &mut event_writer,
+            "X",
+            offset_1,
+            1,
+            Precision::Float64,
+        )
+        .unwrap();
+        crate::write_appended_dataarray_header(
+            &mut event_writer,
+            "Y",
+            offset_2,
+            1,
+            Precision::Float64,
+        )
+        .unwrap();
 
         // write the data inside the appended section
         crate::write_vtk::appended_binary_header_start(&mut event_writer).unwrap();

@@ -1,6 +1,9 @@
 use crate::prelude::*;
 
-impl Array for Vec<f64> {
+impl<NUM> Array for Vec<NUM>
+where
+    NUM: Numeric,
+{
     fn write_ascii<W: Write>(
         &self,
         writer: &mut EventWriter<W>,
@@ -30,9 +33,20 @@ impl Array for Vec<f64> {
     fn components(&self) -> usize {
         1
     }
+
+    fn precision(&self) -> Precision {
+        NUM::as_precision()
+    }
+
+    fn size_of_elem(&self) -> usize {
+        NUM::SIZE
+    }
 }
 
-impl Array for &[f64] {
+impl<NUM> Array for &[NUM]
+where
+    NUM: Numeric,
+{
     fn write_ascii<W: Write>(
         &self,
         writer: &mut EventWriter<W>,
@@ -43,6 +57,7 @@ impl Array for &[f64] {
             crate::write_vtk::Encoding::Ascii,
             name,
             1,
+            NUM::as_precision(),
         )?;
         let data : String =
             // write out all numbers with 12 points of precision
@@ -71,6 +86,7 @@ impl Array for &[f64] {
             crate::write_vtk::Encoding::Base64,
             name,
             1,
+            NUM::as_precision(),
         )?;
         let mut byte_data: Vec<u8> = Vec::with_capacity((self.len() + 1) * 8);
 
@@ -81,7 +97,7 @@ impl Array for &[f64] {
 
         // convert the floats into LE bytes
         self.into_iter()
-            .for_each(|float| byte_data.extend_from_slice(&float.to_le_bytes()));
+            .for_each(|float| float.extend_le_bytes(&mut byte_data));
 
         // encode as base64
         let data = base64::encode(byte_data.as_slice());
@@ -99,25 +115,22 @@ impl Array for &[f64] {
         is_last: bool,
     ) -> Result<(), crate::Error> {
         let writer = writer.inner_mut();
-        let mut bytes = Vec::with_capacity(self.len() * 8);
 
-        // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
-        // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
-        if self[self.len() - 1] == 0.0 && !is_last {
-            // skip the last data point (since we know its 0.0 and
-            // instead write a very small number in its place
-            self[0..self.len() - 1]
-                .into_iter()
-                .for_each(|float| bytes.extend(float.to_le_bytes()));
+        let mut iter = self.iter().peekable();
 
-            bytes.extend(0.000001_f64.to_le_bytes());
-        } else {
-            self.into_iter()
-                .for_each(|float| bytes.extend(float.to_le_bytes()));
+        loop {
+            if let Some(float) = iter.next() {
+                // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
+                // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
+                if !is_last && iter.peek().is_none() && *float == NUM::ZERO {
+                    NUM::SMALL.write_le_bytes(writer)?;
+                } else {
+                    float.write_le_bytes(writer)?;
+                }
+            } else {
+                break;
+            }
         }
-
-        writer.write_all(&bytes)?;
-
         Ok(())
     }
 
@@ -127,5 +140,13 @@ impl Array for &[f64] {
 
     fn components(&self) -> usize {
         1
+    }
+
+    fn precision(&self) -> Precision {
+        NUM::as_precision()
+    }
+
+    fn size_of_elem(&self) -> usize {
+        NUM::SIZE
     }
 }

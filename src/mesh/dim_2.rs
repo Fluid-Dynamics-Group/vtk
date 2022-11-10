@@ -5,21 +5,21 @@ use std::marker::PhantomData;
 /// Full information on a 2D computational domain. If you are writing
 /// a vtk file, this is a candidate type to store in the `domain` field
 /// of [VtkData](`crate::VtkData`)
-pub struct Rectilinear2D<Encoding> {
+pub struct Rectilinear2D<NUM, Encoding> {
     pub spans: Spans2D,
-    pub mesh: Mesh2D<Encoding>,
+    pub mesh: Mesh2D<NUM, Encoding>,
 }
 
-impl<Encoding> Rectilinear2D<Encoding> {
+impl<NUM, Encoding> Rectilinear2D<NUM, Encoding> {
     /// create a new domain from mesh information and span information.
-    pub fn new(mesh: Mesh2D<Encoding>, spans: Spans2D) -> Rectilinear2D<Encoding> {
+    pub fn new(mesh: Mesh2D<NUM, Encoding>, spans: Spans2D) -> Rectilinear2D<NUM, Encoding> {
         Self { mesh, spans }
     }
 }
 
 // from impl is required for generic parsing
-impl<T> From<(Mesh2D<T>, Spans2D)> for Rectilinear2D<T> {
-    fn from(x: (Mesh2D<T>, Spans2D)) -> Self {
+impl<NUM, T> From<(Mesh2D<NUM, T>, Spans2D)> for Rectilinear2D<NUM, T> {
+    fn from(x: (Mesh2D<NUM, T>, Spans2D)) -> Self {
         Self::new(x.0, x.1)
     }
 }
@@ -34,16 +34,16 @@ impl<T> From<(Mesh2D<T>, Spans2D)> for Rectilinear2D<T> {
 /// [write_vtk](`crate::write_vtk()`).
 ///
 #[derive(Debug, Clone)]
-pub struct Mesh2D<Encoding> {
-    pub x_locations: Vec<f64>,
-    pub y_locations: Vec<f64>,
+pub struct Mesh2D<NUM, Encoding> {
+    pub x_locations: Vec<NUM>,
+    pub y_locations: Vec<NUM>,
     _marker: PhantomData<Encoding>,
 }
 
-impl<Encoding> Mesh2D<Encoding> {
+impl<NUM, Encoding> Mesh2D<NUM, Encoding> {
     /// Constructor for the 2D mesh. Encoding can easily
     /// be specified with a turbofish or type inference in later code.
-    pub fn new(x_locations: Vec<f64>, y_locations: Vec<f64>) -> Mesh2D<Encoding> {
+    pub fn new(x_locations: Vec<NUM>, y_locations: Vec<NUM>) -> Mesh2D<NUM, Encoding> {
         Self {
             x_locations,
             y_locations,
@@ -53,7 +53,7 @@ impl<Encoding> Mesh2D<Encoding> {
 
     /// swap encodings for this type. This does not change any
     /// of the underlying data
-    pub fn change_encoding<T>(self) -> Mesh2D<T> {
+    pub fn change_encoding<T>(self) -> Mesh2D<NUM, T> {
         let Mesh2D {
             x_locations,
             y_locations,
@@ -68,8 +68,11 @@ impl<Encoding> Mesh2D<Encoding> {
     }
 }
 
-impl<T, V> PartialEq<Mesh2D<V>> for Mesh2D<T> {
-    fn eq(&self, other: &Mesh2D<V>) -> bool {
+impl<T, V, NUM> PartialEq<Mesh2D<NUM, V>> for Mesh2D<NUM, T>
+where
+    NUM: PartialEq,
+{
+    fn eq(&self, other: &Mesh2D<NUM, V>) -> bool {
         self.x_locations == other.x_locations && self.y_locations == other.y_locations
     }
 }
@@ -150,19 +153,22 @@ impl ParseSpan for Spans2D {
     }
 }
 
-impl Domain<Binary> for Rectilinear2D<Binary> {
+impl<NUM> Domain<Binary> for Rectilinear2D<NUM, Binary>
+where
+    NUM: Numeric,
+{
     // only write the headers here
     fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
         let mut offset = 0;
 
-        write_vtk::write_appended_dataarray_header(writer, "X", offset, 1)?;
-        offset += (std::mem::size_of::<f64>() * (self.mesh.x_locations.len())) as i64;
+        write_vtk::write_appended_dataarray_header(writer, "X", offset, 1, NUM::as_precision())?;
+        offset += (std::mem::size_of::<NUM>() * (self.mesh.x_locations.len())) as i64;
 
-        write_vtk::write_appended_dataarray_header(writer, "Y", offset, 1)?;
-        offset += (std::mem::size_of::<f64>() * (self.mesh.y_locations.len())) as i64;
+        write_vtk::write_appended_dataarray_header(writer, "Y", offset, 1, NUM::as_precision())?;
+        offset += (std::mem::size_of::<NUM>() * (self.mesh.y_locations.len())) as i64;
 
-        write_vtk::write_appended_dataarray_header(writer, "Z", offset, 1)?;
-        //offset += std::mem::size_of::<f64>() as i64;
+        write_vtk::write_appended_dataarray_header(writer, "Z", offset, 1, NUM::as_precision())?;
+        //offset += std::mem::size_of::<NUM>() as i64;
 
         Ok(())
     }
@@ -171,7 +177,7 @@ impl Domain<Binary> for Rectilinear2D<Binary> {
     fn write_mesh_appended<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
         self.mesh.x_locations.write_binary(writer, false)?;
         self.mesh.y_locations.write_binary(writer, false)?;
-        vec![1.].write_binary(writer, false)?;
+        vec![NUM::ZERO].write_binary(writer, false)?;
         Ok(())
     }
 
@@ -182,20 +188,23 @@ impl Domain<Binary> for Rectilinear2D<Binary> {
     fn mesh_bytes(&self) -> usize {
         let mut offset = 0;
 
-        offset += std::mem::size_of::<f64>() * (self.mesh.x_locations.len());
-        offset += std::mem::size_of::<f64>() * (self.mesh.y_locations.len());
-        offset += std::mem::size_of::<f64>();
+        offset += std::mem::size_of::<NUM>() * (self.mesh.x_locations.len());
+        offset += std::mem::size_of::<NUM>() * (self.mesh.y_locations.len());
+        offset += std::mem::size_of::<NUM>();
 
         offset
     }
 }
 
-impl Domain<Ascii> for Rectilinear2D<Ascii> {
+impl<NUM> Domain<Ascii> for Rectilinear2D<NUM, Ascii>
+where
+    NUM: Numeric,
+{
     // only write the headers here
     fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
         self.mesh.x_locations.write_ascii(writer, "X")?;
         self.mesh.y_locations.write_ascii(writer, "Y")?;
-        vec![1.].write_ascii(writer, "Z")?;
+        vec![NUM::ZERO].write_ascii(writer, "Z")?;
 
         Ok(())
     }
@@ -212,15 +221,15 @@ impl Domain<Ascii> for Rectilinear2D<Ascii> {
     fn mesh_bytes(&self) -> usize {
         let mut offset = 0;
 
-        offset += std::mem::size_of::<f64>() * (self.mesh.x_locations.len());
-        offset += std::mem::size_of::<f64>() * (self.mesh.y_locations.len());
-        offset += std::mem::size_of::<f64>();
+        offset += std::mem::size_of::<NUM>() * (self.mesh.x_locations.len());
+        offset += std::mem::size_of::<NUM>() * (self.mesh.y_locations.len());
+        offset += std::mem::size_of::<NUM>();
 
         offset
     }
 }
 
-impl<T> ParseMesh for Mesh2D<T> {
+impl<T> ParseMesh for Mesh2D<f64, T> {
     type Visitor = Mesh2DVisitor;
 }
 
@@ -232,7 +241,7 @@ pub struct Mesh2DVisitor {
 }
 
 impl Visitor<Spans2D> for Mesh2DVisitor {
-    type Output = Mesh2D<Binary>;
+    type Output = Mesh2D<f64, Binary>;
 
     fn read_headers<'a>(spans: &Spans2D, buffer: &'a [u8]) -> IResult<&'a [u8], Self> {
         let (rest, x) = parse::parse_dataarray_or_lazy(buffer, b"X", spans.x_len())?;

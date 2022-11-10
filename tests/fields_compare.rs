@@ -8,12 +8,12 @@ mod field3d {
 
     #[derive(vtk::DataArray, vtk::ParseArray, Debug, Clone)]
     #[vtk_parse(spans = "vtk::Spans3D")]
-    #[vtk_write(encoding="binary")]
+    #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
-        array: vtk::Field3D,
+        array: vtk::Vector3D<f64>,
     }
 
-    fn setup_vtk() -> VtkData<Rectilinear3D<vtk::Binary>, SimpleArray> {
+    fn setup_vtk() -> VtkData<Rectilinear3D<f64, vtk::Binary>, SimpleArray> {
         let nx = 2;
         let ny = 3;
         let nz = 4;
@@ -37,7 +37,7 @@ mod field3d {
         assert_eq!(nx * ny * nn * nz, arr.len());
 
         let data = SimpleArray {
-            array: vtk::Field3D::new(arr),
+            array: vtk::Vector3D::new(arr),
         };
         let domain = Rectilinear3D::new(mesh, spans);
 
@@ -62,7 +62,7 @@ mod field3d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
-        let out_vtk: vtk::VtkData<Rectilinear3D<vtk::Binary>, SimpleArray> =
+        let out_vtk: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, SimpleArray> =
             vtk::parse::parse_xml_document(&file).unwrap();
         let out_data = out_vtk.data;
 
@@ -82,10 +82,10 @@ mod field2d {
     #[vtk_parse(spans = "vtk::Spans2D")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
-        array: vtk::Field2D,
+        array: vtk::Vector2D<f64>,
     }
 
-    fn setup_vtk() -> VtkData<Rectilinear2D<vtk::Binary>, SimpleArray> {
+    fn setup_vtk() -> VtkData<Rectilinear2D<f64, vtk::Binary>, SimpleArray> {
         let nx = 4;
         let ny = 4;
         let nn = 3;
@@ -106,7 +106,7 @@ mod field2d {
         assert_eq!(mesh.y_locations.len(), spans.y_len());
 
         let data = SimpleArray {
-            array: vtk::Field2D::new(arr),
+            array: vtk::Vector2D::new(arr),
         };
 
         let domain = Rectilinear2D::new(mesh, spans);
@@ -142,7 +142,7 @@ mod field2d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
-        let out_vtk: vtk::VtkData<Rectilinear2D<vtk::Binary>, SimpleArray> =
+        let out_vtk: vtk::VtkData<Rectilinear2D<f64, vtk::Binary>, SimpleArray> =
             vtk::parse::parse_xml_document(&file).unwrap();
         let out_data = out_vtk.data;
 
@@ -162,10 +162,10 @@ mod scalar_3d {
     #[vtk_parse(spans = "vtk::Spans3D")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
-        array: vtk::Scalar3D,
+        array: vtk::Scalar3D<f64>,
     }
 
-    fn setup_vtk() -> VtkData<Rectilinear3D<vtk::Binary>, SimpleArray> {
+    fn setup_vtk() -> VtkData<Rectilinear3D<f64, vtk::Binary>, SimpleArray> {
         let nx = 2;
         let ny = 4;
         let nz = 5;
@@ -220,7 +220,7 @@ mod scalar_3d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
-        let out_vtk: vtk::VtkData<Rectilinear3D<vtk::Binary>, SimpleArray> =
+        let out_vtk: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, SimpleArray> =
             vtk::parse::parse_xml_document(&file).unwrap();
         let out_data = out_vtk.data;
 
@@ -240,10 +240,10 @@ mod scalar_2d {
     #[vtk_parse(spans = "vtk::Spans2D")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
-        array: vtk::Scalar2D,
+        array: vtk::Scalar2D<f64>,
     }
 
-    fn setup_vtk() -> VtkData<Rectilinear2D<vtk::Binary>, SimpleArray> {
+    fn setup_vtk() -> VtkData<Rectilinear2D<f64, vtk::Binary>, SimpleArray> {
         let nx = 3;
         let ny = 4;
 
@@ -285,7 +285,7 @@ mod scalar_2d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
-        let out_vtk: vtk::VtkData<Rectilinear2D<vtk::Binary>, SimpleArray> =
+        let out_vtk: vtk::VtkData<Rectilinear2D<f64, vtk::Binary>, SimpleArray> =
             vtk::parse::parse_xml_document(&file).unwrap();
         let out_data = out_vtk.data;
 

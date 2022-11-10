@@ -3,19 +3,24 @@
 mod scalar_2d;
 mod scalar_3d;
 
-mod field_2d;
-mod field_3d;
 mod vector;
+mod vector_2d;
+mod vector_3d;
 
+use crate::prelude::*;
 use crate::traits::Array;
 use crate::traits::FromBuffer;
+use crate::traits::Numeric;
 use std::io::Write;
 use xml::writer::{EventWriter, XmlEvent};
 
-pub use field_2d::Field2D;
-pub use field_3d::Field3D;
 pub use scalar_2d::Scalar2D;
 pub use scalar_3d::Scalar3D;
+pub use vector_2d::Vector2D;
+pub use vector_3d::Vector3D;
+
+pub use vector_2d::Vector2DIter;
+pub use vector_3d::Vector3DIter;
 
 pub trait Components {
     type Iter;
@@ -49,10 +54,11 @@ impl FromBuffer<crate::Spans3D> for ndarray::Array4<f64> {
     }
 }
 
-impl<T> Array for T
+impl<T, NUM> Array for T
 where
     T: Components,
-    <T as Components>::Iter: Iterator<Item = f64>,
+    <T as Components>::Iter: Iterator<Item = NUM>,
+    NUM: Numeric,
 {
     fn write_ascii<W: Write>(
         &self,
@@ -64,6 +70,7 @@ where
             crate::write_vtk::Encoding::Ascii,
             name,
             self.array_components(),
+            NUM::as_precision(),
         )?;
 
         let mut data = String::new();
@@ -93,6 +100,7 @@ where
             crate::write_vtk::Encoding::Base64,
             name,
             self.array_components(),
+            NUM::as_precision(),
         )?;
 
         let mut byte_data: Vec<u8> = Vec::with_capacity((self.length() + 1) * 8);
@@ -105,7 +113,7 @@ where
         let iter = self.iter();
 
         for float in iter {
-            byte_data.extend_from_slice(&float.to_le_bytes());
+            float.extend_le_bytes(&mut byte_data);
         }
 
         // encode as base64
@@ -124,28 +132,22 @@ where
         is_last: bool,
     ) -> Result<(), crate::Error> {
         let writer = writer.inner_mut();
-        let mut bytes = Vec::with_capacity(self.length() * 8);
 
-        let iter = self.iter();
+        let mut iter = self.iter().peekable();
 
-        let mut last = None;
-
-        for float in iter {
-            bytes.extend(float.to_le_bytes());
-            last = Some(float);
-        }
-
-        // handle the edge case of the last element in the array being zero
-        // while we are not the last appended array
-        if !is_last && last.map(|x| x  == 0.0).unwrap_or(false) {
-            let mut index = bytes.len() - 9;
-            for i in 0.000001_f64.to_le_bytes() {
-                bytes[index] = i;
-                index += 1
+        loop {
+            if let Some(float) = iter.next() {
+                // edge case: if the array ends with 0.0 then any following data arrays will fail to parse
+                // see https://gitlab.kitware.com/paraview/paraview/-/issues/20982
+                if !is_last && iter.peek().is_none() && float == NUM::ZERO {
+                    NUM::SMALL.write_le_bytes(writer)?;
+                } else {
+                    float.write_le_bytes(writer)?;
+                }
+            } else {
+                break;
             }
         }
-
-        writer.write_all(&bytes)?;
 
         Ok(())
     }
@@ -156,5 +158,13 @@ where
 
     fn components(&self) -> usize {
         Components::array_components(self)
+    }
+
+    fn precision(&self) -> Precision {
+        NUM::as_precision()
+    }
+
+    fn size_of_elem(&self) -> usize {
+        NUM::SIZE
     }
 }

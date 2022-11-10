@@ -81,8 +81,11 @@ fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::
             let ref_field = &self.#field_name;
             let comps = vtk::Array::components(ref_field);
 
-            vtk::write_appended_dataarray_header(writer, #lit, offset, comps)?;
-            offset += (std::mem::size_of::<f64>() * self.#field_name.len()) as i64;
+            let prec = vtk::Array::precision(ref_field);
+
+            vtk::write_appended_dataarray_header(writer, #lit, offset, comps, prec)?;
+            let size = vtk::Array::size_of_elem(ref_field);
+            offset += (size * self.#field_name.len()) as i64;
         }
     }
 

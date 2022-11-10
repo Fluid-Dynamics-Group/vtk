@@ -14,6 +14,8 @@ use std::cell::RefMut;
 use std::io::Write;
 use xml::writer::EventWriter;
 
+use crate::prelude::*;
+
 /// describes how to write the data to a vtk file
 ///
 /// There are two main ways to write data to a vtk file. Either you can write the data inline
@@ -121,58 +123,12 @@ pub trait DataArray<Encoding> {
     ) -> Result<(), crate::Error>;
 }
 
-/// Describes how to read in a vtk file's data
-///
-/// The built-in routines for parsing DataArrays only account for ascii data stored
-/// in an inline element. If your data is base64 encoded or appended as binary in the final
-/// section then this parsing will not work for you.
-///
-/// If you are planning on skipping some of the data in the vtk (not parsing it), then you
-/// must ensure that there is no data associated with the `AppendedData` element in the vtk.
-/// If some fields are skipped, then the final variable read from `AppendedData` will over-run
-/// into data not intended to be parsed into that field. This behavior can
-/// be modified by implementing the trait manually.
-///
-/// This trait can be derived with the `vtk::ParseDataArray` proc macro:
-///
-/// ```ignore
-/// #[derive(vtk::ParseDataArray)]
-/// struct FlowData {
-///     u: Vec<f64>,
-///     v: Vec<f64>,
-///     w: Vec<f64>,
-/// }
-/// ```
-///
-/// will automatically parse a vtk file in the following format
-///
-/// ```ignore
-/// <?xml version="1.0" encoding="UTF-8"?>
-/// <VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
-///     <RectilinearGrid WholeExtent="0 63 0 63 0 63">
-///         <Piece Extent="0 63 0 63 0 63">
-///             <Coordinates>
-///                 <DataArray type="Float64" NumberOfComponents="1" Name="X" format="appended" offset="-8" />
-///                 <DataArray type="Float64" NumberOfComponents="1" Name="Y" format="appended" offset="504" />
-///                 <DataArray type="Float64" NumberOfComponents="1" Name="Z" format="appended" offset="1016" />
-///             </Coordinates>
-///             <PointData>
-///                 <DataArray type="Float64" NumberOfComponents="1" Name="u" format="appended" offset="1528" />
-///                 <DataArray type="Float64" NumberOfComponents="1" Name="v" format="appended" offset="2098680" />
-///                 <DataArray type="Float64" NumberOfComponents="1" Name="w" format="appended" offset="4195832" />
-///             </PointData>
-///         </Piece>
-///     </RectilinearGrid>
-/// </VTKFile>
-/// ```
-pub trait Temp {}
-
 /// Information on how to write data from a given array (as part of a larger collection
 /// implementing `DataArray.
 ///
 /// This trait is required to be implemented on any types that are being written to a vtk file.
 /// You probably want to use one of the provided implementations in
-/// [Scalar3D](crate::Scalar3D) [Scalar2D](crate::Scalar2D) [Field3D](crate::Field3D) [Field2D](crate::Field2D)
+/// [Scalar3D](crate::Scalar3D) [Scalar2D](crate::Scalar2D) [Vector3D](crate::Vector3D) [Vector2D](crate::Vector2D)
 pub trait Array {
     /// outputs the information in the data array to ascii encoded data
     fn write_ascii<W: Write>(
@@ -203,6 +159,11 @@ pub trait Array {
     // the number of components at each point. For a scalar field this is 1, for a cartesian vector (such as
     // velocity) is 3.
     fn components(&self) -> usize;
+
+    /// get the precision of the data that is being written
+    fn precision(&self) -> Precision;
+
+    fn size_of_elem(&self) -> usize;
 }
 
 /// Converts a buffer of bytes (as read from a VTK file) to the correct order
@@ -344,9 +305,9 @@ where
 /// // we have 3D data so it makes sense to use `Spans3D` here.
 /// #[vtk_parse(spans="vtk::Spans3D")]
 /// pub struct SpanData {
-///     pub velocity: vtk::Field3D,
-///     pub pressure: vtk::Scalar3D,
-///     pub density: vtk::Scalar3D,
+///     pub velocity: vtk::Vector3D<f64>,
+///     pub pressure: vtk::Scalar3D<f64>,
+///     pub density: vtk::Scalar3D<f64>,
 /// }
 /// ```
 pub trait ParseArray {
@@ -386,5 +347,52 @@ mod testgen {
     #[vtk_write(encoding = "binary")]
     pub struct Info {
         a: Vec<f64>,
+    }
+}
+
+/// A trait to abstract over [`f64`] and [`f32`] container data types
+pub trait Numeric: std::cmp::PartialEq<Self> + ryu::Float + Sized {
+    const SIZE: usize = std::mem::size_of::<Self>();
+    const ZERO: Self;
+    const SMALL: Self;
+
+    fn extend_le_bytes(&self, byte_list: &mut Vec<u8>);
+
+    fn write_le_bytes<W: Write>(&self, byte_list: &mut W) -> Result<(), std::io::Error>;
+
+    fn as_precision() -> crate::write_vtk::Precision;
+}
+
+impl Numeric for f32 {
+    const ZERO: Self = 0.0f32;
+    const SMALL: Self = 0.000001f32;
+
+    fn extend_le_bytes(&self, byte_list: &mut Vec<u8>) {
+        byte_list.extend(self.to_le_bytes())
+    }
+
+    fn write_le_bytes<W: Write>(&self, byte_list: &mut W) -> Result<(), std::io::Error> {
+        byte_list.write_all(&self.to_le_bytes())
+    }
+
+    fn as_precision() -> crate::write_vtk::Precision {
+        crate::write_vtk::Precision::Float32
+    }
+}
+
+impl Numeric for f64 {
+    const ZERO: Self = 0.0f64;
+    const SMALL: Self = 0.000001f64;
+
+    fn extend_le_bytes(&self, byte_list: &mut Vec<u8>) {
+        byte_list.extend(self.to_le_bytes())
+    }
+
+    fn write_le_bytes<W: Write>(&self, byte_list: &mut W) -> Result<(), std::io::Error> {
+        byte_list.write_all(&self.to_le_bytes())
+    }
+
+    fn as_precision() -> crate::write_vtk::Precision {
+        crate::write_vtk::Precision::Float64
     }
 }

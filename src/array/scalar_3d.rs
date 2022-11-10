@@ -1,11 +1,37 @@
 use super::Components;
 use crate::prelude::*;
 
-#[derive(Constructor, Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
+#[derive(Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
 /// Array container for scalar information in a 3D domain such as pressure
-pub struct Scalar3D(Array3<f64>);
+///
+/// The first axis should contain X information, and the second axis should contain Y information.
+/// No vector information can be stored in `Scalar3D`. If you need to store vector data, see
+/// [Vector3D](crate::Vector3D)
+///
+/// ## Example
+///
+/// For some scalar data (such as a pressure field, or density field), if your data is `nx=100` and
+/// `ny=200`, `nz=300` then your array shape should be `(100, 200, 300)`
+pub struct Scalar3D<NUM>(Array3<NUM>);
 
-impl FromBuffer<crate::Spans3D> for Scalar3D {
+impl<NUM> Scalar3D<NUM>
+where
+    NUM: Numeric,
+{
+    /// Construct a `Scalar3D` from an array.
+    pub fn new(arr: Array3<NUM>) -> Self {
+        Self(arr)
+    }
+
+    /// get the array that this type wraps.
+    /// usually this method is not required because `Scalar3D` implements [`DerefMut`](std::ops::DerefMut) and
+    /// [`Deref`](std::ops::Deref)
+    pub fn inner(self) -> Array3<NUM> {
+        self.0
+    }
+}
+
+impl FromBuffer<crate::Spans3D> for Scalar3D<f64> {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans3D, components: usize) -> Self {
         let mut arr = Array4::from_shape_vec(
             (components, spans.x_len(), spans.y_len(), spans.z_len()),
@@ -26,16 +52,16 @@ impl FromBuffer<crate::Spans3D> for Scalar3D {
 }
 
 #[derive(Deref)]
-pub struct Scalar3DIter {
+pub struct Scalar3DIter<NUM> {
     #[deref]
-    arr: Array3<f64>,
+    arr: Array3<NUM>,
     x: usize,
     y: usize,
     z: usize,
 }
 
-impl Scalar3DIter {
-    fn new(arr: Array3<f64>) -> Self {
+impl<NUM> Scalar3DIter<NUM> {
+    fn new(arr: Array3<NUM>) -> Self {
         Self {
             arr,
             x: 0,
@@ -45,17 +71,28 @@ impl Scalar3DIter {
     }
 }
 
-impl Iterator for Scalar3DIter {
-    type Item = f64;
+impl<NUM> Iterator for Scalar3DIter<NUM>
+where
+    NUM: Clone + Copy,
+{
+    type Item = NUM;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (nx, ny, nz) = self.dim();
+        let (nz, ny, nx) = self.dim();
 
         if self.z == nz {
             return None;
         }
 
-        let value = *self.arr.get((self.x, self.y, self.z)).unwrap();
+        let indexing = (self.z, self.y, self.x);
+
+        // indexing if we are in debug mode
+        #[cfg(debug_assertions)]
+        let value = *self.arr.get(indexing).unwrap();
+
+        // indexing if we are in release mode
+        #[cfg(not(debug_assertions))]
+        let value = *unsafe { self.arr.uget(indexing) };
 
         self.x += 1;
 
@@ -73,8 +110,11 @@ impl Iterator for Scalar3DIter {
     }
 }
 
-impl Components for Scalar3D {
-    type Iter = Scalar3DIter;
+impl<NUM> Components for Scalar3D<NUM>
+where
+    NUM: Clone + num_traits::Zero,
+{
+    type Iter = Scalar3DIter<NUM>;
 
     fn array_components(&self) -> usize {
         1
@@ -85,7 +125,9 @@ impl Components for Scalar3D {
     }
 
     fn iter(&self) -> Self::Iter {
-        Scalar3DIter::new(self.0.clone())
+        let mut arr = ndarray::Array::zeros(self.0.t().dim());
+        arr.assign(&self.0.t());
+        Scalar3DIter::new(arr)
     }
 }
 

@@ -1,21 +1,46 @@
 use super::Components;
 use crate::prelude::*;
 
-#[derive(Constructor, Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
-/// Array container for scalar information in a 3D domain such as velocity
-pub struct Field3D(Array4<f64>);
+#[derive(Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
+/// Array container for vector information in a 3D domain such as velocity
+///
+/// The first axis should contain the vector information, and the second / third / fourth axis should
+/// contain X / Y / Z information
+///
+/// ## Example
+///
+/// For velocity, in a domain `nx = 100` and `ny = 200`, `nz=300`, the array needs to have
+/// the shape `(3, 100, 200, 300)`
+pub struct Vector3D<NUM>(Array4<NUM>);
+
+impl<NUM> Vector3D<NUM>
+where
+    NUM: Numeric,
+{
+    /// Construct a `Vector3D` from an array.
+    pub fn new(arr: Array4<NUM>) -> Self {
+        Self(arr)
+    }
+
+    /// get the array that this type wraps.
+    /// usually this method is not required because `Vector3D` implements [`DerefMut`](std::ops::DerefMut) and
+    /// [`Deref`](std::ops::Deref)
+    pub fn inner(self) -> Array4<NUM> {
+        self.0
+    }
+}
 
 #[derive(Deref)]
-pub struct Field3DIter {
+pub struct Vector3DIter<NUM> {
     #[deref]
-    arr: Array4<f64>,
+    pub arr: Array4<NUM>,
     n: usize,
     x: usize,
     y: usize,
     z: usize,
 }
 
-impl FromBuffer<crate::Spans3D> for Field3D {
+impl FromBuffer<crate::Spans3D> for Vector3D<f64> {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans3D, components: usize) -> Self {
         let mut arr = ndarray::Array5::from_shape_vec(
             (components, spans.x_len(), spans.y_len(), spans.z_len(), 1),
@@ -31,12 +56,12 @@ impl FromBuffer<crate::Spans3D> for Field3D {
         let arr = arr
             .into_shape((components, spans.x_len(), spans.y_len(), spans.z_len()))
             .unwrap();
-        Field3D::new(arr)
+        Vector3D::new(arr)
     }
 }
 
-impl Field3DIter {
-    fn new(arr: Array4<f64>) -> Self {
+impl<NUM> Vector3DIter<NUM> {
+    fn new(arr: Array4<NUM>) -> Self {
         Self {
             arr,
             x: 0,
@@ -47,17 +72,28 @@ impl Field3DIter {
     }
 }
 
-impl Iterator for Field3DIter {
-    type Item = f64;
+impl<NUM> Iterator for Vector3DIter<NUM>
+where
+    NUM: Clone + Copy,
+{
+    type Item = NUM;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (nn, nx, ny, nz) = self.dim();
+        let (nz, ny, nx, nn) = self.dim();
 
         if self.z == nz {
             return None;
         }
 
-        let value = *self.arr.get((self.n, self.x, self.y, self.z)).unwrap();
+        let indexing = (self.z, self.y, self.x, self.n);
+
+        // indexing if we are in debug mode
+        #[cfg(debug_assertions)]
+        let value = *self.arr.get(indexing).unwrap();
+
+        // indexing if we are in release mode
+        #[cfg(not(debug_assertions))]
+        let value = *unsafe { self.arr.uget(indexing) };
 
         self.n += 1;
 
@@ -83,8 +119,11 @@ impl Iterator for Field3DIter {
     }
 }
 
-impl Components for Field3D {
-    type Iter = Field3DIter;
+impl<NUM> Components for Vector3D<NUM>
+where
+    NUM: Clone + num_traits::Zero,
+{
+    type Iter = Vector3DIter<NUM>;
 
     fn array_components(&self) -> usize {
         self.dim().0
@@ -95,7 +134,9 @@ impl Components for Field3D {
     }
 
     fn iter(&self) -> Self::Iter {
-        Field3DIter::new(self.0.clone())
+        let mut arr = ndarray::Array::zeros(self.0.t().dim());
+        arr.assign(&self.0.t());
+        Vector3DIter::new(arr)
     }
 }
 
@@ -109,6 +150,7 @@ fn iter_order() {
     let arr: Array4<f64> = ndarray::Array1::range(0., (nx * ny * nz * nn) as f64, 1.)
         .into_shape((nn, nx, ny, nz))
         .unwrap();
+
     dbg!(&arr);
     let mut expected = Vec::new();
 
@@ -123,7 +165,7 @@ fn iter_order() {
         }
     }
 
-    let actual = Field3D::new(arr).iter().collect::<Vec<_>>();
+    let actual = Vector3D::new(arr).iter().collect::<Vec<_>>();
 
     assert_eq!(expected, actual)
 }

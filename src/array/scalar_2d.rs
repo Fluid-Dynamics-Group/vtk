@@ -1,11 +1,37 @@
 use super::Components;
 use crate::prelude::*;
 
-#[derive(Constructor, Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
+#[derive(Deref, DerefMut, Into, Clone, PartialEq, Default, Debug)]
 /// Array data container for scalar information in a 2D domain such as pressure
-pub struct Scalar2D(Array2<f64>);
+///
+/// The first axis should contain X information, and the second axis should contain Y information.
+/// No vector information can be stored in `Scalar2D`. If you need to store vector data, see
+/// [Vector2D](crate::Vector2D)
+///
+/// ## Example
+///
+/// For some scalar data (such as a pressure field, or density field), if your data is `nx=100` and
+/// `ny=200` then your array shape should be `(100, 200)`
+pub struct Scalar2D<NUM>(Array2<NUM>);
 
-impl FromBuffer<crate::Spans2D> for Scalar2D {
+impl<NUM> Scalar2D<NUM>
+where
+    NUM: Numeric,
+{
+    /// Construct a `Scalar2D` from an array.
+    pub fn new(arr: Array2<NUM>) -> Self {
+        Self(arr)
+    }
+
+    /// get the array that this type wraps.
+    /// usually this method is not required because `Scalar2D` implements [`DerefMut`](std::ops::DerefMut) and
+    /// [`Deref`](std::ops::Deref)
+    pub fn inner(self) -> Array2<NUM> {
+        self.0
+    }
+}
+
+impl FromBuffer<crate::Spans2D> for Scalar2D<f64> {
     fn from_buffer(buffer: Vec<f64>, spans: &crate::Spans2D, _: usize) -> Self {
         let mut arr = Array4::from_shape_vec((spans.x_len(), spans.y_len(), 1, 1), buffer).unwrap();
 
@@ -20,30 +46,41 @@ impl FromBuffer<crate::Spans2D> for Scalar2D {
 }
 
 #[derive(Deref)]
-pub struct Scalar2DIter {
+pub struct Scalar2DIter<NUM> {
     #[deref]
-    arr: Array2<f64>,
+    arr: Array2<NUM>,
     x: usize,
     y: usize,
 }
 
-impl Scalar2DIter {
-    fn new(arr: Array2<f64>) -> Self {
+impl<NUM> Scalar2DIter<NUM> {
+    fn new(arr: Array2<NUM>) -> Self {
         Self { arr, x: 0, y: 0 }
     }
 }
 
-impl Iterator for Scalar2DIter {
-    type Item = f64;
+impl<NUM> Iterator for Scalar2DIter<NUM>
+where
+    NUM: Clone + Copy,
+{
+    type Item = NUM;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (nx, ny) = self.dim();
+        let (ny, nx) = self.dim();
 
         if self.y == ny {
             return None;
         }
 
-        let value = *self.arr.get((self.x, self.y)).unwrap();
+        let indexing = (self.y, self.x);
+
+        // indexing if we are in debug mode
+        #[cfg(debug_assertions)]
+        let value = *self.arr.get(indexing).unwrap();
+
+        // indexing if we are in release mode
+        #[cfg(not(debug_assertions))]
+        let value = *unsafe { self.arr.uget(indexing) };
 
         self.x += 1;
 
@@ -56,8 +93,11 @@ impl Iterator for Scalar2DIter {
     }
 }
 
-impl Components for Scalar2D {
-    type Iter = Scalar2DIter;
+impl<NUM> Components for Scalar2D<NUM>
+where
+    NUM: Clone + num_traits::Zero,
+{
+    type Iter = Scalar2DIter<NUM>;
 
     fn array_components(&self) -> usize {
         1
@@ -67,8 +107,10 @@ impl Components for Scalar2D {
         self.len()
     }
 
-    fn iter(&self) -> Scalar2DIter {
-        Scalar2DIter::new(self.0.clone())
+    fn iter(&self) -> Scalar2DIter<NUM> {
+        let mut arr = ndarray::Array::zeros(self.0.t().dim());
+        arr.assign(&self.0.t());
+        Scalar2DIter::new(arr)
     }
 }
 

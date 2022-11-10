@@ -3,11 +3,14 @@
 
 pub use crate::data::VtkData;
 pub use crate::traits::{
-    Array, DataArray, Domain, Encode, FromBuffer, ParseArray, ParseMesh, ParseSpan, Visitor,
+    Array, DataArray, Domain, Encode, FromBuffer, Numeric, ParseArray, ParseMesh, ParseSpan,
+    Visitor,
 };
 pub use crate::EventWriter;
 
 pub(crate) use xml::writer::XmlEvent;
+
+pub(crate) use crate::write_vtk::Precision;
 
 pub(crate) use crate::{Ascii, Base64, Binary};
 pub(crate) use crate::{Error, ParseError};

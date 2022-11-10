@@ -63,7 +63,7 @@ impl<T> Visitor<T> for ArrayContainerVisitor {
 fn compile_dim3_write() {
     let arrays = ArrayContainer;
 
-    let mesh = Mesh3D::<vtk::Ascii>::new(vec![], vec![], vec![]);
+    let mesh = Mesh3D::<f64, vtk::Ascii>::new(vec![], vec![], vec![]);
     let spans = Spans3D::new(1, 1, 1);
     let domain = Rectilinear3D::new(mesh, spans);
     let vtk = VtkData::new(domain, arrays);
@@ -78,7 +78,8 @@ fn compile_dim3_write() {
 fn compile_dim3_read() {
     let path = std::path::PathBuf::from("/");
 
-    let _: Result<VtkData<Rectilinear3D<vtk::Binary>, ArrayContainer>, _> = vtk::read_vtk(&path);
+    let _: Result<VtkData<Rectilinear3D<f64, vtk::Binary>, ArrayContainer>, _> =
+        vtk::read_vtk(&path);
 }
 
 #[test]
@@ -86,7 +87,7 @@ fn compile_dim3_read() {
 fn compile_dim2_write() {
     let arrays = ArrayContainer;
 
-    let mesh = Mesh2D::<vtk::Ascii>::new(vec![], vec![]);
+    let mesh = Mesh2D::<f64, vtk::Ascii>::new(vec![], vec![]);
     let spans = Spans2D::new(1, 1);
     let domain = Rectilinear2D::new(mesh, spans);
     let vtk = VtkData::new(domain, arrays);
@@ -101,5 +102,6 @@ fn compile_dim2_write() {
 fn compile_dim2_read() {
     let path = std::path::PathBuf::from("/");
 
-    let _: Result<VtkData<Rectilinear2D<vtk::Binary>, ArrayContainer>, _> = vtk::read_vtk(&path);
+    let _: Result<VtkData<Rectilinear2D<f64, vtk::Binary>, ArrayContainer>, _> =
+        vtk::read_vtk(&path);
 }

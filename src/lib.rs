@@ -20,7 +20,7 @@ pub use data::VtkData;
 pub use mesh::{Mesh2D, Rectilinear2D, Spans2D};
 pub use mesh::{Mesh3D, Rectilinear3D, Spans3D};
 
-pub use array::{Field2D, Field3D, Scalar2D, Scalar3D};
+pub use array::{Scalar2D, Scalar3D, Vector2D, Vector3D};
 
 pub use traits::*;
 pub use traits::{Array, FromBuffer};
@@ -88,6 +88,7 @@ mod helpers {
     use super::write_vtk::Encoding;
     use super::EventWriter;
     use crate as vtk;
+    use crate::prelude::*;
     use crate::Binary;
     use std::io::Write;
     use std::ops::{Add, Div, Sub};
@@ -139,7 +140,7 @@ mod helpers {
         ) -> Result<(), vtk::Error> {
             let ref_field = &self.u;
             let comps = vtk::Array::components(ref_field);
-            vtk::write_appended_dataarray_header(writer, "u", offset, comps)?;
+            vtk::write_appended_dataarray_header(writer, "u", offset, comps, Precision::Float64)?;
             Ok(())
         }
         fn write_array_appended<W: std::io::Write>(
