@@ -20,6 +20,6 @@ pub(crate) use std::io::Write;
 
 pub(crate) use crate::{parse, traits, write_vtk};
 
-pub(crate) use derive_more::{Constructor, Deref, DerefMut, Into};
+pub(crate) use derive_more::{Constructor, Deref, DerefMut, Into, From, Display};
 
 pub(crate) use ndarray::{Array2, Array3, Array4};

@@ -9,6 +9,16 @@ use nom::bytes::complete::{tag, take, take_till, take_until};
 
 use std::fmt;
 use std::io::Read;
+use std::io::BufRead;
+use std::io::BufReader;
+use std::fs::File;
+
+use quick_xml::reader::Reader;
+use quick_xml::events::attributes::Attribute;
+use quick_xml::events::BytesEnd;
+use quick_xml::events::BytesStart;
+use quick_xml::events::Event;
+use quick_xml::name::QName;
 
 type NomErr<'a> = nom::Err<nom::error::Error<&'a [u8]>>;
 
@@ -18,6 +28,111 @@ pub struct ParseError {
     nom_reason: Vec<u8>,
     nom_code: nom::error::ErrorKind,
     extra_info: &'static str,
+}
+
+#[derive(Debug, thiserror::Error, From)]
+pub enum NeoParseError {
+    #[error("Error parsing vtk file before coordinate section: {0}")]
+    Header(Header),
+    #[error("Error parsing vtk file before coordinate section: {0}")]
+    RectilinearHeader(RectilinearHeader)
+}
+
+#[derive(Debug, thiserror::Error, From)]
+enum Header {
+    #[error("{0}")]
+    MalformedXml(MalformedXml),
+    #[error("{0}")]
+    MalformedAttribute(MalformedAttribute),
+    #[error("{0}")]
+    UnexpectedElement(UnexpectedElement),
+    #[error("{0}")]
+    UnexpectedAttributeValue(UnexpectedAttributeValue),
+}
+
+#[derive(From, Display, Debug)]
+#[display(fmt = "failed to parse an xml element: {xml_err}")]
+struct MalformedXml {
+    xml_err: quick_xml::Error
+}
+
+#[derive(From, Display, Debug)]
+#[display(fmt = "failed to parse an xml attribute: {att_err}")]
+struct MalformedAttribute {
+    att_err: quick_xml::events::attributes::AttrError
+}
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "unexpected element name `{actual_element}` occured in VTK file before `{expected_name}`")]
+struct UnexpectedElement {
+    expected_name: String,
+    actual_element: ParsedNameOrBytes,
+}
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "unexpected attribute value for {attribute_name} in {element_name} element: expected {expected_value}, got {actual_value}")]
+struct UnexpectedAttributeValue {
+    element_name: String,
+    attribute_name: String,
+    expected_value: String,
+    actual_value: ParsedNameOrBytes,
+}
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "missing attribute `{attribute_name}` in {element_name} element")]
+struct MissingAttribute {
+    element_name: String,
+    attribute_name: String,
+}
+
+#[derive(From, Display, Debug)]
+enum ParsedNameOrBytes {
+    #[display(fmt = "{_0}")]
+    Utf8(String),
+    #[display(fmt = "{_0:?} (cannot convert to UTF8 string)")]
+    Bytes(Vec<u8>)
+}
+
+impl ParsedNameOrBytes {
+    fn new(bytes: &[u8]) -> Self {
+        let vec = Vec::from(bytes);
+        match String::from_utf8(vec) {
+            Ok(string) => Self::Utf8(string),
+            Err(e) => Self::Bytes(e.into_bytes())
+        } 
+    }
+}
+
+impl <'a> From<QName<'a>> for ParsedNameOrBytes {
+    fn from(x: QName) -> Self {
+        Self::new(x.as_ref())
+    }
+}
+
+impl <'a> From<std::borrow::Cow<'a, [u8]>> for ParsedNameOrBytes {
+    fn from(x: std::borrow::Cow<'a, [u8]>) -> Self {
+        Self::new(x.as_ref())
+    }
+}
+
+impl <'a> From<&'a str> for ParsedNameOrBytes {
+    fn from(x: &str) -> Self {
+        Self::Utf8(x.into())
+    }
+}
+
+#[derive(Debug, thiserror::Error, From)]
+enum RectilinearHeader {
+    #[error("{0}")]
+    MalformedXml(MalformedXml),
+    #[error("{0}")]
+    MalformedAttribute(MalformedAttribute),
+    #[error("{0}")]
+    MissingAttribute(MissingAttribute),
+    #[error("{0}")]
+    UnexpectedElement(UnexpectedElement),
+    #[error("{0}")]
+    UnexpectedAttributeValue(UnexpectedAttributeValue),
 }
 
 impl ParseError {
@@ -74,15 +189,105 @@ where
     GEOMETRY: From<(MESH, SPAN)>,
 {
     let mut file = std::fs::File::open(path)?;
-    let mut buffer = Vec::with_capacity(1024 * 1024 * 3);
-    file.read_to_end(&mut buffer)?;
+    let buf_reader = std::io::BufReader::new(file);
+    let reader = Reader::from_reader(buf_reader);
 
-    parse_xml_document(&buffer)
+    parse_xml_document(reader)
+}
+
+fn read_to_coordinates<R: BufRead>( reader: Reader<R>, buffer: &mut Vec<u8>) -> Result<(), Header> { 
+    // find a VTKFile leading element
+    loop {
+        let event = reader.read_event_into(&mut buffer)
+            .map_err(MalformedXml::from)?;
+
+        if let Event::Start(inner_start) = event {
+            if inner_start.name() != QName(b"VTKFile")  {
+                let element_mismatch = UnexpectedElement::new("VTKFile".into(), ParsedNameOrBytes::from(inner_start.name()));
+                return Err(Header::from(element_mismatch))
+            }
+
+            // now we know the element has the correct name, now we check that its RectilinearGrid
+            // the correct version, and the correct byte encoding
+
+            let attributes = inner_start.attributes();
+
+            for attribute in attributes {
+                let attribute = attribute.map_err(MalformedAttribute::from)?;
+
+                // check the type of the element
+                if attribute.key.as_ref() == b"type" {
+                    check_attribute_value(attribute, "VTKFile", "type", "RectilinearGrid")?;
+                }
+                else if attribute.key.as_ref() == b"byte_order" {
+                    check_attribute_value(attribute, "VTKFile", "byte_order", "LittleEndian")?;
+                }
+            }
+        }
+
+        // catch an EOF if we are looping
+        if let Event::Eof = event {
+            let element_mismatch = UnexpectedElement::new("VTKFile".into(), ParsedNameOrBytes::Utf8("EOF".into()));
+            return Err(Header::from(element_mismatch))
+        }
+    }
+}
+
+/// parse the RectilinearGrid element header, return the contents of the `WholeExtent` attribute
+fn read_rectilinear_header<SPAN: ParseSpan, R: BufRead>(reader: Reader<R>, buffer: &mut Vec<u8>) -> Result<SPAN, RectilinearHeader> {
+    // the very first element we should have should be named RectilinearGrid
+    let element = reader.read_event_into(&mut buffer).map_err(MalformedXml::from)?;
+
+    // ensure we are dealing with a starting event
+    let event = if let Event::Start(event) = element {
+        event
+    } else {
+        let unexpected = UnexpectedElement::new("RectilinearGrid".into(), ParsedNameOrBytes::from("non starting element"));
+        return Err(RectilinearHeader::from(unexpected))
+    };
+
+    // check that the name of the starting element is correct
+    if event.name().as_ref() != b"RectilinearGrid" {
+        let unexpected = UnexpectedElement::new("RectilinearGrid".into(), ParsedNameOrBytes::from(event.name()));
+        return Err(RectilinearHeader::from(unexpected))
+    }
+
+    // find the WholeExtent attribute
+    let extent = event.attributes()
+        // TODO: error here if there was a malformed attribute
+        .filter_map(|x| x.ok())
+        .find(|x| x.key.as_ref() == b"WholeExtent");
+
+    if let Some(extent) = extent {
+        // TODO: error handling here
+        let extent_str = String::from_utf8(extent.value.to_vec()).unwrap();
+        Ok(SPAN::from_str(&extent_str))
+    } else {
+        let err=  MissingAttribute::new("RectilinearGrid".into(), "WholeExtent".into());
+        Err(RectilinearHeader::from(err))
+    }
+}
+
+/// ensure that an attribute's value is what we expect it to be, otherwise return an error with
+/// some location information
+fn check_attribute_value<'a>(att: Attribute<'a>, element_name: &str, attribute_name: &str, expected_attribute_value: &str) -> Result<(), UnexpectedAttributeValue> {
+    if att.value.as_ref() != expected_attribute_value.as_bytes() {
+        let unexpected_value = UnexpectedAttributeValue {
+            element_name: element_name.into(),
+            attribute_name: attribute_name.into(),
+            expected_value: expected_attribute_value.into(),
+            actual_value: ParsedNameOrBytes::from(att.value),
+        };
+
+        Err(unexpected_value)
+    } else {
+        Ok(())
+    }
 }
 
 #[doc(hidden)]
-pub fn parse_xml_document<DOMAIN, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
-    i: &[u8],
+pub fn parse_xml_document<DOMAIN, SPAN, D, MESH, ArrayVisitor, MeshVisitor, R: BufRead>(
+    reader: Reader<R>
 ) -> Result<VtkData<DOMAIN, D>, Error>
 where
     D: ParseArray<Visitor = ArrayVisitor>,
@@ -92,12 +297,14 @@ where
     SPAN: ParseSpan,
     DOMAIN: From<(MESH, SPAN)>,
 {
-    let (rest, spans) = find_extent::<SPAN>(i).map_err(|e: NomErr| {
-        ParseError::from_nom(
-            e,
-            "Error in parsing find_extent for the WholeExtent span information",
-        )
-    })?;
+    let mut buffer = Vec::new();
+
+    let _ = read_to_coordinates(reader, &mut buffer)
+        .map_err(NeoParseError::from)?;
+
+    // find the whole extent from the RectilinearGrid header
+    let spans = read_rectilinear_header::<SPAN, _>(reader, &mut buffer)
+        .map_err(NeoParseError::from)?;
 
     let (rest, location_visitor) =
         MeshVisitor::read_headers(&spans, rest).map_err(|e: NomErr| {
