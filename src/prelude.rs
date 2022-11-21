@@ -6,9 +6,9 @@ pub use crate::traits::{
     Array, DataArray, Domain, Encode, FromBuffer, Numeric, ParseArray, ParseMesh, ParseSpan,
     Visitor,
 };
-pub use crate::EventWriter;
 
-pub(crate) use xml::writer::XmlEvent;
+pub(crate) use quick_xml::writer::Writer;
+pub(crate) use quick_xml::events::Event;
 
 pub(crate) use crate::write_vtk::Precision;
 

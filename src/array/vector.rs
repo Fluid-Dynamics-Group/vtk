@@ -1,4 +1,6 @@
 use crate::prelude::*;
+use quick_xml::events::BytesText;
+use quick_xml::events::Event;
 
 impl<NUM> Array for Vec<NUM>
 where
@@ -6,21 +8,21 @@ where
 {
     fn write_ascii<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         name: &str,
     ) -> Result<(), crate::Error> {
         self.as_slice().write_ascii(writer, name)
     }
     fn write_base64<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         name: &str,
     ) -> Result<(), crate::Error> {
         self.as_slice().write_base64(writer, name)
     }
     fn write_binary<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         is_last: bool,
     ) -> Result<(), crate::Error> {
         self.as_slice().write_binary(writer, is_last)
@@ -49,7 +51,7 @@ where
 {
     fn write_ascii<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         name: &str,
     ) -> Result<(), crate::Error> {
         crate::write_vtk::write_inline_array_header(
@@ -70,7 +72,8 @@ where
                 })
                 .collect();
 
-        writer.write(XmlEvent::Characters(&data))?;
+        let data = Event::Text(BytesText::new(&data));
+        writer.write_event(data)?;
 
         crate::write_vtk::close_inline_array_header(writer)?;
 
@@ -78,7 +81,7 @@ where
     }
     fn write_base64<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         name: &str,
     ) -> Result<(), crate::Error> {
         crate::write_vtk::write_inline_array_header(
@@ -102,7 +105,8 @@ where
         // encode as base64
         let data = base64::encode(byte_data.as_slice());
 
-        writer.write(XmlEvent::Characters(&data))?;
+        let characters = Event::Text(BytesText::new(&data));
+        writer.write_event(characters)?;
 
         crate::write_vtk::close_inline_array_header(writer)?;
 
@@ -111,10 +115,10 @@ where
 
     fn write_binary<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         is_last: bool,
     ) -> Result<(), crate::Error> {
-        let writer = writer.inner_mut();
+        let writer = writer.inner();
 
         let mut iter = self.iter().peekable();
 

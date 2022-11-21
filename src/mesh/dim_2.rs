@@ -158,7 +158,7 @@ where
     NUM: Numeric,
 {
     // only write the headers here
-    fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
+    fn write_mesh_header<W: Write>(&self, writer: &mut Writer<W>) -> Result<(), Error> {
         let mut offset = 0;
 
         write_vtk::write_appended_dataarray_header(writer, "X", offset, 1, NUM::as_precision())?;
@@ -174,7 +174,7 @@ where
     }
 
     //
-    fn write_mesh_appended<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
+    fn write_mesh_appended<W: Write>(&self, writer: &mut Writer<W>) -> Result<(), Error> {
         self.mesh.x_locations.write_binary(writer, false)?;
         self.mesh.y_locations.write_binary(writer, false)?;
         vec![NUM::ZERO].write_binary(writer, false)?;
@@ -201,7 +201,7 @@ where
     NUM: Numeric,
 {
     // only write the headers here
-    fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error> {
+    fn write_mesh_header<W: Write>(&self, writer: &mut Writer<W>) -> Result<(), Error> {
         self.mesh.x_locations.write_ascii(writer, "X")?;
         self.mesh.y_locations.write_ascii(writer, "Y")?;
         vec![NUM::ZERO].write_ascii(writer, "Z")?;
@@ -210,7 +210,7 @@ where
     }
 
     //
-    fn write_mesh_appended<W: Write>(&self, _: &mut EventWriter<W>) -> Result<(), Error> {
+    fn write_mesh_appended<W: Write>(&self, _: &mut Writer<W>) -> Result<(), Error> {
         Ok(())
     }
 

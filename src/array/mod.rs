@@ -12,7 +12,6 @@ use crate::traits::Array;
 use crate::traits::FromBuffer;
 use crate::traits::Numeric;
 use std::io::Write;
-use xml::writer::{EventWriter, XmlEvent};
 
 pub use scalar_2d::Scalar2D;
 pub use scalar_3d::Scalar3D;
@@ -21,6 +20,10 @@ pub use vector_3d::Vector3D;
 
 pub use vector_2d::Vector2DIter;
 pub use vector_3d::Vector3DIter;
+
+use quick_xml::events::Event;
+use quick_xml::events::BytesText;
+
 
 pub trait Components {
     type Iter;
@@ -62,7 +65,7 @@ where
 {
     fn write_ascii<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         name: &str,
     ) -> Result<(), crate::Error> {
         crate::write_vtk::write_inline_array_header(
@@ -83,7 +86,8 @@ where
             data.push_str(&num)
         }
 
-        writer.write(XmlEvent::Characters(&data))?;
+        let chars = BytesText::new(&data);
+        writer.write_event(Event::Text(chars))?;
 
         crate::write_vtk::close_inline_array_header(writer)?;
 
@@ -92,7 +96,7 @@ where
 
     fn write_base64<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         name: &str,
     ) -> Result<(), crate::Error> {
         crate::write_vtk::write_inline_array_header(
@@ -119,7 +123,8 @@ where
         // encode as base64
         let data = base64::encode(byte_data.as_slice());
 
-        writer.write(XmlEvent::Characters(&data))?;
+        let chars = BytesText::new(&data);
+        writer.write_event(Event::Text(chars))?;
 
         crate::write_vtk::close_inline_array_header(writer)?;
 
@@ -128,10 +133,10 @@ where
 
     fn write_binary<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         is_last: bool,
     ) -> Result<(), crate::Error> {
-        let writer = writer.inner_mut();
+        let writer = writer.inner();
 
         let mut iter = self.iter().peekable();
 

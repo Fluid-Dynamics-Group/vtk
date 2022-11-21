@@ -10,8 +10,8 @@ edition = "2021"
 nom = "7.0.0"
 ryu = "1.0.5"
 thiserror = "1.0.25"
-xml-rs = "0.8.3"
 base64 = "0.13.0"
+quick-xml = "0.26.0"
 
 vtk-derive = {path="./derive", optional=true}
 ndarray = "0.15.4"

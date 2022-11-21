@@ -12,7 +12,6 @@ use crate::ParseError;
 use nom::IResult;
 use std::cell::RefMut;
 use std::io::Write;
-use xml::writer::EventWriter;
 
 use crate::prelude::*;
 
@@ -34,7 +33,7 @@ use crate::prelude::*;
 /// }
 ///
 /// impl vtk::traits::DataArray for FlowData {
-///     fn write_dataarray<W: Write>( &self, writer: &mut EventWriter<W>) -> Result<(), vtk::Error> {
+///     fn write_dataarray<W: Write>( &self, writer: &mut Writer<W>) -> Result<(), vtk::Error> {
 ///         vtk::write_inline_dataarray(writer, &self.u, "u", vtk::Encoding::Base64)?;
 ///         vtk::write_inline_dataarray(writer, &self.v, "v", vtk::Encoding::Base64)?;
 ///         vtk::write_inline_dataarray(writer, &self.w, "w", vtk::Encoding::Base64)?;
@@ -48,7 +47,7 @@ use crate::prelude::*;
 ///     // just return anything from these functions, they will not be called
 ///     fn write_appended_dataarray_headers<W: Write>(
 ///         &self,
-///         writer: &mut EventWriter<W>,
+///         writer: &mut Writer<W>,
 ///         starting_offset: i64,
 ///     ) -> Result<(), crate::Error> {
 ///         Ok(())
@@ -57,7 +56,7 @@ use crate::prelude::*;
 ///     // just return anything from these functions, they will not be called
 ///     fn write_appended_dataarrays<W: Write>(
 ///         &self,
-///         writer: &mut EventWriter<W>,
+///         writer: &mut Writer<W>,
 ///     ) -> Result<(), crate::Error> {
 ///         Ok(())
 ///     }
@@ -111,7 +110,7 @@ pub trait DataArray<Encoding> {
     /// and offset of the arrays and `write_mesh_appended` will handle writing the binary data.
     fn write_array_header<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         starting_offset: i64,
     ) -> Result<(), crate::Error>;
 
@@ -119,7 +118,7 @@ pub trait DataArray<Encoding> {
     /// section of the binary file (raw bytes)
     fn write_array_appended<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
     ) -> Result<(), crate::Error>;
 }
 
@@ -133,14 +132,14 @@ pub trait Array {
     /// outputs the information in the data array to ascii encoded data
     fn write_ascii<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         name: &str,
     ) -> Result<(), crate::Error>;
 
     /// outputs the information in the data array to base64 encoded data
     fn write_base64<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         name: &str,
     ) -> Result<(), crate::Error>;
 
@@ -149,7 +148,7 @@ pub trait Array {
     /// if this is the last array written to the file, `is_last` should be set to true
     fn write_binary<W: Write>(
         &self,
-        writer: &mut EventWriter<W>,
+        writer: &mut Writer<W>,
         is_last: bool,
     ) -> Result<(), crate::Error>;
 
@@ -187,12 +186,12 @@ pub trait Domain<Encoding> {
     /// If the encoding is base64 or ascii, this function should write the data in the element.
     /// If the encoding is binary, then this function will only write information about the length
     /// and offset of the arrays and `write_mesh_appended` will handle writing the binary data.
-    fn write_mesh_header<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error>;
+    fn write_mesh_header<W: Write>(&self, writer: &mut Writer<W>) -> Result<(), Error>;
 
     /// If writing binary encoded data, this function writes raw binary information to the writer.
     ///
     /// If the encoding is base64 / ascii, this function does nothing.
-    fn write_mesh_appended<W: Write>(&self, writer: &mut EventWriter<W>) -> Result<(), Error>;
+    fn write_mesh_appended<W: Write>(&self, writer: &mut Writer<W>) -> Result<(), Error>;
 
     /// The VTK-formatted span / extent string for location spans contained in the mesh
     fn span_string(&self) -> String;

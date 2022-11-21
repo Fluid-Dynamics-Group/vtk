@@ -2,10 +2,11 @@ use crate::prelude::*;
 
 use std::borrow::Cow;
 
-use xml::attribute::Attribute;
-use xml::name::Name;
-use xml::namespace::Namespace;
-use xml::writer::{EventWriter, XmlEvent};
+use quick_xml::events::BytesStart;
+use quick_xml::events::BytesEnd;
+use quick_xml::events::attributes::Attribute;
+use quick_xml::name::QName;
+use quick_xml::events::Event;
 
 const STARTING_OFFSET: i64 = 0;
 
@@ -21,47 +22,38 @@ where
     EncArray: Encode,
     EncMesh: Encode,
 {
-    let mut writer = EventWriter::new(writer);
+    let mut writer = Writer::new(writer);
 
-    let version = xml::common::XmlVersion::Version10;
-    writer.write(XmlEvent::StartDocument {
-        version,
-        encoding: None,
-        standalone: None,
-    })?;
+    //let version = xml::common::XmlVersion::Version10;
 
-    writer.write(XmlEvent::StartElement {
-        name: Name::from("VTKFile"),
-        attributes: vec![
+    let decl = quick_xml::events::BytesDecl::new("1.0", Some("UTF-8"), None);
+    writer.write_event(Event::Decl(decl))?;
+
+    let header = BytesStart::new("VTKFile")
+        .with_attributes( vec![
             make_att("type", "RectilinearGrid"),
             make_att("version", "1.0"),
             make_att("byte_order", "LittleEndian"),
             make_att("header_type", "UInt64"),
-        ]
-        .into(),
-        namespace: Cow::Owned(Namespace::empty()),
-    })?;
+        ]);
+    writer.write_event(Event::Start(header))?;
 
     // output the spans
     let span_str = data.domain.span_string();
 
-    writer.write(XmlEvent::StartElement {
-        name: Name::from("RectilinearGrid"),
-        attributes: vec![make_att("WholeExtent", &span_str)].into(),
-        namespace: Cow::Owned(Namespace::empty()),
-    })?;
+    let grid = BytesStart::new("RectilinearGrid")
+        .with_attributes(
+        vec![make_att("WholeExtent", &span_str)]
+    );
+    writer.write_event(Event::Start(grid))?;
 
-    writer.write(XmlEvent::StartElement {
-        name: Name::from("Piece"),
-        attributes: vec![make_att("Extent", &span_str)].into(),
-        namespace: Cow::Owned(Namespace::empty()),
-    })?;
+    //construct the basic framework for writing XML information
+    let piece = BytesStart::new("Piece")
+        .with_attributes(vec![make_att("Extent", &span_str)]);
+    writer.write_event(Event::Start(piece))?;
 
-    writer.write(XmlEvent::StartElement {
-        name: Name::from("Coordinates"),
-        attributes: vec![].into(),
-        namespace: Cow::Owned(Namespace::empty()),
-    })?;
+    let coordinates = BytesStart::new("Coordinates");
+    writer.write_event(Event::Start(coordinates))?;
 
     // write the mesh information out
     data.domain.write_mesh_header(&mut writer)?;
@@ -74,28 +66,30 @@ where
         STARTING_OFFSET
     };
 
-    writer.write(XmlEvent::EndElement {
-        name: Some(Name::from("Coordinates")),
-    })?;
+    // close off the coordinates we opened
+    let end_coordinates = BytesEnd::new("Coordinates");
+    writer.write_event(Event::End(end_coordinates))?;
 
-    writer.write(XmlEvent::StartElement {
-        name: Name::from("PointData"),
-        attributes: vec![].into(),
-        namespace: Cow::Owned(Namespace::empty()),
-    })?;
+    // now, we have ended the coordinates we open the point data
+    // section of the file
+    let point_data = BytesStart::new("PointData");
+    writer.write_event(Event::Start(point_data))?;
 
+    // write the point data using the input data
     data.data.write_array_header(&mut writer, starting_offset)?;
 
-    writer.write(XmlEvent::EndElement {
-        name: Some(Name::from("PointData")),
-    })?;
+    // close off the point data section
+    let end_point_data = BytesEnd::new("PointData");
+    writer.write_event(Event::End(end_point_data))?;
 
-    writer.write(XmlEvent::EndElement {
-        name: Some(Name::from("Piece")),
-    })?;
-    writer.write(XmlEvent::EndElement {
-        name: Some(Name::from("RectilinearGrid")),
-    })?;
+    // close off the piece
+    let end_piece = BytesEnd::new("Piece");
+    writer.write_event(Event::End(end_piece))?;
+
+    // close off the RectilinearGrid element
+    let end_grid = BytesEnd::new("RectilinearGrid");
+    writer.write_event(Event::End(end_grid))?;
+
 
     // if we are doing _any_ sort of appending of data
     if EncMesh::is_binary() || EncArray::is_binary() {
@@ -117,25 +111,25 @@ where
         appended_binary_header_end(&mut writer)?;
     }
 
-    writer.write(XmlEvent::EndElement {
-        name: Some(Name::from("VTKFile")),
-    })?;
+    // end the vtk file
+    let end_vtk = BytesEnd::new("VTKFile");
+    writer.write_event(Event::End(end_grid))?;
 
     Ok(())
 }
 
 pub(crate) fn appended_binary_header_start<W: Write>(
-    writer: &mut EventWriter<W>,
-) -> Result<(), xml::writer::Error> {
-    let inner = writer.inner_mut();
+    writer: &mut Writer<W>,
+) -> Result<(), quick_xml::Error> {
+    let inner = writer.inner();
     inner.write_all(b"<AppendedData encoding=\"raw\">_")?;
     Ok(())
 }
 
 pub(crate) fn appended_binary_header_end<W: Write>(
-    writer: &mut EventWriter<W>,
-) -> Result<(), xml::writer::Error> {
-    let inner = writer.inner_mut();
+    writer: &mut Writer<W>,
+) -> Result<(), quick_xml::Error> {
+    let inner = writer.inner();
     inner.write_all(b"</AppendedData>")?;
     Ok(())
 }
@@ -169,31 +163,28 @@ impl Precision {
 }
 
 pub fn write_inline_array_header<W: Write>(
-    writer: &mut EventWriter<W>,
+    writer: &mut Writer<W>,
     format: Encoding,
     name: &str,
     components: usize,
     precision: Precision,
 ) -> Result<(), Error> {
-    writer.write(XmlEvent::StartElement {
-        name: Name::from("DataArray"),
-        attributes: vec![
+    let header = BytesStart::new("DataArray")
+        .with_attributes(
+        vec![
             make_att("type", precision.to_str()),
             make_att("NumberOfComponents", &components.to_string()),
             make_att("Name", name),
             make_att("format", format.to_str()),
-        ]
-        .into(),
-        namespace: Cow::Owned(Namespace::empty()),
-    })?;
+        ]);
+    writer.write_event(Event::Start(header))?;
 
     Ok(())
 }
 
-pub fn close_inline_array_header<W: Write>(writer: &mut EventWriter<W>) -> Result<(), Error> {
-    writer.write(XmlEvent::EndElement {
-        name: Some(Name::from("DataArray")),
-    })?;
+pub fn close_inline_array_header<W: Write>(writer: &mut Writer<W>) -> Result<(), Error> {
+    let header_end = BytesEnd::new("DataArray");
+    writer.write_event(Event::End(header_end))?;
 
     Ok(())
 }
@@ -201,7 +192,7 @@ pub fn close_inline_array_header<W: Write>(writer: &mut EventWriter<W>) -> Resul
 /// write a single (inline) array of data (such as x-velocity)
 /// to the vtk file.
 pub fn write_inline_dataarray<W: Write, A: Array>(
-    writer: &mut EventWriter<W>,
+    writer: &mut Writer<W>,
     data: &A,
     name: &str,
     encoding: Encoding,
@@ -225,33 +216,35 @@ pub fn write_inline_dataarray<W: Write, A: Array>(
 /// `write_appened_dataarray` with the data in the correct order
 #[inline]
 pub fn write_appended_dataarray_header<W: Write>(
-    writer: &mut EventWriter<W>,
+    writer: &mut Writer<W>,
     name: &str,
     offset: i64,
     components: usize,
     precision: Precision,
 ) -> Result<(), Error> {
-    writer.write(XmlEvent::StartElement {
-        name: Name::from("DataArray"),
-        attributes: vec![
-            make_att("type", precision.to_str()),
-            make_att("NumberOfComponents", &components.to_string()),
-            make_att("Name", name),
-            make_att("format", "appended"),
-            make_att("offset", &offset.to_string()),
-        ]
-        .into(),
-        namespace: Cow::Owned(Namespace::empty()),
-    })?;
+    let appended_header = BytesStart::new("DataArray")
+        .with_attributes(
+            vec![
+                make_att("type", precision.to_str()),
+                make_att("NumberOfComponents", &components.to_string()),
+                make_att("Name", name),
+                make_att("format", "appended"),
+                make_att("offset", &offset.to_string()),
+            ]
+        );
 
-    writer.write(XmlEvent::EndElement {
-        name: Some(Name::from("DataArray")),
-    })?;
+    let end_header = BytesEnd::new("DataArray");
+
+    writer.write_event(Event::Start(appended_header))?;
+    writer.write_event(Event::End(end_header))?;
 
     Ok(())
 }
 
 fn make_att<'a>(name: &'static str, value: &'a str) -> Attribute<'a> {
-    let name = Name::from(name);
-    Attribute::new(name, value)
+    let name = QName(name.as_bytes());
+    Attribute {
+        key: name,
+        value: value.as_bytes().into()
+    }
 }

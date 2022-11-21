@@ -29,28 +29,28 @@ pub use write_vtk::{write_appended_dataarray_header, write_inline_dataarray, Enc
 
 pub use parse::read_and_parse as read_vtk;
 pub use parse::ParseError;
-//type ParseError = ();
 
 #[cfg(feature = "derive")]
 pub use vtk_derive::{DataArray, ParseArray};
 
 pub use ndarray;
 pub use nom;
-pub use xml::EventWriter;
+
+pub use quick_xml::writer::Writer;
 
 /// general purpose error enumeration for possible causes of failure.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("An io error occured: `{0}`")]
     Io(#[from] std::io::Error),
-    #[error("The xml data inputted was malformed: `{0}`")]
-    Xml(#[from] xml::reader::Error),
+    //#[error("The xml data inputted was malformed: `{0}`")]
+    //Xml(#[from] quick_xml::Error),
     #[error("Error when parsing the xml data: `{0}`")]
     Nom(#[from] parse::ParseError),
     #[error("Could not convert file to uf8 encoding: `{0}`")]
     Utf8(#[from] std::string::FromUtf8Error),
     #[error("Could not write XML data to file: `{0}`")]
-    XmlWrite(#[from] xml::writer::Error),
+    XmlWrite(#[from] quick_xml::Error),
 }
 
 /// Binary encoding marker type
