@@ -86,7 +86,7 @@ impl traits::Encode for Base64 {
 #[cfg(test)]
 mod helpers {
     use super::write_vtk::Encoding;
-    use super::EventWriter;
+    use crate::prelude::*;
     use crate as vtk;
     use crate::prelude::*;
     use crate::Binary;
@@ -135,7 +135,7 @@ mod helpers {
     impl vtk::DataArray<vtk::Binary> for SpanData {
         fn write_array_header<W: std::io::Write>(
             &self,
-            writer: &mut vtk::EventWriter<W>,
+            writer: &mut vtk::Writer<W>,
             offset: i64,
         ) -> Result<(), vtk::Error> {
             let ref_field = &self.u;
@@ -145,7 +145,7 @@ mod helpers {
         }
         fn write_array_appended<W: std::io::Write>(
             &self,
-            writer: &mut vtk::EventWriter<W>,
+            writer: &mut vtk::Writer<W>,
         ) -> Result<(), vtk::Error> {
             vtk::Array::write_binary(&self.u, writer, true)?;
             Ok(())

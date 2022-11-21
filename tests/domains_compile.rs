@@ -10,6 +10,7 @@ use vtk::Rectilinear2D;
 use vtk::Rectilinear3D;
 use vtk::Spans2D;
 use vtk::Spans3D;
+use vtk::Writer;
 
 #[cfg(test)]
 struct ArrayContainer;
@@ -25,7 +26,7 @@ impl ParseArray for ArrayContainer {
 impl DataArray<vtk::Ascii> for ArrayContainer {
     fn write_array_header<W: std::io::Write>(
         &self,
-        _writer: &mut EventWriter<W>,
+        _writer: &mut Writer<W>,
         _starting_offset: i64,
     ) -> Result<(), vtk::Error> {
         Ok(())
@@ -33,7 +34,7 @@ impl DataArray<vtk::Ascii> for ArrayContainer {
 
     fn write_array_appended<W: std::io::Write>(
         &self,
-        _writer: &mut EventWriter<W>,
+        _writer: &mut Writer<W>,
     ) -> Result<(), vtk::Error> {
         Ok(())
     }

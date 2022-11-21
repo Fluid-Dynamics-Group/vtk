@@ -709,7 +709,7 @@ mod tests {
     fn base_64_encoded_array() {
         let values = [1.0, 2.0, 3.0, 4.0];
         let mut output = Vec::new();
-        let mut event_writer = crate::EventWriter::new(&mut output);
+        let mut event_writer = crate::Writer::new(&mut output);
         crate::write_inline_dataarray(
             &mut event_writer,
             &values.as_slice(),
@@ -734,7 +734,7 @@ mod tests {
         let values2 = [5.0f64, 6.0, 7.0, 8.0];
 
         let mut output = Vec::new();
-        let mut event_writer = crate::EventWriter::new(&mut output);
+        let mut event_writer = crate::Writer::new(&mut output);
 
         let offset_1 = -8;
         let offset_2 = -8 + (4 * 8);
