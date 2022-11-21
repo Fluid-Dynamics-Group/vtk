@@ -9,6 +9,10 @@ pub use crate::traits::{
 
 pub(crate) use quick_xml::events::Event;
 pub(crate) use quick_xml::writer::Writer;
+pub(crate) use quick_xml::reader::Reader;
+pub(crate) use quick_xml::events::BytesEnd;
+pub(crate) use quick_xml::events::BytesStart;
+pub(crate) use quick_xml::name::QName;
 
 pub(crate) use crate::write_vtk::Precision;
 

@@ -1,4 +1,6 @@
 use crate::prelude::*;
+
+use std::io::BufRead;
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -243,10 +245,10 @@ pub struct Mesh2DVisitor {
 impl Visitor<Spans2D> for Mesh2DVisitor {
     type Output = Mesh2D<f64, Binary>;
 
-    fn read_headers<'a>(spans: &Spans2D, buffer: &'a [u8]) -> IResult<&'a [u8], Self> {
-        let (rest, x) = parse::parse_dataarray_or_lazy(buffer, b"X", spans.x_len())?;
-        let (rest, y) = parse::parse_dataarray_or_lazy(rest, b"Y", spans.y_len())?;
-        let (rest, z) = parse::parse_dataarray_or_lazy(rest, b"Z", 1)?;
+    fn read_headers<R: BufRead>(spans: &Spans2D, reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<Self, crate::parse::Mesh> {
+        let x = parse::parse_dataarray_or_lazy(reader, buffer, "X", spans.x_len())?;
+        let y = parse::parse_dataarray_or_lazy(reader, buffer, "Y", spans.y_len())?;
+        let z = parse::parse_dataarray_or_lazy(reader, buffer, "Z", 1)?;
 
         let x_locations = parse::PartialDataArrayBuffered::new(x, spans.x_len());
         let y_locations = parse::PartialDataArrayBuffered::new(y, spans.y_len());
@@ -258,7 +260,7 @@ impl Visitor<Spans2D> for Mesh2DVisitor {
             z_locations,
         };
 
-        Ok((rest, visitor))
+        Ok(visitor)
     }
 
     fn add_to_appended_reader<'a, 'b>(

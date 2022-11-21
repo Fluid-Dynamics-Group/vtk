@@ -35,11 +35,15 @@ pub enum NeoParseError {
     #[error("Error parsing vtk file before coordinate section: {0}")]
     Header(Header),
     #[error("Error parsing vtk file before coordinate section: {0}")]
-    RectilinearHeader(RectilinearHeader)
+    RectilinearHeader(RectilinearHeader),
+    #[error("Error parsing vtk file before coordinate section: {0}")]
+    CoordinatesHeader(CoordinatesHeader),
+    #[error("Error parsing vtk file before coordinate section: {0}")]
+    Mesh(Mesh),
 }
 
 #[derive(Debug, thiserror::Error, From)]
-enum Header {
+pub enum Header {
     #[error("{0}")]
     MalformedXml(MalformedXml),
     #[error("{0}")]
@@ -52,26 +56,26 @@ enum Header {
 
 #[derive(From, Display, Debug)]
 #[display(fmt = "failed to parse an xml element: {xml_err}")]
-struct MalformedXml {
+pub struct MalformedXml {
     xml_err: quick_xml::Error
 }
 
 #[derive(From, Display, Debug)]
 #[display(fmt = "failed to parse an xml attribute: {att_err}")]
-struct MalformedAttribute {
+pub struct MalformedAttribute {
     att_err: quick_xml::events::attributes::AttrError
 }
 
 #[derive(From, Display, Debug, Constructor)]
 #[display(fmt = "unexpected element name `{actual_element}` occured in VTK file before `{expected_name}`")]
-struct UnexpectedElement {
+pub struct UnexpectedElement {
     expected_name: String,
     actual_element: ParsedNameOrBytes,
 }
 
 #[derive(From, Display, Debug, Constructor)]
 #[display(fmt = "unexpected attribute value for {attribute_name} in {element_name} element: expected {expected_value}, got {actual_value}")]
-struct UnexpectedAttributeValue {
+pub struct UnexpectedAttributeValue {
     element_name: String,
     attribute_name: String,
     expected_value: String,
@@ -80,13 +84,13 @@ struct UnexpectedAttributeValue {
 
 #[derive(From, Display, Debug, Constructor)]
 #[display(fmt = "missing attribute `{attribute_name}` in {element_name} element")]
-struct MissingAttribute {
+pub struct MissingAttribute {
     element_name: String,
     attribute_name: String,
 }
 
 #[derive(From, Display, Debug)]
-enum ParsedNameOrBytes {
+pub enum ParsedNameOrBytes {
     #[display(fmt = "{_0}")]
     Utf8(String),
     #[display(fmt = "{_0:?} (cannot convert to UTF8 string)")]
@@ -122,7 +126,35 @@ impl <'a> From<&'a str> for ParsedNameOrBytes {
 }
 
 #[derive(Debug, thiserror::Error, From)]
-enum RectilinearHeader {
+pub enum RectilinearHeader {
+    #[error("{0}")]
+    MalformedXml(MalformedXml),
+    #[error("{0}")]
+    MalformedAttribute(MalformedAttribute),
+    #[error("{0}")]
+    MissingAttribute(MissingAttribute),
+    #[error("{0}")]
+    UnexpectedElement(UnexpectedElement),
+    #[error("{0}")]
+    UnexpectedAttributeValue(UnexpectedAttributeValue),
+}
+
+#[derive(Debug, thiserror::Error, From)]
+pub enum CoordinatesHeader {
+    #[error("{0}")]
+    MalformedXml(MalformedXml),
+    #[error("{0}")]
+    MalformedAttribute(MalformedAttribute),
+    #[error("{0}")]
+    MissingAttribute(MissingAttribute),
+    #[error("{0}")]
+    UnexpectedElement(UnexpectedElement),
+    #[error("{0}")]
+    UnexpectedAttributeValue(UnexpectedAttributeValue),
+}
+
+#[derive(Debug, thiserror::Error, From)]
+pub enum Mesh {
     #[error("{0}")]
     MalformedXml(MalformedXml),
     #[error("{0}")]
@@ -188,20 +220,20 @@ where
     SPAN: ParseSpan,
     GEOMETRY: From<(MESH, SPAN)>,
 {
-    let mut file = std::fs::File::open(path)?;
+    let file = std::fs::File::open(path)?;
     let buf_reader = std::io::BufReader::new(file);
     let reader = Reader::from_reader(buf_reader);
 
     parse_xml_document(reader)
 }
 
-fn read_to_coordinates<R: BufRead>( reader: Reader<R>, buffer: &mut Vec<u8>) -> Result<(), Header> { 
+fn read_to_grid_header<R: BufRead>( reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<(), Header> { 
     // find a VTKFile leading element
     loop {
-        let event = reader.read_event_into(&mut buffer)
+        let event = reader.read_event_into(buffer)
             .map_err(MalformedXml::from)?;
 
-        if let Event::Start(inner_start) = event {
+        if let Event::Start(inner_start) = &event {
             if inner_start.name() != QName(b"VTKFile")  {
                 let element_mismatch = UnexpectedElement::new("VTKFile".into(), ParsedNameOrBytes::from(inner_start.name()));
                 return Err(Header::from(element_mismatch))
@@ -234,37 +266,64 @@ fn read_to_coordinates<R: BufRead>( reader: Reader<R>, buffer: &mut Vec<u8>) -> 
 }
 
 /// parse the RectilinearGrid element header, return the contents of the `WholeExtent` attribute
-fn read_rectilinear_header<SPAN: ParseSpan, R: BufRead>(reader: Reader<R>, buffer: &mut Vec<u8>) -> Result<SPAN, RectilinearHeader> {
-    // the very first element we should have should be named RectilinearGrid
-    let element = reader.read_event_into(&mut buffer).map_err(MalformedXml::from)?;
+fn read_rectilinear_header<SPAN: ParseSpan, R: BufRead>(reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<SPAN, RectilinearHeader> {
+    let event = read_starting_element_with_name::<RectilinearHeader, _>(reader, buffer, "RectilinearGrid")?;
 
-    // ensure we are dealing with a starting event
+    let extent_value = get_attribute_value::<RectilinearHeader>(event, "WholeExtent", "RectilinearGrid")?;
+    let extent_str = String::from_utf8(extent_value).unwrap();
+    Ok(SPAN::from_str(&extent_str))
+}
+
+fn read_to_coordinates<SPAN: ParseSpan, R: BufRead>(reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<SPAN, CoordinatesHeader> {
+    let piece = read_starting_element_with_name::<CoordinatesHeader, _>(reader, buffer, "Piece")?;
+
+    let extent_value = get_attribute_value::<CoordinatesHeader>(piece, "Extent", "Piece")?;
+    let extent_str = String::from_utf8(extent_value).unwrap();
+    let extent = SPAN::from_str(&extent_str);
+
+    // then, we read the next element which should be the `Coordinates` element, which
+    // indicates that we are about to start reading the grid elements
+    let _coordinates =read_starting_element_with_name::<CoordinatesHeader, _>(reader, buffer, "Coordinates")?;
+    //reading the closing of this element will be handled later
+
+    Ok(extent)
+}
+
+fn read_starting_element_with_name<'a, E, R: BufRead>(reader: &mut Reader<R>, buffer: &'a mut Vec<u8>, expected_name: &str) -> Result<BytesStart<'a>, E> 
+where E: From<UnexpectedElement> + From<MalformedXml>
+{
+    let element = reader.read_event_into(buffer)
+        .map_err(MalformedXml::from)?;
+
     let event = if let Event::Start(event) = element {
         event
-    } else {
-        let unexpected = UnexpectedElement::new("RectilinearGrid".into(), ParsedNameOrBytes::from("non starting element"));
-        return Err(RectilinearHeader::from(unexpected))
+    } else{
+        let unexpected = UnexpectedElement::new(expected_name.into(), ParsedNameOrBytes::from("non starting element"));
+        return Err(E::from(unexpected))
     };
 
-    // check that the name of the starting element is correct
-    if event.name().as_ref() != b"RectilinearGrid" {
-        let unexpected = UnexpectedElement::new("RectilinearGrid".into(), ParsedNameOrBytes::from(event.name()));
-        return Err(RectilinearHeader::from(unexpected))
+    // check that the name of the coordinates header is correct
+    if event.name().as_ref() != expected_name.as_bytes() {
+        let unexpected = UnexpectedElement::new(expected_name.into(), ParsedNameOrBytes::from(event.name()));
+        return Err(E::from(unexpected))
     }
 
-    // find the WholeExtent attribute
-    let extent = event.attributes()
+    Ok(event)
+}
+
+fn get_attribute_value<'a, E>(bytes_start: BytesStart<'a>, attribute_key: &str, element_name: &str) -> Result<Vec<u8>, E> 
+where E: From<MissingAttribute>{
+    // find the `attribute_key` attribute on the `element_name` element
+    let extent = bytes_start.attributes()
         // TODO: error here if there was a malformed attribute
         .filter_map(|x| x.ok())
-        .find(|x| x.key.as_ref() == b"WholeExtent");
+        .find(|x| x.key.as_ref() == attribute_key.as_bytes());
 
     if let Some(extent) = extent {
-        // TODO: error handling here
-        let extent_str = String::from_utf8(extent.value.to_vec()).unwrap();
-        Ok(SPAN::from_str(&extent_str))
+        Ok(extent.value.to_vec())
     } else {
-        let err=  MissingAttribute::new("RectilinearGrid".into(), "WholeExtent".into());
-        Err(RectilinearHeader::from(err))
+        let err=  MissingAttribute::new(element_name.into(), attribute_key.into());
+        Err(E::from(err))
     }
 }
 
@@ -287,7 +346,7 @@ fn check_attribute_value<'a>(att: Attribute<'a>, element_name: &str, attribute_n
 
 #[doc(hidden)]
 pub fn parse_xml_document<DOMAIN, SPAN, D, MESH, ArrayVisitor, MeshVisitor, R: BufRead>(
-    reader: Reader<R>
+    mut reader: Reader<R>
 ) -> Result<VtkData<DOMAIN, D>, Error>
 where
     D: ParseArray<Visitor = ArrayVisitor>,
@@ -299,33 +358,36 @@ where
 {
     let mut buffer = Vec::new();
 
-    let _ = read_to_coordinates(reader, &mut buffer)
+    let _ = read_to_grid_header(&mut reader, &mut buffer)
         .map_err(NeoParseError::from)?;
 
     // find the whole extent from the RectilinearGrid header
-    let spans = read_rectilinear_header::<SPAN, _>(reader, &mut buffer)
+    let spans = read_rectilinear_header::<SPAN, _>(&mut reader, &mut buffer)
         .map_err(NeoParseError::from)?;
 
-    let (rest, location_visitor) =
-        MeshVisitor::read_headers(&spans, rest).map_err(|e: NomErr| {
-            ParseError::from_nom(e, "could not read the values of the coordinate arrays")
-        })?;
+    let local_spans = read_to_coordinates::<SPAN, _>(&mut reader, &mut buffer)
+        .map_err(NeoParseError::from)?;
 
-    let (rest, array_visitor) = ArrayVisitor::read_headers(&spans, rest).map_err(|e: NomErr| {
-        ParseError::from_nom(e, "could not read the values of the data arrays. Attributes of <DataArray> Elements may be in an unexpected order")
-    })?;
+    let location_visitor =
+        MeshVisitor::read_headers(&spans, &mut reader, &mut buffer)
+            .map_err(NeoParseError::from)?;
 
-    let mut reader_buffer = Vec::new();
-    location_visitor.add_to_appended_reader(&mut reader_buffer);
-    array_visitor.add_to_appended_reader(&mut reader_buffer);
+    let array_visitor = ArrayVisitor::read_headers(&spans, &mut reader, &mut buffer)
+        .map_err(NeoParseError::from)?;
 
-    read_appended_array_buffers(reader_buffer, rest)?;
+    todo!()
 
-    let data: D = array_visitor.finish(&spans)?;
-    let mesh: MESH = location_visitor.finish(&spans)?;
-    let domain = DOMAIN::from((mesh, spans));
+    //let mut reader_buffer = Vec::new();
+    //location_visitor.add_to_appended_reader(&mut reader_buffer);
+    //array_visitor.add_to_appended_reader(&mut reader_buffer);
 
-    Ok(VtkData { domain, data })
+    //read_appended_array_buffers(reader_buffer, rest)?;
+
+    //let data: D = array_visitor.finish(&spans)?;
+    //let mesh: MESH = location_visitor.finish(&spans)?;
+    //let domain = DOMAIN::from((mesh, spans));
+
+    //Ok(VtkData { domain, data })
 }
 
 #[allow(dead_code)]
@@ -352,35 +414,37 @@ pub(crate) fn find_extent<SPAN: ParseSpan>(i: &[u8]) -> IResult<&[u8], SPAN> {
 }
 
 /// Parse a data array (if its inline) or return the offset in the appended section
-pub fn parse_dataarray_or_lazy<'a>(
-    xml_bytes: &'a [u8],
-    expected_data: &[u8],
+pub fn parse_dataarray_or_lazy<'a, R: BufRead>(
+    reader: &mut Reader<R>,
+    buffer: &mut Vec<u8>,
+    expected_name: &str,
     size_hint: usize,
-) -> IResult<&'a [u8], PartialDataArray> {
-    let (mut rest, header) = read_dataarray_header(xml_bytes, expected_data)?;
-    let lazy_array = match header {
-        DataArrayHeader::AppendedBinary { offset, components } => {
-            PartialDataArray::AppendedBinary { offset, components }
-        }
-        DataArrayHeader::InlineAscii { components } => {
-            let (after_dataarray, parsed_data) = parse_ascii_inner_dataarray(rest, size_hint)?;
-            rest = after_dataarray;
-            PartialDataArray::Parsed {
-                buffer: parsed_data,
-                components,
-            }
-        }
-        DataArrayHeader::InlineBase64 { components } => {
-            let (after_dataarray, parsed_data) = parse_base64_inner_dataarray(rest, size_hint)?;
-            rest = after_dataarray;
-            PartialDataArray::Parsed {
-                buffer: parsed_data,
-                components,
-            }
-        }
-    };
+) -> Result<PartialDataArray, Mesh> {
+    todo!()
+    //let (mut rest, header) = read_dataarray_header(xml_bytes, expected_data)?;
+    //let lazy_array = match header {
+    //    DataArrayHeader::AppendedBinary { offset, components } => {
+    //        PartialDataArray::AppendedBinary { offset, components }
+    //    }
+    //    DataArrayHeader::InlineAscii { components } => {
+    //        let (after_dataarray, parsed_data) = parse_ascii_inner_dataarray(rest, size_hint)?;
+    //        rest = after_dataarray;
+    //        PartialDataArray::Parsed {
+    //            buffer: parsed_data,
+    //            components,
+    //        }
+    //    }
+    //    DataArrayHeader::InlineBase64 { components } => {
+    //        let (after_dataarray, parsed_data) = parse_base64_inner_dataarray(rest, size_hint)?;
+    //        rest = after_dataarray;
+    //        PartialDataArray::Parsed {
+    //            buffer: parsed_data,
+    //            components,
+    //        }
+    //    }
+    //};
 
-    Ok((rest, lazy_array))
+    //Ok((rest, lazy_array))
 }
 
 /// cycle through buffers (and their offsets) and read the binary information from the
@@ -449,62 +513,70 @@ pub fn read_appended_array_buffers(
 /// ```
 ///
 /// also assumes NumberOfComponents=1 and type=Float64
-pub fn read_dataarray_header<'a>(
-    xml_bytes: &'a [u8],
-    expected_data: &[u8],
-) -> IResult<&'a [u8], DataArrayHeader> {
-    // grab the number of components as well
-    let (components_start, _) = take_until_consume(xml_bytes, b"NumberOfComponents=")?;
-    let (after_components, num_components_str) = read_inside_quotes(components_start)?;
+pub fn read_dataarray_header<'a, R: BufRead>(
+    reader: &mut Reader<R>,
+    buffer: &mut Vec<u8>,
+    expected_name: &str,
+) -> Result<DataArrayHeader, Mesh> {
 
-    let components = String::from_utf8(num_components_str.to_vec())
-        .unwrap()
-        .parse()
-        .unwrap();
+    let array_start = read_starting_element_with_name::<Mesh, _>(reader, buffer, expected_name)?;
 
-    let (name_start, _) = take_until_consume(after_components, b"Name=")?;
-    let (after_quotes, name) = read_inside_quotes(name_start)?;
+    todo!()
+    
+    //let num_components = 
 
-    assert_eq!(name, expected_data);
+    //// grab the number of components as well
+    //let (components_start, _) = take_until_consume(xml_bytes, b"NumberOfComponents=")?;
+    //let (after_components, num_components_str) = read_inside_quotes(components_start)?;
 
-    let (format_start, _) = take_until_consume(after_quotes, b"format=")?;
-    let (mut after_format, format_name) = read_inside_quotes(format_start)?;
+    //let components = String::from_utf8(num_components_str.to_vec())
+    //    .unwrap()
+    //    .parse()
+    //    .unwrap();
 
-    let header = match format_name {
-        b"appended" => {
-            // we also need the offset header so we know when to start reading
-            let (offset_start, _) = take_until_consume(after_format, b"offset=")?;
-            let (rest, offset) = read_inside_quotes(offset_start)?;
-            after_format = rest;
+    //let (name_start, _) = take_until_consume(after_components, b"Name=")?;
+    //let (after_quotes, name) = read_inside_quotes(name_start)?;
 
-            // TODO: better error handling for this
-            let offset_str = std::str::from_utf8(offset).unwrap();
-            let offset = offset_str.parse().expect(&format!(
-                "data array offset `{}` coult not be parsed as integer",
-                offset_str
-            ));
-            DataArrayHeader::AppendedBinary { offset, components }
-        }
-        b"binary" => {
-            // we have base64 encoded data here
-            DataArrayHeader::InlineBase64 { components }
-        }
-        b"ascii" => {
-            // plain ascii data here
-            DataArrayHeader::InlineAscii { components }
-        }
-        _ => {
-            // TODO: find a better way to make errors here
-            let (_, _): (&[u8], &[u8]) = tag(
-                "missing formatting header as appended/binary/ascii".as_bytes()
-            )("".as_bytes())?;
-            unreachable!()
-        }
-    };
+    //assert_eq!(name, expected_data);
 
-    let (rest, _) = take_until_consume(after_format, b">")?;
+    //let (format_start, _) = take_until_consume(after_quotes, b"format=")?;
+    //let (mut after_format, format_name) = read_inside_quotes(format_start)?;
 
-    Ok((rest, header))
+    //let header = match format_name {
+    //    b"appended" => {
+    //        // we also need the offset header so we know when to start reading
+    //        let (offset_start, _) = take_until_consume(after_format, b"offset=")?;
+    //        let (rest, offset) = read_inside_quotes(offset_start)?;
+    //        after_format = rest;
+
+    //        // TODO: better error handling for this
+    //        let offset_str = std::str::from_utf8(offset).unwrap();
+    //        let offset = offset_str.parse().expect(&format!(
+    //            "data array offset `{}` coult not be parsed as integer",
+    //            offset_str
+    //        ));
+    //        DataArrayHeader::AppendedBinary { offset, components }
+    //    }
+    //    b"binary" => {
+    //        // we have base64 encoded data here
+    //        DataArrayHeader::InlineBase64 { components }
+    //    }
+    //    b"ascii" => {
+    //        // plain ascii data here
+    //        DataArrayHeader::InlineAscii { components }
+    //    }
+    //    _ => {
+    //        // TODO: find a better way to make errors here
+    //        let (_, _): (&[u8], &[u8]) = tag(
+    //            "missing formatting header as appended/binary/ascii".as_bytes()
+    //        )("".as_bytes())?;
+    //        unreachable!()
+    //    }
+    //};
+
+    //let (rest, _) = take_until_consume(after_format, b">")?;
+
+    //Ok((rest, header))
 }
 
 fn take_until_consume<'a>(input: &'a [u8], until_str: &[u8]) -> IResult<&'a [u8], ()> {

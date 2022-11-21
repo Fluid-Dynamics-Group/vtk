@@ -12,6 +12,7 @@ use crate::ParseError;
 use nom::IResult;
 use std::cell::RefMut;
 use std::io::Write;
+use std::io::BufRead;
 
 use crate::prelude::*;
 
@@ -268,7 +269,7 @@ where
     type Output;
 
     /// The implementing type is constructed with the `read_headers` function.
-    fn read_headers<'a>(spans: &Spans, buffer: &'a [u8]) -> IResult<&'a [u8], Self>;
+    fn read_headers<R: BufRead>(spans: &Spans, reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<Self, crate::parse::Mesh>;
 
     /// all the internal buffers that are stored in the visitor type
     /// are added to a vector here so that they can be sorted and read (in order by offset) from the
@@ -335,9 +336,9 @@ mod testgen {
     //use vtk::prelude::*;
     use crate as vtk;
 
-    #[derive(vtk::DataArray, vtk::ParseArray)]
-    #[vtk_parse(spans = "vtk::Spans3D")]
-    #[vtk_write(encoding = "binary")]
+    //#[derive(vtk::DataArray, vtk::ParseArray)]
+    //#[vtk_parse(spans = "vtk::Spans3D")]
+    //#[vtk_write(encoding = "binary")]
     pub struct Info {
         a: Vec<f64>,
     }
