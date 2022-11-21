@@ -269,7 +269,7 @@ fn read_to_grid_header<R: BufRead>( reader: &mut Reader<R>, buffer: &mut Vec<u8>
 fn read_rectilinear_header<SPAN: ParseSpan, R: BufRead>(reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<SPAN, RectilinearHeader> {
     let event = read_starting_element_with_name::<RectilinearHeader, _>(reader, buffer, "RectilinearGrid")?;
 
-    let extent_value = get_attribute_value::<RectilinearHeader>(event, "WholeExtent", "RectilinearGrid")?;
+    let extent_value = get_attribute_value::<RectilinearHeader>(&event, "WholeExtent", "RectilinearGrid")?;
     let extent_str = String::from_utf8(extent_value).unwrap();
     Ok(SPAN::from_str(&extent_str))
 }
@@ -277,7 +277,7 @@ fn read_rectilinear_header<SPAN: ParseSpan, R: BufRead>(reader: &mut Reader<R>, 
 fn read_to_coordinates<SPAN: ParseSpan, R: BufRead>(reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<SPAN, CoordinatesHeader> {
     let piece = read_starting_element_with_name::<CoordinatesHeader, _>(reader, buffer, "Piece")?;
 
-    let extent_value = get_attribute_value::<CoordinatesHeader>(piece, "Extent", "Piece")?;
+    let extent_value = get_attribute_value::<CoordinatesHeader>(&piece, "Extent", "Piece")?;
     let extent_str = String::from_utf8(extent_value).unwrap();
     let extent = SPAN::from_str(&extent_str);
 
@@ -311,7 +311,9 @@ where E: From<UnexpectedElement> + From<MalformedXml>
     Ok(event)
 }
 
-fn get_attribute_value<'a, E>(bytes_start: BytesStart<'a>, attribute_key: &str, element_name: &str) -> Result<Vec<u8>, E> 
+// TODO: return type has to make a copy of the data so that we can return it since 
+// .attributes() creates data owned in the function
+fn get_attribute_value<E>(bytes_start: &BytesStart<'_>, attribute_key: &str, element_name: &str) -> Result<Vec<u8>, E> 
 where E: From<MissingAttribute>{
     // find the `attribute_key` attribute on the `element_name` element
     let extent = bytes_start.attributes()
@@ -521,62 +523,50 @@ pub fn read_dataarray_header<'a, R: BufRead>(
 
     let array_start = read_starting_element_with_name::<Mesh, _>(reader, buffer, expected_name)?;
 
-    todo!()
+    let num_components = get_attribute_value::<Mesh>(&array_start, "NumberOfComponents", "DataArray")?;
+
+    // TODO: use better error handling on this
+    let components : usize = String::from_utf8(num_components)
+        .unwrap()
+        .parse()
+        .unwrap();
+
+    let name = get_attribute_value::<Mesh>(&array_start, "Name", "DataArray")?;
+
+    let format = get_attribute_value::<Mesh>(&array_start, "format", "DataArray")?;
     
-    //let num_components = 
+    // TODO: better error handling on this
+    assert_eq!(name, expected_name.as_bytes());
 
-    //// grab the number of components as well
-    //let (components_start, _) = take_until_consume(xml_bytes, b"NumberOfComponents=")?;
-    //let (after_components, num_components_str) = read_inside_quotes(components_start)?;
+    let header = match format.as_slice() {
+        b"appended" => {
+            // appended binary data, we should have an extra `offset` attribute that we can read
+            let offset = get_attribute_value::<Mesh>(&array_start, "offset", "DataArray")?;
 
-    //let components = String::from_utf8(num_components_str.to_vec())
-    //    .unwrap()
-    //    .parse()
-    //    .unwrap();
+            let offset_str = std::str::from_utf8(&offset).unwrap();
+            // TODO: better error handling here
+            let offset : i64 = offset_str.parse().expect(&format!(
+                "data array offset `{}` coult not be parsed as integer",
+                offset_str
+            ));
 
-    //let (name_start, _) = take_until_consume(after_components, b"Name=")?;
-    //let (after_quotes, name) = read_inside_quotes(name_start)?;
+            DataArrayHeader::AppendedBinary { offset, components }
+        }
+        b"binary" => {
+            // we have base64 encoded data here
+            DataArrayHeader::InlineBase64 { components }
+        }
+        b"ascii" => {
+            // plain ascii data here
+            DataArrayHeader::InlineAscii { components }
+        }
+        _ => {
+            // TODO: find a better way to make errors here
+            todo!()
+        }
+    };
 
-    //assert_eq!(name, expected_data);
-
-    //let (format_start, _) = take_until_consume(after_quotes, b"format=")?;
-    //let (mut after_format, format_name) = read_inside_quotes(format_start)?;
-
-    //let header = match format_name {
-    //    b"appended" => {
-    //        // we also need the offset header so we know when to start reading
-    //        let (offset_start, _) = take_until_consume(after_format, b"offset=")?;
-    //        let (rest, offset) = read_inside_quotes(offset_start)?;
-    //        after_format = rest;
-
-    //        // TODO: better error handling for this
-    //        let offset_str = std::str::from_utf8(offset).unwrap();
-    //        let offset = offset_str.parse().expect(&format!(
-    //            "data array offset `{}` coult not be parsed as integer",
-    //            offset_str
-    //        ));
-    //        DataArrayHeader::AppendedBinary { offset, components }
-    //    }
-    //    b"binary" => {
-    //        // we have base64 encoded data here
-    //        DataArrayHeader::InlineBase64 { components }
-    //    }
-    //    b"ascii" => {
-    //        // plain ascii data here
-    //        DataArrayHeader::InlineAscii { components }
-    //    }
-    //    _ => {
-    //        // TODO: find a better way to make errors here
-    //        let (_, _): (&[u8], &[u8]) = tag(
-    //            "missing formatting header as appended/binary/ascii".as_bytes()
-    //        )("".as_bytes())?;
-    //        unreachable!()
-    //    }
-    //};
-
-    //let (rest, _) = take_until_consume(after_format, b">")?;
-
-    //Ok((rest, header))
+    Ok(header)
 }
 
 fn take_until_consume<'a>(input: &'a [u8], until_str: &[u8]) -> IResult<&'a [u8], ()> {
