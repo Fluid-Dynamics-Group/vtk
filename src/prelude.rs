@@ -7,8 +7,8 @@ pub use crate::traits::{
     Visitor,
 };
 
-pub(crate) use quick_xml::writer::Writer;
 pub(crate) use quick_xml::events::Event;
+pub(crate) use quick_xml::writer::Writer;
 
 pub(crate) use crate::write_vtk::Precision;
 

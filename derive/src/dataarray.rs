@@ -167,14 +167,14 @@ fn assemble_trait(
     quote!(
         fn write_array_header<W: std::io::Write>(
             &self,
-            writer: &mut vtk::EventWriter<W>,
+            writer: &mut vtk::Writer<W>,
             mut offset: i64
         ) -> Result<(), vtk::Error> {
             #array_headers
         }
         fn write_array_appended<W: std::io::Write>(
             &self,
-            writer: &mut vtk::EventWriter<W>,
+            writer: &mut vtk::Writer<W>,
         ) -> Result<(), vtk::Error> {
             #appended_arrays
         }

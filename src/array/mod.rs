@@ -21,9 +21,8 @@ pub use vector_3d::Vector3D;
 pub use vector_2d::Vector2DIter;
 pub use vector_3d::Vector3DIter;
 
-use quick_xml::events::Event;
 use quick_xml::events::BytesText;
-
+use quick_xml::events::Event;
 
 pub trait Components {
     type Iter;

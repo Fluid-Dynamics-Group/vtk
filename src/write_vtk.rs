@@ -1,12 +1,10 @@
 use crate::prelude::*;
 
-use std::borrow::Cow;
-
-use quick_xml::events::BytesStart;
-use quick_xml::events::BytesEnd;
 use quick_xml::events::attributes::Attribute;
-use quick_xml::name::QName;
+use quick_xml::events::BytesEnd;
+use quick_xml::events::BytesStart;
 use quick_xml::events::Event;
+use quick_xml::name::QName;
 
 const STARTING_OFFSET: i64 = 0;
 
@@ -29,27 +27,23 @@ where
     let decl = quick_xml::events::BytesDecl::new("1.0", Some("UTF-8"), None);
     writer.write_event(Event::Decl(decl))?;
 
-    let header = BytesStart::new("VTKFile")
-        .with_attributes( vec![
-            make_att("type", "RectilinearGrid"),
-            make_att("version", "1.0"),
-            make_att("byte_order", "LittleEndian"),
-            make_att("header_type", "UInt64"),
-        ]);
+    let header = BytesStart::new("VTKFile").with_attributes(vec![
+        make_att("type", "RectilinearGrid"),
+        make_att("version", "1.0"),
+        make_att("byte_order", "LittleEndian"),
+        make_att("header_type", "UInt64"),
+    ]);
     writer.write_event(Event::Start(header))?;
 
     // output the spans
     let span_str = data.domain.span_string();
 
     let grid = BytesStart::new("RectilinearGrid")
-        .with_attributes(
-        vec![make_att("WholeExtent", &span_str)]
-    );
+        .with_attributes(vec![make_att("WholeExtent", &span_str)]);
     writer.write_event(Event::Start(grid))?;
 
     //construct the basic framework for writing XML information
-    let piece = BytesStart::new("Piece")
-        .with_attributes(vec![make_att("Extent", &span_str)]);
+    let piece = BytesStart::new("Piece").with_attributes(vec![make_att("Extent", &span_str)]);
     writer.write_event(Event::Start(piece))?;
 
     let coordinates = BytesStart::new("Coordinates");
@@ -90,7 +84,6 @@ where
     let end_grid = BytesEnd::new("RectilinearGrid");
     writer.write_event(Event::End(end_grid))?;
 
-
     // if we are doing _any_ sort of appending of data
     if EncMesh::is_binary() || EncArray::is_binary() {
         appended_binary_header_start(&mut writer)?;
@@ -113,7 +106,7 @@ where
 
     // end the vtk file
     let end_vtk = BytesEnd::new("VTKFile");
-    writer.write_event(Event::End(end_grid))?;
+    writer.write_event(Event::End(end_vtk))?;
 
     Ok(())
 }
@@ -169,14 +162,12 @@ pub fn write_inline_array_header<W: Write>(
     components: usize,
     precision: Precision,
 ) -> Result<(), Error> {
-    let header = BytesStart::new("DataArray")
-        .with_attributes(
-        vec![
-            make_att("type", precision.to_str()),
-            make_att("NumberOfComponents", &components.to_string()),
-            make_att("Name", name),
-            make_att("format", format.to_str()),
-        ]);
+    let header = BytesStart::new("DataArray").with_attributes(vec![
+        make_att("type", precision.to_str()),
+        make_att("NumberOfComponents", &components.to_string()),
+        make_att("Name", name),
+        make_att("format", format.to_str()),
+    ]);
     writer.write_event(Event::Start(header))?;
 
     Ok(())
@@ -222,16 +213,13 @@ pub fn write_appended_dataarray_header<W: Write>(
     components: usize,
     precision: Precision,
 ) -> Result<(), Error> {
-    let appended_header = BytesStart::new("DataArray")
-        .with_attributes(
-            vec![
-                make_att("type", precision.to_str()),
-                make_att("NumberOfComponents", &components.to_string()),
-                make_att("Name", name),
-                make_att("format", "appended"),
-                make_att("offset", &offset.to_string()),
-            ]
-        );
+    let appended_header = BytesStart::new("DataArray").with_attributes(vec![
+        make_att("type", precision.to_str()),
+        make_att("NumberOfComponents", &components.to_string()),
+        make_att("Name", name),
+        make_att("format", "appended"),
+        make_att("offset", &offset.to_string()),
+    ]);
 
     let end_header = BytesEnd::new("DataArray");
 
@@ -245,6 +233,6 @@ fn make_att<'a>(name: &'static str, value: &'a str) -> Attribute<'a> {
     let name = QName(name.as_bytes());
     Attribute {
         key: name,
-        value: value.as_bytes().into()
+        value: value.as_bytes().into(),
     }
 }

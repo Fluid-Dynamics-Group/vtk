@@ -163,6 +163,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f50b1c63b38611e7d4d7f68b82d3ad0cc71a2ad2e7f61fc10f1328d917c93cd"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -256,10 +265,10 @@ dependencies = [
  "ndarray",
  "nom",
  "num-traits",
+ "quick-xml",
  "ryu",
  "thiserror",
  "vtk-derive",
- "xml-rs",
 ]
 
 [[package]]
@@ -272,9 +281,3 @@ dependencies = [
  "syn",
  "vtk",
 ]
-
-[[package]]
-name = "xml-rs"
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b07db065a5cf61a7e4ba64f29e67db906fb1787316516c4e6e5ff0fea1efcd8a"

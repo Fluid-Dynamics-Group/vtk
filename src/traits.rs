@@ -116,10 +116,7 @@ pub trait DataArray<Encoding> {
 
     /// If the encoding is binary, write all of the binary information to the appended
     /// section of the binary file (raw bytes)
-    fn write_array_appended<W: Write>(
-        &self,
-        writer: &mut Writer<W>,
-    ) -> Result<(), crate::Error>;
+    fn write_array_appended<W: Write>(&self, writer: &mut Writer<W>) -> Result<(), crate::Error>;
 }
 
 /// Information on how to write data from a given array (as part of a larger collection
@@ -130,11 +127,8 @@ pub trait DataArray<Encoding> {
 /// [Scalar3D](crate::Scalar3D) [Scalar2D](crate::Scalar2D) [Vector3D](crate::Vector3D) [Vector2D](crate::Vector2D)
 pub trait Array {
     /// outputs the information in the data array to ascii encoded data
-    fn write_ascii<W: Write>(
-        &self,
-        writer: &mut Writer<W>,
-        name: &str,
-    ) -> Result<(), crate::Error>;
+    fn write_ascii<W: Write>(&self, writer: &mut Writer<W>, name: &str)
+        -> Result<(), crate::Error>;
 
     /// outputs the information in the data array to base64 encoded data
     fn write_base64<W: Write>(
