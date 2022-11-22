@@ -16,11 +16,13 @@ use std::fs::File;
 use quick_xml::reader::Reader;
 use quick_xml::events::attributes::Attribute;
 use quick_xml::events::BytesEnd;
+use quick_xml::events::BytesText;
 use quick_xml::events::BytesStart;
 use quick_xml::events::Event;
 use quick_xml::name::QName;
 
 type NomErr<'a> = nom::Err<nom::error::Error<&'a [u8]>>;
+type NomErrInner<'a> = nom::error::Error<&'a [u8]>;
 
 /// An error caused from parsing the vtk files
 #[derive(Debug, thiserror::Error)]
@@ -165,6 +167,15 @@ pub enum Mesh {
     UnexpectedElement(UnexpectedElement),
     #[error("{0}")]
     UnexpectedAttributeValue(UnexpectedAttributeValue),
+    #[error("{0}")]
+    InlineAsciiArray(InlineAsciiArray),
+}
+
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "Failed to parse inline ascii array `{array_name}` in DataArray element")]
+pub struct InlineAsciiArray {
+    array_name: String,
 }
 
 impl ParseError {
@@ -311,6 +322,22 @@ where E: From<UnexpectedElement> + From<MalformedXml>
     Ok(event)
 }
 
+fn read_body_element<'a, E, R: BufRead>(reader: &mut Reader<R>, buffer: &'a mut Vec<u8>) -> Result<BytesText<'a>, E> 
+where E: From<UnexpectedElement> + From<MalformedXml>
+{
+    let element = reader.read_event_into(buffer)
+        .map_err(MalformedXml::from)?;
+
+    let event = if let Event::Text(event) = element {
+        event
+    } else{
+        let unexpected = UnexpectedElement::new("body element".into(), ParsedNameOrBytes::from("non text element (missing body)"));
+        return Err(E::from(unexpected))
+    };
+
+    Ok(event)
+}
+
 // TODO: return type has to make a copy of the data so that we can return it since 
 // .attributes() creates data owned in the function
 fn get_attribute_value<E>(bytes_start: &BytesStart<'_>, attribute_key: &str, element_name: &str) -> Result<Vec<u8>, E> 
@@ -422,31 +449,30 @@ pub fn parse_dataarray_or_lazy<'a, R: BufRead>(
     expected_name: &str,
     size_hint: usize,
 ) -> Result<PartialDataArray, Mesh> {
-    todo!()
-    //let (mut rest, header) = read_dataarray_header(xml_bytes, expected_data)?;
-    //let lazy_array = match header {
-    //    DataArrayHeader::AppendedBinary { offset, components } => {
-    //        PartialDataArray::AppendedBinary { offset, components }
-    //    }
-    //    DataArrayHeader::InlineAscii { components } => {
-    //        let (after_dataarray, parsed_data) = parse_ascii_inner_dataarray(rest, size_hint)?;
-    //        rest = after_dataarray;
-    //        PartialDataArray::Parsed {
-    //            buffer: parsed_data,
-    //            components,
-    //        }
-    //    }
-    //    DataArrayHeader::InlineBase64 { components } => {
-    //        let (after_dataarray, parsed_data) = parse_base64_inner_dataarray(rest, size_hint)?;
-    //        rest = after_dataarray;
-    //        PartialDataArray::Parsed {
-    //            buffer: parsed_data,
-    //            components,
-    //        }
-    //    }
-    //};
+    let header = read_dataarray_header(reader, buffer, expected_name)?;
 
-    //Ok((rest, lazy_array))
+    let lazy_array = match header {
+        DataArrayHeader::AppendedBinary { offset, components } => {
+            PartialDataArray::AppendedBinary { offset, components }
+        }
+        DataArrayHeader::InlineAscii { components } => {
+            let parsed_data = parse_ascii_inner_dataarray(reader, buffer, size_hint, expected_name)?;
+
+            PartialDataArray::Parsed {
+                buffer: parsed_data,
+                components,
+            }
+        }
+        DataArrayHeader::InlineBase64 { components } => {
+            let parsed_data = parse_base64_inner_dataarray(reader, buffer, size_hint, expected_name)?;
+            PartialDataArray::Parsed {
+                buffer: parsed_data,
+                components,
+            }
+        }
+    };
+
+    Ok(lazy_array)
 }
 
 /// cycle through buffers (and their offsets) and read the binary information from the
@@ -701,16 +727,17 @@ impl Eq for OffsetBuffer {}
 ///
 /// ensure that before calling this function you have verified
 /// that the data is base64 encoded with a call to `read_dataarray_header`
-fn parse_ascii_inner_dataarray<'a>(
-    xml_bytes: &'a [u8],
+fn parse_ascii_inner_dataarray<'a, R: BufRead>(
+    reader: &mut Reader<R>,
+    buffer: &mut Vec<u8>,
     size_hint: usize,
-) -> IResult<&'a [u8], Vec<f64>> {
-    let (location_data_and_rest, _whitespace) =
-        take_till(|c: u8| c.is_ascii_digit() || c == b'.' || c == b'-')(xml_bytes)?;
-    let (rest_of_document, location_data) = take_till(|c| c == b'<')(location_data_and_rest)?;
+    array_name: &str
+) -> Result<Vec<f64>, Mesh> {
+    let event = read_body_element::<Mesh, _>(reader, buffer)?;
+    let xml_bytes = event.into_inner();
 
-    let location_data_string =
-        std::str::from_utf8(location_data).expect("ascii data was not encoded as UTF-8");
+    // TODO: better error handling here
+    let location_data_string = std::str::from_utf8(&xml_bytes).unwrap();
 
     let mut out = Vec::with_capacity(size_hint);
 
@@ -724,18 +751,22 @@ fn parse_ascii_inner_dataarray<'a>(
             out.push(num);
         });
 
-    Ok((rest_of_document, out))
+    Ok(out)
 }
 
 /// parse the values for a single inline base64 encoded array
 ///
 /// ensure that before calling this function you have verified
 /// that the data is base64 encoded with a call to `read_dataarray_header`
-fn parse_base64_inner_dataarray<'a>(
-    xml_bytes: &'a [u8],
+fn parse_base64_inner_dataarray<'a, R: BufRead>(
+    reader: &mut Reader<R>,
+    buffer: &mut Vec<u8>,
     size_hint: usize,
-) -> IResult<&'a [u8], Vec<f64>> {
-    let (rest_of_document, base64_encoded_bytes) = take_until("</D")(xml_bytes)?;
+    expected_name: &str
+) -> Result<Vec<f64>, Mesh> {
+    let event = read_body_element::<Mesh, _>(reader, buffer)?;
+
+    let base64_encoded_bytes = event.into_inner();
     let mut out = Vec::with_capacity(size_hint);
 
     let numerical_bytes =
@@ -747,6 +778,8 @@ fn parse_base64_inner_dataarray<'a>(
     let mut idx = 8;
     let inc = 8;
 
+    // iterate through all the decoded base64 values (now in byte form), grabbing 8 bytes at a time
+    // and convert them into floats
     loop {
         if let Some(byte_slice) = numerical_bytes.get(idx..idx + inc) {
             if byte_slice.len() != 8 {
@@ -770,7 +803,7 @@ fn parse_base64_inner_dataarray<'a>(
         idx += inc;
     }
 
-    Ok((rest_of_document, out))
+    Ok(out)
 }
 
 /// skip to the appended data section so that we can read in the binary
