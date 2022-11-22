@@ -96,7 +96,11 @@ fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ide
         impl vtk::Visitor<#span_type> for #visitor_name {
             type Output = #original_name;
 
-            fn read_headers<'a>(spans: &#span_type, buffer: &'a [u8]) -> vtk::nom::IResult<&'a [u8], Self> {
+            fn read_headers<R: std::io::BufRead>(
+                spans: &#span_type,
+                reader: &mut vtk::Reader<R>,
+                buffer: &mut Vec<u8>,
+            ) -> Result<Self, vtk::parse::Mesh> {
                 #read_headers
             }
 
@@ -118,19 +122,17 @@ fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ide
 
 /// builds the body of `Visitor::read_headers`
 fn visitor_read_headers(visitor_name: &syn::Ident, fields: &[ValidatedField]) -> proc_macro2::TokenStream {
-    let mut out = quote!(
-        let rest = buffer;
-    );
+    let mut out = quote!();
 
     for field in fields {
 
         let fieldname = &field.ident;
-        let lit = syn::LitByteStr::new(&fieldname.to_string().as_bytes(), fieldname.span());
+        let lit = syn::LitStr::new(&fieldname.to_string(), fieldname.span());
 
         // TODO: fix this size estimation somehow?
         out = quote!(
             #out
-            let (rest, #fieldname) = vtk::parse::parse_dataarray_or_lazy(rest, #lit, 0)?;
+            let #fieldname = vtk::parse::parse_dataarray_or_lazy(reader, buffer, #lit, 0)?;
             let #fieldname = vtk::parse::PartialDataArrayBuffered::new(#fieldname, 0);
         );
     }
@@ -147,9 +149,8 @@ fn visitor_read_headers(visitor_name: &syn::Ident, fields: &[ValidatedField]) ->
             #comma_fields
         };
 
-        Ok((rest, visitor))
+        Ok(visitor)
     );
-
 
     out
 }

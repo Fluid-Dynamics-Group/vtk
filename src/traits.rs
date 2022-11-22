@@ -340,9 +340,9 @@ mod testgen {
     //use vtk::prelude::*;
     use crate as vtk;
 
-    //#[derive(vtk::DataArray, vtk::ParseArray)]
-    //#[vtk_parse(spans = "vtk::Spans3D")]
-    //#[vtk_write(encoding = "binary")]
+    #[derive(vtk::DataArray, vtk::ParseArray)]
+    #[vtk_parse(spans = "vtk::Spans3D")]
+    #[vtk_write(encoding = "binary")]
     pub struct Info {
         a: Vec<f64>,
     }

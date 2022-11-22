@@ -37,6 +37,7 @@ pub use ndarray;
 pub use nom;
 
 pub use quick_xml::writer::Writer;
+pub use quick_xml::reader::Reader;
 
 /// general purpose error enumeration for possible causes of failure.
 #[derive(thiserror::Error, Debug)]
