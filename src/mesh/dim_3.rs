@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use std::marker::PhantomData;
 use std::io::BufRead;
+use std::marker::PhantomData;
 
 #[derive(Debug, Clone, PartialEq)]
 /// Full information on a 3D computational domain. If you are writing
@@ -272,7 +272,11 @@ pub struct Mesh3DVisitor {
 impl Visitor<Spans3D> for Mesh3DVisitor {
     type Output = Mesh3D<f64, Binary>;
 
-    fn read_headers<R: BufRead>(spans: &Spans3D, reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<Self, crate::parse::Mesh> {
+    fn read_headers<R: BufRead>(
+        spans: &Spans3D,
+        reader: &mut Reader<R>,
+        buffer: &mut Vec<u8>,
+    ) -> Result<Self, crate::parse::Mesh> {
         let x = parse::parse_dataarray_or_lazy(reader, buffer, "X", spans.x_len())?;
         let y = parse::parse_dataarray_or_lazy(reader, buffer, "Y", spans.y_len())?;
         let z = parse::parse_dataarray_or_lazy(reader, buffer, "Z", spans.z_len())?;

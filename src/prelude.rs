@@ -7,12 +7,12 @@ pub use crate::traits::{
     Visitor,
 };
 
-pub(crate) use quick_xml::events::Event;
-pub(crate) use quick_xml::writer::Writer;
-pub(crate) use quick_xml::reader::Reader;
 pub(crate) use quick_xml::events::BytesEnd;
 pub(crate) use quick_xml::events::BytesStart;
+pub(crate) use quick_xml::events::Event;
 pub(crate) use quick_xml::name::QName;
+pub(crate) use quick_xml::reader::Reader;
+pub(crate) use quick_xml::writer::Writer;
 
 pub(crate) use crate::write_vtk::Precision;
 
@@ -24,6 +24,6 @@ pub(crate) use std::io::Write;
 
 pub(crate) use crate::{parse, traits, write_vtk};
 
-pub(crate) use derive_more::{Constructor, Deref, DerefMut, Into, From, Display};
+pub(crate) use derive_more::{Constructor, Deref, DerefMut, Display, From, Into};
 
 pub(crate) use ndarray::{Array2, Array3, Array4};

@@ -11,8 +11,8 @@ use crate::Error;
 use crate::ParseError;
 use nom::IResult;
 use std::cell::RefMut;
-use std::io::Write;
 use std::io::BufRead;
+use std::io::Write;
 
 use crate::prelude::*;
 
@@ -269,7 +269,11 @@ where
     type Output;
 
     /// The implementing type is constructed with the `read_headers` function.
-    fn read_headers<R: BufRead>(spans: &Spans, reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<Self, crate::parse::Mesh>;
+    fn read_headers<R: BufRead>(
+        spans: &Spans,
+        reader: &mut Reader<R>,
+        buffer: &mut Vec<u8>,
+    ) -> Result<Self, crate::parse::Mesh>;
 
     /// all the internal buffers that are stored in the visitor type
     /// are added to a vector here so that they can be sorted and read (in order by offset) from the

@@ -245,7 +245,11 @@ pub struct Mesh2DVisitor {
 impl Visitor<Spans2D> for Mesh2DVisitor {
     type Output = Mesh2D<f64, Binary>;
 
-    fn read_headers<R: BufRead>(spans: &Spans2D, reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<Self, crate::parse::Mesh> {
+    fn read_headers<R: BufRead>(
+        spans: &Spans2D,
+        reader: &mut Reader<R>,
+        buffer: &mut Vec<u8>,
+    ) -> Result<Self, crate::parse::Mesh> {
         let x = parse::parse_dataarray_or_lazy(reader, buffer, "X", spans.x_len())?;
         let y = parse::parse_dataarray_or_lazy(reader, buffer, "Y", spans.y_len())?;
         let z = parse::parse_dataarray_or_lazy(reader, buffer, "Z", 1)?;

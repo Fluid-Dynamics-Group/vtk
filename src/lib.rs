@@ -88,8 +88,8 @@ impl traits::Encode for Base64 {
 #[cfg(test)]
 mod helpers {
     use super::write_vtk::Encoding;
-    use crate::prelude::*;
     use crate as vtk;
+    use crate::prelude::*;
     use crate::prelude::*;
     use crate::Binary;
     use std::io::Write;
