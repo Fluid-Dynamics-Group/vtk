@@ -171,6 +171,45 @@ pub enum Mesh {
     InlineAsciiArray(InlineAsciiArray),
 }
 
+#[derive(Debug, thiserror::Error, From)]
+pub enum CloseElements {
+    #[error("{0}")]
+    MalformedXml(MalformedXml),
+    #[error("{0}")]
+    MalformedAttribute(MalformedAttribute),
+    #[error("{0}")]
+    MissingAttribute(MissingAttribute),
+    #[error("{0}")]
+    UnexpectedElement(UnexpectedElement),
+    #[error("{0}")]
+    UnexpectedAttributeValue(UnexpectedAttributeValue),
+    #[error("{0}")]
+    InlineAsciiArray(InlineAsciiArray),
+}
+
+#[derive(Debug, thiserror::Error, From)]
+pub enum AppendedData {
+    #[error("{0}")]
+    MalformedXml(MalformedXml),
+    #[error("{0}")]
+    MalformedAttribute(MalformedAttribute),
+    #[error("{0}")]
+    MissingAttribute(MissingAttribute),
+    #[error("{0}")]
+    UnexpectedElement(UnexpectedElement),
+    #[error("{0}")]
+    UnexpectedAttributeValue(UnexpectedAttributeValue),
+    #[error("{0}")]
+    InlineAsciiArray(InlineAsciiArray),
+    #[error("{0}")]
+    ParsingBinary(ParsingBinary),
+}
+
+#[derive(Debug, thiserror::Error, From)]
+pub enum ParsingBinary {
+    #[error("removing the leading 16 bytes from the <AppendedData> element caused an error")]
+    LeadingBytes
+}
 
 #[derive(From, Display, Debug, Constructor)]
 #[display(fmt = "Failed to parse inline ascii array `{array_name}` in DataArray element")]
@@ -281,7 +320,7 @@ fn read_rectilinear_header<SPAN: ParseSpan, R: BufRead>(reader: &mut Reader<R>, 
     let event = read_starting_element_with_name::<RectilinearHeader, _>(reader, buffer, "RectilinearGrid")?;
 
     let extent_value = get_attribute_value::<RectilinearHeader>(&event, "WholeExtent", "RectilinearGrid")?;
-    let extent_str = String::from_utf8(extent_value).unwrap();
+    let extent_str = String::from_utf8(extent_value.value.to_vec()).unwrap();
     Ok(SPAN::from_str(&extent_str))
 }
 
@@ -289,15 +328,42 @@ fn read_to_coordinates<SPAN: ParseSpan, R: BufRead>(reader: &mut Reader<R>, buff
     let piece = read_starting_element_with_name::<CoordinatesHeader, _>(reader, buffer, "Piece")?;
 
     let extent_value = get_attribute_value::<CoordinatesHeader>(&piece, "Extent", "Piece")?;
-    let extent_str = String::from_utf8(extent_value).unwrap();
+    let extent_str = String::from_utf8(extent_value.value.to_vec()).unwrap();
     let extent = SPAN::from_str(&extent_str);
 
     // then, we read the next element which should be the `Coordinates` element, which
     // indicates that we are about to start reading the grid elements
     let _coordinates =read_starting_element_with_name::<CoordinatesHeader, _>(reader, buffer, "Coordinates")?;
     //reading the closing of this element will be handled later
+    //
+    let _point_data =read_starting_element_with_name::<CoordinatesHeader, _>(reader, buffer, "PointData")?;
 
     Ok(extent)
+}
+
+fn close_element_to_appended_data<R: BufRead>(reader: &mut Reader<R>, buffer: &mut Vec<u8>) -> Result<(), CloseElements> {
+    // first, we should have a closing element for PointData
+    let _ = read_ending_element::<CloseElements, _>(reader, buffer, "PointData")?;
+    // then, we should have a </Piece>
+    let _ = read_ending_element::<CloseElements, _>(reader, buffer, "PointData")?;
+    // then, we should have a </RectilinearGrid>
+    let _ = read_ending_element::<CloseElements, _>(reader, buffer, "RectilinearGrid")?;
+
+    Ok(())
+}
+
+fn read_appended_data<R: BufRead>(reader: &mut Reader<R>, buffer: &mut Vec<u8>, reader_buffers: Vec<RefMut<'_, OffsetBuffer>>) -> Result<(), AppendedData> {
+    let appended_data = read_starting_element_with_name::<AppendedData, _>(reader, buffer, "AppendedData")?;
+    let encoding = get_attribute_value::<AppendedData>(&appended_data, "encoding", "AppendedData")?;
+
+    check_attribute_value(encoding, "AppendedData", "encoding", "raw");
+
+    let body_elem = read_body_element::<AppendedData, _>(reader, buffer)?;
+    let bytes = body_elem.into_iter();
+
+    read_appended_array_buffers(reader_buffers, bytes.as_ref())?;
+
+    Ok(())
 }
 
 fn read_starting_element_with_name<'a, E, R: BufRead>(reader: &mut Reader<R>, buffer: &'a mut Vec<u8>, expected_name: &str) -> Result<BytesStart<'a>, E> 
@@ -338,18 +404,38 @@ where E: From<UnexpectedElement> + From<MalformedXml>
     Ok(event)
 }
 
-// TODO: return type has to make a copy of the data so that we can return it since 
-// .attributes() creates data owned in the function
-fn get_attribute_value<E>(bytes_start: &BytesStart<'_>, attribute_key: &str, element_name: &str) -> Result<Vec<u8>, E> 
-where E: From<MissingAttribute>{
+fn read_ending_element<'a, E, R: BufRead>(reader: &mut Reader<R>, buffer: &'a mut Vec<u8>, expected_name: &str) -> Result<BytesEnd<'a>, E> 
+where E: From<UnexpectedElement> + From<MalformedXml>
+{
+    let element = reader.read_event_into(buffer)
+        .map_err(MalformedXml::from)?;
+
+    let event = if let Event::End(event) = element {
+        event
+    } else{
+        let unexpected = UnexpectedElement::new(format!("/{expected_name}"), ParsedNameOrBytes::from("non ending element"));
+        return Err(E::from(unexpected))
+    };
+
+    // check that the name of the coordinates header is correct
+    if event.name().as_ref() != expected_name.as_bytes() {
+        let unexpected = UnexpectedElement::new(expected_name.into(), ParsedNameOrBytes::from(event.name()));
+        return Err(E::from(unexpected))
+    }
+
+    Ok(event)
+}
+
+fn get_attribute_value<'a, E>(bytes_start: &BytesStart<'_>, attribute_key: &str, element_name: &str) -> Result<Attribute<'a>, E> 
+where E: From<MissingAttribute> {
     // find the `attribute_key` attribute on the `element_name` element
     let extent = bytes_start.attributes()
         // TODO: error here if there was a malformed attribute
         .filter_map(|x| x.ok())
         .find(|x| x.key.as_ref() == attribute_key.as_bytes());
 
-    if let Some(extent) = extent {
-        Ok(extent.value.to_vec())
+    if let Some(att) = extent {
+        Ok(att)
     } else {
         let err=  MissingAttribute::new(element_name.into(), attribute_key.into());
         Err(E::from(err))
@@ -404,13 +490,14 @@ where
     let array_visitor = ArrayVisitor::read_headers(&spans, &mut reader, &mut buffer)
         .map_err(NeoParseError::from)?;
 
+
+    let mut reader_buffer = Vec::new();
+    location_visitor.add_to_appended_reader(&mut reader_buffer);
+    array_visitor.add_to_appended_reader(&mut reader_buffer);
+
+    read_appended_data(&mut reader, &mut buffer, reader_buffer)?;
+
     todo!()
-
-    //let mut reader_buffer = Vec::new();
-    //location_visitor.add_to_appended_reader(&mut reader_buffer);
-    //array_visitor.add_to_appended_reader(&mut reader_buffer);
-
-    //read_appended_array_buffers(reader_buffer, rest)?;
 
     //let data: D = array_visitor.finish(&spans)?;
     //let mesh: MESH = location_visitor.finish(&spans)?;
@@ -480,14 +567,17 @@ pub fn parse_dataarray_or_lazy<'a, R: BufRead>(
 pub fn read_appended_array_buffers(
     mut buffers: Vec<RefMut<'_, OffsetBuffer>>,
     bytes: &[u8],
-) -> Result<(), ParseError> {
+) -> Result<(), AppendedData> {
     // if we have any binary data:
     if buffers.len() > 0 {
         //we have some data to read - first organize all of the data by the offsets
         buffers.sort_unstable_by_key(|x| x.offset);
 
         let mut iterator = buffers.iter_mut().peekable();
-        let (mut appended_data, _) = crate::parse::setup_appended_read(bytes)?;
+
+        // read the first `_` character, as well as the first 8 bytes of garbage
+        let (mut appended_data, _) = take(16usize)(bytes)
+            .map_err(|_: NomErr| ParsingBinary::LeadingBytes)?;
 
         loop {
             if let Some(current_offset_buffer) = iterator.next() {
@@ -500,7 +590,7 @@ pub fn read_appended_array_buffers(
                     })
                     .unwrap_or(crate::parse::AppendedArrayLength::UntilEnd);
 
-                let (remaining_appended_data, _) = crate::parse::parse_appended_binary(
+                let remaining_appended_data = crate::parse::parse_appended_binary(
                     appended_data,
                     reading_offset,
                     &mut current_offset_buffer.buffer,
@@ -552,7 +642,7 @@ pub fn read_dataarray_header<'a, R: BufRead>(
     let num_components = get_attribute_value::<Mesh>(&array_start, "NumberOfComponents", "DataArray")?;
 
     // TODO: use better error handling on this
-    let components : usize = String::from_utf8(num_components)
+    let components : usize = String::from_utf8(num_components.value.to_vec())
         .unwrap()
         .parse()
         .unwrap();
@@ -562,14 +652,14 @@ pub fn read_dataarray_header<'a, R: BufRead>(
     let format = get_attribute_value::<Mesh>(&array_start, "format", "DataArray")?;
     
     // TODO: better error handling on this
-    assert_eq!(name, expected_name.as_bytes());
+    assert_eq!(name.value, expected_name.as_bytes());
 
-    let header = match format.as_slice() {
+    let header = match format.value.as_ref() {
         b"appended" => {
             // appended binary data, we should have an extra `offset` attribute that we can read
             let offset = get_attribute_value::<Mesh>(&array_start, "offset", "DataArray")?;
 
-            let offset_str = std::str::from_utf8(&offset).unwrap();
+            let offset_str = std::str::from_utf8(&offset.value).unwrap();
             // TODO: better error handling here
             let offset : i64 = offset_str.parse().expect(&format!(
                 "data array offset `{}` coult not be parsed as integer",
@@ -827,7 +917,7 @@ pub fn parse_appended_binary<'a>(
     xml_bytes: &'a [u8],
     length: AppendedArrayLength,
     parsed_bytes: &mut Vec<f64>,
-) -> IResult<&'a [u8], ()> {
+) -> Result<&'a [u8], AppendedData> {
     let (rest, bytes) = match length {
         AppendedArrayLength::Known(known_length) => {
             let (rest_of_appended, current_bytes_slice) = take(known_length)(xml_bytes)?;
