@@ -43,6 +43,8 @@ pub enum NeoParseError {
     #[error("Error parsing vtk file before coordinate section: {0}")]
     Mesh(Mesh),
     #[error("Error parsing vtk file before coordinate section: {0}")]
+    PreparePointData(PreparePointData),
+    #[error("Error parsing vtk file before coordinate section: {0}")]
     AppendedData(AppendedData),
 }
 
@@ -163,6 +165,22 @@ pub enum CoordinatesHeader {
 
 #[derive(Debug, thiserror::Error, From)]
 pub enum Mesh {
+    #[error("{0}")]
+    MalformedXml(MalformedXml),
+    #[error("{0}")]
+    MalformedAttribute(MalformedAttribute),
+    #[error("{0}")]
+    MissingAttribute(MissingAttribute),
+    #[error("{0}")]
+    UnexpectedElement(UnexpectedElement),
+    #[error("{0}")]
+    UnexpectedAttributeValue(UnexpectedAttributeValue),
+    #[error("{0}")]
+    InlineAsciiArray(InlineAsciiArray),
+}
+
+#[derive(Debug, thiserror::Error, From)]
+pub enum PreparePointData {
     #[error("{0}")]
     MalformedXml(MalformedXml),
     #[error("{0}")]
@@ -364,6 +382,18 @@ fn read_to_coordinates<SPAN: ParseSpan, R: BufRead>(
     Ok(extent)
 }
 
+fn prepare_reading_point_data<R: BufRead>(
+    reader: &mut Reader<R>,
+    buffer: &mut Vec<u8>,
+) -> Result<(), PreparePointData> {
+    // first, we should have a closing element for Coordinates
+    let _ = read_ending_element::<PreparePointData, _>(reader, buffer, "Coordinates")?;
+    // then, we need to open the element for PointData
+    let _ = read_starting_element_with_name::<PreparePointData, _>(reader, buffer, "PointData")?;
+
+    Ok(())
+}
+
 fn close_element_to_appended_data<R: BufRead>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
@@ -371,7 +401,7 @@ fn close_element_to_appended_data<R: BufRead>(
     // first, we should have a closing element for PointData
     let _ = read_ending_element::<CloseElements, _>(reader, buffer, "PointData")?;
     // then, we should have a </Piece>
-    let _ = read_ending_element::<CloseElements, _>(reader, buffer, "PointData")?;
+    let _ = read_ending_element::<CloseElements, _>(reader, buffer, "Piece")?;
     // then, we should have a </RectilinearGrid>
     let _ = read_ending_element::<CloseElements, _>(reader, buffer, "RectilinearGrid")?;
 
@@ -387,7 +417,7 @@ fn read_appended_data<R: BufRead>(
         read_starting_element_with_name::<AppendedData, _>(reader, buffer, "AppendedData")?;
     let encoding = get_attribute_value::<AppendedData>(&appended_data, "encoding", "AppendedData")?;
 
-    check_attribute_value(encoding, "AppendedData", "encoding", "raw");
+    check_attribute_value(encoding, "AppendedData", "encoding", "raw")?;
 
     let body_elem = read_body_element::<AppendedData, _>(reader, buffer)?;
     let bytes = body_elem.into_iter();
@@ -549,6 +579,9 @@ where
 
     let location_visitor =
         MeshVisitor::read_headers(&spans, &mut reader, &mut buffer).map_err(NeoParseError::from)?;
+
+    prepare_reading_point_data(&mut reader, &mut buffer)
+        .map_err(NeoParseError::from)?;
 
     let array_visitor = ArrayVisitor::read_headers(&spans, &mut reader, &mut buffer)
         .map_err(NeoParseError::from)?;
