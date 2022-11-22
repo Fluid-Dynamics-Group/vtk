@@ -21,6 +21,7 @@ pub(crate) use crate::{Error, ParseError};
 pub(crate) use nom::IResult;
 pub(crate) use std::cell::{RefCell, RefMut};
 pub(crate) use std::io::Write;
+pub(crate) use std::io::BufRead;
 
 pub(crate) use crate::{parse, traits, write_vtk};
 

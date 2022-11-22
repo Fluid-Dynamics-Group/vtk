@@ -327,7 +327,11 @@ impl ParseArray for ArrayContainer {
 impl<T> Visitor<T> for ArrayContainerVisitor {
     type Output = ArrayContainer;
 
-    fn read_headers<'a>(spans: &T, buffer: &'a [u8]) -> IResult<&'a [u8], Self> {
+    fn read_headers<R: BufRead>(
+        spans: &T,
+        reader: &mut Reader<R>,
+        buffer: &mut Vec<u8>,
+    ) -> Result<Self, crate::parse::Mesh> {
         unimplemented!()
     }
 

@@ -62,8 +62,11 @@ mod field3d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
+        let string = String::from_utf8(file).unwrap();
+        let reader = vtk::Reader::from_str(&string);
+
         let out_vtk: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, SimpleArray> =
-            vtk::parse::parse_xml_document(&file).unwrap();
+            vtk::parse::parse_xml_document(reader).unwrap();
         let out_data = out_vtk.data;
 
         assert_eq!(data.array, out_data.array);
@@ -142,8 +145,11 @@ mod field2d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
+        let string = String::from_utf8(file).unwrap();
+        let reader = vtk::Reader::from_str(&string);
+
         let out_vtk: vtk::VtkData<Rectilinear2D<f64, vtk::Binary>, SimpleArray> =
-            vtk::parse::parse_xml_document(&file).unwrap();
+            vtk::parse::parse_xml_document(reader).unwrap();
         let out_data = out_vtk.data;
 
         assert_eq!(data.array, out_data.array);
@@ -220,8 +226,11 @@ mod scalar_3d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
+        let string = String::from_utf8(file).unwrap();
+        let reader = vtk::Reader::from_str(&string);
+
         let out_vtk: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, SimpleArray> =
-            vtk::parse::parse_xml_document(&file).unwrap();
+            vtk::parse::parse_xml_document(reader).unwrap();
         let out_data = out_vtk.data;
 
         assert_eq!(data.array, out_data.array);
@@ -285,8 +294,11 @@ mod scalar_2d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
+        let string = String::from_utf8(file).unwrap();
+        let reader = vtk::Reader::from_str(&string);
+
         let out_vtk: vtk::VtkData<Rectilinear2D<f64, vtk::Binary>, SimpleArray> =
-            vtk::parse::parse_xml_document(&file).unwrap();
+            vtk::parse::parse_xml_document(reader).unwrap();
         let out_data = out_vtk.data;
 
         dbg!(data.array.shape());

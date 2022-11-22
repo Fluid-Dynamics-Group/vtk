@@ -343,7 +343,11 @@ fn read_to_grid_header<R: BufRead>(
                 UnexpectedElement::new("VTKFile".into(), ParsedNameOrBytes::Utf8("EOF".into()));
             return Err(Header::from(element_mismatch));
         }
+
+        break
     }
+
+    Ok(())
 }
 
 /// parse the RectilinearGrid element header, return the contents of the `WholeExtent` attribute
@@ -374,10 +378,6 @@ fn read_to_coordinates<SPAN: ParseSpan, R: BufRead>(
     // indicates that we are about to start reading the grid elements
     let _coordinates =
         read_starting_element_with_name::<CoordinatesHeader, _>(reader, buffer, "Coordinates")?;
-    //reading the closing of this element will be handled later
-    //
-    let _point_data =
-        read_starting_element_with_name::<CoordinatesHeader, _>(reader, buffer, "PointData")?;
 
     Ok(extent)
 }
@@ -440,6 +440,7 @@ where
     let event = if let Event::Start(event) = element {
         event
     } else {
+        dbg!(&element);
         let unexpected = UnexpectedElement::new(
             expected_name.into(),
             ParsedNameOrBytes::from("non starting element"),
@@ -567,6 +568,9 @@ where
     DOMAIN: From<(MESH, SPAN)>,
 {
     let mut buffer = Vec::new();
+
+    // ignore whitespace in the reader
+    reader.trim_text(true);
 
     let _ = read_to_grid_header(&mut reader, &mut buffer).map_err(NeoParseError::from)?;
 
@@ -1060,9 +1064,20 @@ mod tests {
     fn shred_to_extent() {
         let input = r#"<VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">
             <RectilinearGrid WholeExtent="1 220 1 200 1 1">
-            <Piece Extent="1 220 1 200 1 1">"#;
-        let out = find_extent::<Spans3D>(input.as_bytes());
-        out.unwrap();
+            <Piece Extent="1 220 1 200 1 1">
+            <Coordinates>
+        "#;
+
+        let mut reader = Reader::from_str(input);
+        reader.trim_text(true);
+        let mut buffer = Vec::new();
+
+        let _ = read_to_grid_header(&mut reader, &mut buffer).unwrap();
+        let whole_extent = read_rectilinear_header::<Spans3D, _>(&mut reader, &mut buffer).unwrap();
+        let local_extent = read_to_coordinates::<Spans3D, _>(&mut reader, &mut buffer).unwrap();
+
+        assert_eq!(whole_extent, Spans3D { x_start: 1, x_end: 220, y_start:1, y_end:200, z_start: 1, z_end: 1});
+        assert_eq!(local_extent, Spans3D { x_start: 1, x_end: 220, y_start:1, y_end:200, z_start: 1, z_end: 1});
     }
 
     #[test]
@@ -1081,10 +1096,15 @@ mod tests {
                 <DataArray type="Float64" NumberOfComponents="1" Name="Z" format="ascii">
                     .0000000000E+00 .3981797497E-01 .7963594994E-01 .1194539249E+00
                 </DataArray>
+            </Coordinates>
+            </Piece>
             "#;
 
-        let (_rest, locations) =
-            crate::mesh::Mesh3DVisitor::read_headers(&spans, input.as_bytes()).unwrap();
+        let mut reader = Reader::from_str(input);
+        let mut buffer = Vec::new();
+
+        let locations =
+            crate::mesh::Mesh3DVisitor::read_headers(&spans, &mut reader, &mut buffer).unwrap();
         let out = locations.finish(&spans).unwrap();
 
         assert_eq!(out.x_locations.len(), 4);
@@ -1099,12 +1119,15 @@ mod tests {
                     .0000000000E+00 .3981797497E-01 .7963594994E-01 .1194539249E+00
                 </DataArray>
             "#;
-        let out = parse_dataarray_or_lazy(input.as_bytes(), b"X", 4);
+        let mut reader = Reader::from_str(input);
+        let mut buffer = Vec::new();
+
+        let out = parse_dataarray_or_lazy(&mut reader, &mut buffer, "X", 4);
         dbg!(&out);
         let out = out.unwrap();
         let expected = 4;
 
-        assert_eq!(out.1.unwrap_parsed().len(), expected);
+        assert_eq!(out.unwrap_parsed().len(), expected);
     }
 
     #[test]
@@ -1155,35 +1178,44 @@ mod tests {
     #[test]
     fn ascii_array_header() {
         let header = r#"<DataArray type="Float64" NumberOfComponents="1" Name="X" format="ascii">"#;
-        let out = read_dataarray_header(header.as_bytes(), b"X");
+
+        let mut reader = Reader::from_str(header);
+        let mut buffer = Vec::new();
+
+        let out = read_dataarray_header(&mut reader, &mut buffer, "X");
         dbg!(&out);
 
-        let (rest, array_type) = out.unwrap();
+        let array_type = out.unwrap();
 
         assert_eq!(array_type, DataArrayHeader::InlineAscii { components: 1 });
-        assert_eq!(rest, b"");
     }
 
     #[test]
     fn base64_array_header() {
         let header =
             r#"<DataArray type="Float64" NumberOfComponents="1" Name="X" format="binary">"#;
-        let out = read_dataarray_header(header.as_bytes(), b"X");
+        let mut reader = Reader::from_str(header);
+        let mut buffer = Vec::new();
+
+        let out = read_dataarray_header(&mut reader, &mut buffer, "X");
         dbg!(&out);
 
-        let (rest, array_type) = out.unwrap();
+        let array_type = out.unwrap();
 
         assert_eq!(array_type, DataArrayHeader::InlineBase64 { components: 1 });
-        assert_eq!(rest, b"");
     }
 
     #[test]
     fn appended_array_header() {
         let header = r#"<DataArray type="Float64" NumberOfComponents="3" Name="X" format="appended" offset="99">"#;
-        let out = read_dataarray_header(header.as_bytes(), b"X");
+
+        let mut reader = Reader::from_str(header);
+        let mut buffer = Vec::new();
+
+        let out = read_dataarray_header(&mut reader, &mut buffer, "X");
         dbg!(&out);
 
-        let (rest, array_type) = out.unwrap();
+        let array_type = out.unwrap();
 
         assert_eq!(
             array_type,
@@ -1192,7 +1224,6 @@ mod tests {
                 components: 3
             }
         );
-        assert_eq!(rest, b"");
     }
 
     #[test]
@@ -1209,13 +1240,16 @@ mod tests {
         .unwrap();
 
         let string = String::from_utf8(output).unwrap();
-        let parsed_result = parse_dataarray_or_lazy(&string.as_bytes(), b"X", 4);
+        let mut reader = Reader::from_str(&string);
+        let mut buffer = Vec::new();
+
+        let parsed_result = parse_dataarray_or_lazy(&mut reader, &mut buffer, "X", 4);
 
         dbg!(&parsed_result);
 
         let out = parsed_result.unwrap();
 
-        assert_eq!(out.1.unwrap_parsed(), &values);
+        assert_eq!(out.unwrap_parsed(), &values);
     }
 
     #[test]
@@ -1268,12 +1302,15 @@ mod tests {
         crate::write_vtk::appended_binary_header_end(&mut event_writer).unwrap();
 
         // now we can start parsing the data
-        let string_representation = String::from_utf8_lossy(&output);
+        let string_representation = String::from_utf8(output).unwrap();
         println!(":: xml data - {} ", string_representation);
 
+        let mut reader = Reader::from_str(&string_representation);
+        let mut buffer = Vec::new();
+
         // write data array headers
-        let (rest, parsed_header_1) = parse_dataarray_or_lazy(&output, b"X", 4).unwrap();
-        let (rest, parsed_header_2) = parse_dataarray_or_lazy(&rest, b"Y", 4).unwrap();
+        let parsed_header_1 = parse_dataarray_or_lazy(&mut reader, &mut buffer, "X", 4).unwrap();
+        let parsed_header_2 = parse_dataarray_or_lazy(&mut reader, &mut buffer, "Y", 4).unwrap();
 
         let header_1 = parsed_header_1.unwrap_appended();
         let header_2 = parsed_header_2.unwrap_appended();
@@ -1281,23 +1318,25 @@ mod tests {
         let len_1 = AppendedArrayLength::Known((header_2 - header_1) as usize);
         let len_2 = AppendedArrayLength::UntilEnd;
 
-        let (rest, _) = setup_appended_read(rest).unwrap();
+        panic!()
 
-        println!(
-            ":: xml data after queued movement- {} ",
-            string_representation
-        );
+        //let (rest, _) = setup_appended_read(rest).unwrap();
 
-        let mut data_1 = Vec::new();
-        let mut data_2 = Vec::new();
+        //println!(
+        //    ":: xml data after queued movement- {} ",
+        //    string_representation
+        //);
 
-        let (rest, _) = parse_appended_binary(rest, len_1, &mut data_1).unwrap();
+        //let mut data_1 = Vec::new();
+        //let mut data_2 = Vec::new();
 
-        let string_representation = String::from_utf8_lossy(&rest);
-        println!("between parses - {}", string_representation);
-        let (_rest, _) = parse_appended_binary(rest, len_2, &mut data_2).unwrap();
+        //let (rest, _) = parse_appended_binary(rest, len_1, &mut data_1).unwrap();
 
-        assert_eq!(values.as_ref(), data_1);
-        assert_eq!(values2.as_ref(), data_2);
+        //let string_representation = String::from_utf8_lossy(&rest);
+        //println!("between parses - {}", string_representation);
+        //let (_rest, _) = parse_appended_binary(rest, len_2, &mut data_2).unwrap();
+
+        //assert_eq!(values.as_ref(), data_1);
+        //assert_eq!(values2.as_ref(), data_2);
     }
 }

@@ -44,8 +44,12 @@ impl DataArray<vtk::Ascii> for ArrayContainer {
 impl<T> Visitor<T> for ArrayContainerVisitor {
     type Output = ArrayContainer;
 
-    fn read_headers<'a>(_spans: &T, _buffer: &'a [u8]) -> IResult<&'a [u8], Self> {
-        Ok((_buffer, ArrayContainerVisitor))
+    fn read_headers<R: std::io::BufRead>(
+        _spans: &T,
+        _reader: &mut vtk::Reader<R>,
+        _buffer: &mut Vec<u8>,
+    ) -> Result<Self, crate::parse::Mesh> {
+        Ok(ArrayContainerVisitor)
     }
 
     fn add_to_appended_reader<'a, 'b>(
