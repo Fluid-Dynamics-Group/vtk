@@ -42,6 +42,8 @@ pub enum NeoParseError {
     CoordinatesHeader(CoordinatesHeader),
     #[error("Error parsing vtk file before coordinate section: {0}")]
     Mesh(Mesh),
+    #[error("Error parsing vtk file before coordinate section: {0}")]
+    AppendedData(AppendedData),
 }
 
 #[derive(Debug, thiserror::Error, From)]
@@ -208,7 +210,9 @@ pub enum AppendedData {
 #[derive(Debug, thiserror::Error, From)]
 pub enum ParsingBinary {
     #[error("removing the leading 16 bytes from the <AppendedData> element caused an error")]
-    LeadingBytes
+    LeadingBytes,
+    #[error("Failed to slices data array from appended binary bytes. Appended binary section may be too short")]
+    BinaryToFloat 
 }
 
 #[derive(From, Display, Debug, Constructor)]
@@ -426,7 +430,7 @@ where E: From<UnexpectedElement> + From<MalformedXml>
     Ok(event)
 }
 
-fn get_attribute_value<'a, E>(bytes_start: &BytesStart<'_>, attribute_key: &str, element_name: &str) -> Result<Attribute<'a>, E> 
+fn get_attribute_value<'a, E>(bytes_start: &'a BytesStart<'_>, attribute_key: &str, element_name: &str) -> Result<Attribute<'a>, E> 
 where E: From<MissingAttribute> {
     // find the `attribute_key` attribute on the `element_name` element
     let extent = bytes_start.attributes()
@@ -495,7 +499,8 @@ where
     location_visitor.add_to_appended_reader(&mut reader_buffer);
     array_visitor.add_to_appended_reader(&mut reader_buffer);
 
-    read_appended_data(&mut reader, &mut buffer, reader_buffer)?;
+    read_appended_data(&mut reader, &mut buffer, reader_buffer)
+        .map_err(NeoParseError::from)?;
 
     todo!()
 
@@ -920,13 +925,14 @@ pub fn parse_appended_binary<'a>(
 ) -> Result<&'a [u8], AppendedData> {
     let (rest, bytes) = match length {
         AppendedArrayLength::Known(known_length) => {
-            let (rest_of_appended, current_bytes_slice) = take(known_length)(xml_bytes)?;
+            let (rest_of_appended, current_bytes_slice) = take(known_length)(xml_bytes)
+                .map_err(|_: NomErr| ParsingBinary::BinaryToFloat)?;
             (rest_of_appended, current_bytes_slice)
         }
         AppendedArrayLength::UntilEnd => {
-            let (rest_of_appended, current_bytes_slice) =
-                take_until(b"</Appended".as_ref())(xml_bytes)?;
-            (rest_of_appended, current_bytes_slice)
+            // here, we know that the parsing library has already guaranteed the buffer
+            // is at its maximum length so we can simply feed an empty slice to the end
+            ([].as_ref(), xml_bytes)
         }
     };
 
@@ -944,7 +950,7 @@ pub fn parse_appended_binary<'a>(
         idx += inc;
     }
 
-    Ok((rest, ()))
+    Ok(rest)
 }
 
 #[cfg(test)]
