@@ -301,14 +301,6 @@ fn read_appended_data<R: BufRead>(
 
     check_attribute_value(encoding, "AppendedData", "encoding", "raw")?;
 
-    let body_elem = read_body_element::<error::AppendedData, _>(reader, buffer)?;
-    let bytes = body_elem.into_iter();
-
-    println!("there are a total of {} bytes", bytes.len());
-
-    //let string_ver = String::from_utf8(bytes.as_ref()).unwrap();
-    //println!("string version: \n{string_ver}");
-
     read_appended_array_buffers(reader, buffer, reader_buffers)?;
 
     Ok(())
@@ -611,22 +603,25 @@ pub fn read_appended_array_buffers<R: BufRead>(
 
         let mut iterator = buffers.iter_mut().peekable();
 
-        clean_garbage_from_reader(reader, buffer);
+        clean_garbage_from_reader(reader, buffer)?;
 
         loop {
             if let Some(current_offset_buffer) = iterator.next() {
                 // get the number of bytes to read based on the next element's offset
-                let reading_offset = iterator
+                let offset_length = iterator
                     .peek()
                     .map(|offset_buffer| {
                         let diff = offset_buffer.offset - current_offset_buffer.offset;
-                        crate::parse::AppendedArrayLength::Known((diff) as usize)
-                    })
-                    .unwrap_or(crate::parse::AppendedArrayLength::UntilEnd);
+                        diff as usize
+                    });
 
                 let binary_length = current_offset_buffer.components * current_offset_buffer.num_elements * std::mem::size_of::<f64>();
 
-                let remaining_appended_data = crate::parse::parse_appended_binary(
+                if let Some(calculated_offset_length) = offset_length {
+                    assert_eq!(binary_length, calculated_offset_length);
+                }
+
+                crate::parse::parse_appended_binary(
                     reader, 
                     buffer,
                     binary_length,
@@ -970,11 +965,11 @@ pub fn parse_appended_binary<'a, R: BufRead>(
     length: usize,
     parsed_bytes: &mut Vec<f64>,
 ) -> Result<(), error::AppendedData> {
+    ensure_buffer_length(buffer, length);
 
     let inner = reader.get_mut();
     inner.read_exact(&mut buffer.as_mut_slice()[0..length]).unwrap();
 
-    ensure_buffer_length(buffer, length);
 
     let mut idx = 0;
     let inc = 8;
@@ -984,6 +979,7 @@ pub fn parse_appended_binary<'a, R: BufRead>(
             let float = utils::bytes_to_float(byte_slice);
             parsed_bytes.push(float);
         } 
+
         idx += inc;
     }
 
