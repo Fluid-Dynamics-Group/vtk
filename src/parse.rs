@@ -520,10 +520,14 @@ fn prepare_reading_point_data<R: BufRead>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
 ) -> Result<(), PreparePointData> {
+    println!("closing </Coordinates> element");
     // first, we should have a closing element for Coordinates
     let _ = read_ending_element::<PreparePointData, _>(reader, buffer, "Coordinates")?;
+
+    println!("finished closing </Coordinates> element, now opening PointData element");
     // then, we need to open the element for PointData
     let _ = read_starting_element_with_name::<PreparePointData, _>(reader, buffer, "PointData")?;
+    println!("finished opening <PointData>");
 
     Ok(())
 }
@@ -550,13 +554,14 @@ fn read_appended_data<R: BufRead>(
 
     // if there are no appended sections, we do not need to go on
     if reader_buffers.is_empty() {
+        println!("skipping appended data section - no buffers to write to");
         return Ok(())
     }
 
-    dbg!("starting read of appended data");
+    println!("starting read of appended data");
     let appended_data =
         read_starting_element_with_name::<AppendedData, _>(reader, buffer, "AppendedData")?;
-    dbg!("finished queueing up to appended data section");
+    println!("finished queueing up to appended data section");
 
     let encoding = get_attribute_value::<AppendedData>(&appended_data, "encoding", "AppendedData")?;
 
@@ -565,7 +570,7 @@ fn read_appended_data<R: BufRead>(
     let body_elem = read_body_element::<AppendedData, _>(reader, buffer)?;
     let bytes = body_elem.into_iter();
 
-    dbg!("there are a total of {} bytes", bytes.len());
+    println!("there are a total of {} bytes", bytes.len());
 
     //let string_ver = String::from_utf8(bytes.as_ref()).unwrap();
     //println!("string version: \n{string_ver}");
@@ -786,12 +791,12 @@ where
     prepare_reading_point_data(&mut reader, &mut buffer)
         .map_err(NeoParseError::from)?;
 
-    dbg!("starting read for arrays");
+    println!("starting read for arrays: {}", line!());
 
     let array_visitor = ArrayVisitor::read_headers(&spans, &mut reader, &mut buffer)
         .map_err(NeoParseError::from)?;
 
-    dbg!("finished reading arrays");
+    println!("finished reading arrays: {}", line!());
 
     close_element_to_appended_data(&mut reader, &mut buffer)
         .map_err(NeoParseError::from)?;
@@ -829,6 +834,8 @@ pub fn parse_dataarray_or_lazy<'a, R: BufRead>(
     expected_name: &str,
     size_hint: usize,
 ) -> Result<PartialDataArray, Mesh> {
+    println!("parse_dataarray_or_lazy, {}",  line!());
+
     let (was_empty, header) = read_dataarray_header(reader, buffer, expected_name)?;
 
     let lazy_array = match header {
@@ -857,11 +864,11 @@ pub fn parse_dataarray_or_lazy<'a, R: BufRead>(
 
     // if the element was not empty, then we need to close the element ourselves
     if !was_empty{
-        dbg!("reading /DataArray ending element");
+        println!("reading /DataArray ending element since this dataarray was not empty");
         // now we have to read the closing element for the dataarray 
         // so we dont cause any trouble for future routines
         read_ending_element::<Mesh, _>(reader, buffer, "DataArray")?;
-        dbg!("finished reading /DataArray ending element");
+        println!("finished reading /DataArray ending element");
     }
 
     Ok(lazy_array)
