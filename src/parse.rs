@@ -7,17 +7,18 @@ use crate::prelude::*;
 use crate::utils;
 use nom::bytes::complete::{tag, take, take_till, take_until};
 
-use std::fmt;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
+use std::fmt;
 
 use quick_xml::events::attributes::Attribute;
 use quick_xml::events::BytesEnd;
 use quick_xml::events::BytesStart;
 use quick_xml::events::BytesText;
 use quick_xml::events::Event;
+use quick_xml::events;
 use quick_xml::name::QName;
 use quick_xml::reader::Reader;
 
@@ -73,13 +74,22 @@ pub struct MalformedAttribute {
     att_err: quick_xml::events::attributes::AttrError,
 }
 
-#[derive(From, Display, Debug, Constructor)]
+#[derive(From, Display, Debug)]
 #[display(
-    fmt = "unexpected element name `{actual_element}` occured in VTK file before `{expected_name}`"
+    fmt = "unexpected element. Expected `{expected_name}`, got {actual_element}"
 )]
 pub struct UnexpectedElement {
     expected_name: String,
-    actual_element: ParsedNameOrBytes,
+    actual_element: EventSummary,
+}
+
+impl UnexpectedElement {
+    fn new<T: Into<String>>(expected_name: T, actual_element: EventSummary) -> Self {
+        Self {
+            expected_name: expected_name.into(),
+            actual_element
+        }
+    }
 }
 
 #[derive(From, Display, Debug, Constructor)]
@@ -285,6 +295,117 @@ impl fmt::Display for ParseError {
     }
 }
 
+#[derive(From, Debug)]
+struct EventSummary {
+    name: Option<ParsedNameOrBytes>,
+    e_type: &'static str
+}
+
+impl fmt::Display for EventSummary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.name {
+            Some(name) => write!(f, "element {name} with type {}", self.e_type),
+            None => write!(f, "unnamed name with type {}", self.e_type),
+        }
+    }
+}
+
+impl EventSummary {
+    fn new(e: &Event) -> Self {
+        Self {
+            name: e.event_name(),
+            e_type: event_type(e),
+        }
+    }
+
+    fn eof() -> Self {
+        Self {
+            name: None,
+            e_type: "eof"
+        }
+    }
+
+    fn start(bytes: BytesStart<'_>) -> Self {
+        Self {
+            name: bytes.event_name(),
+            e_type: "start"
+        }
+    }
+
+    fn end(bytes: BytesEnd<'_>) -> Self {
+        Self {
+            name: bytes.event_name(),
+            e_type: "end"
+        }
+    }
+}
+
+trait ElementName {
+    fn event_name(&self) -> Option<ParsedNameOrBytes>;
+}
+
+impl ElementName for BytesStart<'_> {
+    fn event_name(&self) -> Option<ParsedNameOrBytes> {
+        Some(ParsedNameOrBytes::from(self.name()))
+    }
+}
+
+impl ElementName for BytesEnd<'_> {
+    fn event_name(&self) -> Option<ParsedNameOrBytes> {
+        Some(ParsedNameOrBytes::from(self.name()))
+    }
+}
+
+impl ElementName for BytesText<'_> {
+    fn event_name(&self) -> Option<ParsedNameOrBytes> {
+        None
+    }
+}
+
+impl ElementName for events::BytesCData<'_> {
+    fn event_name(&self) -> Option<ParsedNameOrBytes> {
+        None
+    }
+}
+
+impl ElementName for events::BytesDecl<'_> {
+    fn event_name(&self) -> Option<ParsedNameOrBytes> {
+        None
+    }
+}
+
+impl ElementName for Event<'_> { 
+    fn event_name(&self) -> Option<ParsedNameOrBytes> {
+        match &self {
+            Event::Start(s) => s.event_name(),
+            Event::End(e) => e.event_name(),
+            Event::Empty(s) => s.event_name(),
+            Event::Text(x) => x.event_name(),
+            Event::Comment(x) => x.event_name(),
+            Event::CData(x) => x.event_name(),
+            Event::Decl(x) => x.event_name(),
+            Event::PI(x) => x.event_name(),
+            Event::DocType(x) => x.event_name(),
+            Event::Eof => None
+        }
+    }
+}
+
+fn event_type(event: &Event) -> &'static str {
+    match event {
+        Event::Start(_) => "start",
+        Event::End(_) => "end",
+        Event::Empty(_) => "empty",
+        Event::Text(_) => "text",
+        Event::Comment(_) => "comment",
+        Event::CData(_) => "cdata",
+        Event::Decl(_) => "decl",
+        Event::PI(_) => "pi",
+        Event::DocType(_) => "doctype",
+        Event::Eof => "eof",
+    }
+}
+
 /// read in and parse an entire vtk file for a given path
 pub fn read_and_parse<GEOMETRY, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
     path: &std::path::Path,
@@ -316,9 +437,11 @@ fn read_to_grid_header<R: BufRead>(
 
         if let Event::Start(inner_start) = &event {
             if inner_start.name() != QName(b"VTKFile") {
+                let actual_event = EventSummary::new(&event);
+
                 let element_mismatch = UnexpectedElement::new(
-                    "VTKFile".into(),
-                    ParsedNameOrBytes::from(inner_start.name()),
+                    "VTKFile",
+                    actual_event
                 );
                 return Err(Header::from(element_mismatch));
             }
@@ -342,8 +465,11 @@ fn read_to_grid_header<R: BufRead>(
 
         // catch an EOF if we are looping
         if let Event::Eof = event {
+            let actual_event = EventSummary::eof();
+
             let element_mismatch =
-                UnexpectedElement::new("VTKFile".into(), ParsedNameOrBytes::Utf8("EOF".into()));
+                UnexpectedElement::new("VTKFile", actual_event);
+
             return Err(Header::from(element_mismatch));
         }
 
@@ -463,17 +589,20 @@ where
         event
     } else {
         dbg!(&element);
+        let actual_event = EventSummary::new(&element);
+
         let unexpected = UnexpectedElement::new(
-            expected_name.into(),
-            ParsedNameOrBytes::from("non starting element"),
+            expected_name,
+            actual_event
         );
         return Err(E::from(unexpected));
     };
 
     // check that the name of the coordinates header is correct
     if event.name().as_ref() != expected_name.as_bytes() {
+        let actual_event = EventSummary::start(event);
         let unexpected =
-            UnexpectedElement::new(expected_name.into(), ParsedNameOrBytes::from(event.name()));
+            UnexpectedElement::new(expected_name, actual_event);
         return Err(E::from(unexpected));
     }
 
@@ -490,15 +619,18 @@ where
 {
     let element = reader.read_event_into(buffer).map_err(MalformedXml::from)?;
 
+    let actual_event = EventSummary::new(&element);
+
     let (was_empty, event) = 
         match element {
             Event::Empty(empty) => (true, empty),
             Event::Start(start) => (false, start),
             _ => {
                 dbg!(&element);
+                let actual_event = EventSummary::new(&element);
                 let unexpected = UnexpectedElement::new(
-                    expected_name.into(),
-                    ParsedNameOrBytes::from("non starting element"),
+                    expected_name,
+                    actual_event
                 );
                 return Err(E::from(unexpected));
             }
@@ -507,7 +639,7 @@ where
     // check that the name of the coordinates header is correct
     if event.name().as_ref() != expected_name.as_bytes() {
         let unexpected =
-            UnexpectedElement::new(expected_name.into(), ParsedNameOrBytes::from(event.name()));
+            UnexpectedElement::new(expected_name, actual_event);
         return Err(E::from(unexpected));
     }
 
@@ -526,9 +658,10 @@ where
     let event = if let Event::Text(event) = element {
         event
     } else {
+        let actual_event = EventSummary::new(&element);
         let unexpected = UnexpectedElement::new(
-            "body element".into(),
-            ParsedNameOrBytes::from("non text element (missing body)"),
+            "body element",
+            actual_event
         );
         return Err(E::from(unexpected));
     };
@@ -550,9 +683,10 @@ where
         event
     } else {
         dbg!(&element);
+        let actual_event = EventSummary::new(&element);
         let unexpected = UnexpectedElement::new(
             format!("/{expected_name}"),
-            ParsedNameOrBytes::from("non ending element"),
+            actual_event
         );
         return Err(E::from(unexpected));
     };
@@ -560,8 +694,9 @@ where
     // check that the name of the coordinates header is correct
     if event.name().as_ref() != expected_name.as_bytes() {
         dbg!(&event);
+        let actual_event = EventSummary::end(event);
         let unexpected =
-            UnexpectedElement::new(expected_name.into(), ParsedNameOrBytes::from(event.name()));
+            UnexpectedElement::new(expected_name, actual_event);
         return Err(E::from(unexpected));
     }
 
