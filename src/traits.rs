@@ -215,6 +215,9 @@ pub trait ParseMesh {
 /// ## Example
 ///
 /// ```
+/// // provides `.num_elements()` method for `Spans3D`
+/// use vtk::Span;
+///
 /// #[derive(Debug, Clone, Default, PartialEq)]
 /// pub struct SpanData {
 ///     pub u: Vec<f64>,
@@ -226,15 +229,15 @@ pub trait ParseMesh {
 ///
 /// impl vtk::Visitor<vtk::Spans3D> for SpanDataVisitor {
 ///     type Output = SpanData;
-///     fn read_headers<'a>(
-///         _spans: &vtk::Spans3D,
-///         buffer: &'a [u8],
-///     ) -> nom::IResult<&'a [u8], Self> {
-///         let rest = buffer;
-///         let (rest, u) = vtk::parse::parse_dataarray_or_lazy(rest, b"u", 0)?;
-///         let u = vtk::parse::PartialDataArrayBuffered::new(u, 0);
+///     fn read_headers<R: std::io::BufRead>(
+///         spans: &vtk::Spans3D,
+///         reader: &mut vtk::Reader<R>,
+///         buffer: &mut Vec<u8>,
+///     ) -> Result<Self, vtk::parse::Mesh> {
+///         let u = vtk::parse::parse_dataarray_or_lazy(reader, buffer, "u", 0)?;
+///         let u = vtk::parse::PartialDataArrayBuffered::new(u, spans.num_elements());
 ///         let visitor = SpanDataVisitor { u };
-///         Ok((rest, visitor))
+///         Ok(visitor)
 ///     }
 ///     fn add_to_appended_reader<'a, 'b>(
 ///         &'a self,

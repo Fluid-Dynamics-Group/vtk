@@ -102,8 +102,8 @@ mod inner {
         let mut writer = Vec::new();
         vtk::write_vtk(&mut writer, data.clone()).unwrap();
 
-        let string = String::from_utf8(writer.as_slice().to_vec()).unwrap();
-        let reader = vtk::Reader::from_str(&string);
+        let cursor = std::io::Cursor::new(writer);
+        let reader = vtk::Reader::from_reader(cursor);
 
         let output_data: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, Binary> =
             vtk::parse::parse_xml_document(reader).unwrap();
@@ -117,8 +117,8 @@ mod inner {
         let mut writer = Vec::new();
         vtk::write_vtk(&mut writer, data.clone()).unwrap();
 
-        let string = String::from_utf8(writer.as_slice().to_vec()).unwrap();
-        let reader = vtk::Reader::from_str(&string);
+        let cursor = std::io::Cursor::new(writer);
+        let reader = vtk::Reader::from_reader(cursor);
 
         let output_data: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, Binary> =
             vtk::parse::parse_xml_document(reader).unwrap();
@@ -138,8 +138,8 @@ mod inner {
 
         vtk::write_vtk(&mut writer, base64.clone()).unwrap();
 
-        let string = String::from_utf8(writer.as_slice().to_vec()).unwrap();
-        let reader = vtk::Reader::from_str(&string);
+        let cursor = std::io::Cursor::new(writer);
+        let reader = vtk::Reader::from_reader(cursor);
 
         let output_data: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, Base64> =
             vtk::parse::parse_xml_document(reader).unwrap();
@@ -187,8 +187,8 @@ mod inner {
         let mut buffer = Vec::new();
         vtk::write_vtk(&mut buffer, vtk_data).unwrap();
 
-        let string = String::from_utf8(buffer).unwrap();
-        let reader = vtk::Reader::from_str(&string);
+        let cursor = std::io::Cursor::new(buffer);
+        let reader = vtk::Reader::from_reader(cursor);
 
         // now we parse the data back out
         let out: vtk::VtkData<vtk::Rectilinear2D<f64, vtk::Binary>, SpanVtkInformation2D> =
@@ -232,8 +232,8 @@ mod inner {
         let mut buffer = Vec::new();
         vtk::write_vtk(&mut buffer, vtk_data).unwrap();
 
-        let string = String::from_utf8(buffer).unwrap();
-        let reader = vtk::Reader::from_str(&string);
+        let cursor = std::io::Cursor::new(buffer);
+        let reader = vtk::Reader::from_reader(cursor);
 
         // now we parse the data back out
         let out: vtk::VtkData<vtk::Rectilinear3D<f64, vtk::Binary>, SpanVtkInformation3D> =

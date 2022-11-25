@@ -62,8 +62,8 @@ mod field3d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
-        let string = String::from_utf8(file).unwrap();
-        let reader = vtk::Reader::from_str(&string);
+        let cursor = std::io::Cursor::new(file);
+        let reader = vtk::Reader::from_reader(cursor);
 
         let out_vtk: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, SimpleArray> =
             vtk::parse::parse_xml_document(reader).unwrap();
@@ -145,8 +145,8 @@ mod field2d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
-        let string = String::from_utf8(file).unwrap();
-        let reader = vtk::Reader::from_str(&string);
+        let cursor = std::io::Cursor::new(file);
+        let reader = vtk::Reader::from_reader(cursor);
 
         let out_vtk: vtk::VtkData<Rectilinear2D<f64, vtk::Binary>, SimpleArray> =
             vtk::parse::parse_xml_document(reader).unwrap();
@@ -226,8 +226,8 @@ mod scalar_3d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
-        let string = String::from_utf8(file).unwrap();
-        let reader = vtk::Reader::from_str(&string);
+        let cursor = std::io::Cursor::new(file);
+        let reader = vtk::Reader::from_reader(cursor);
 
         let out_vtk: vtk::VtkData<Rectilinear3D<f64, vtk::Binary>, SimpleArray> =
             vtk::parse::parse_xml_document(reader).unwrap();
@@ -294,8 +294,8 @@ mod scalar_2d {
         let data = vtk.data.clone();
         vtk::write_vtk(&mut file, vtk).unwrap();
 
-        let string = String::from_utf8(file).unwrap();
-        let reader = vtk::Reader::from_str(&string);
+        let cursor = std::io::Cursor::new(file);
+        let reader = vtk::Reader::from_reader(cursor);
 
         let out_vtk: vtk::VtkData<Rectilinear2D<f64, vtk::Binary>, SimpleArray> =
             vtk::parse::parse_xml_document(reader).unwrap();
