@@ -36,8 +36,8 @@ pub use vtk_derive::{DataArray, ParseArray};
 pub use ndarray;
 //pub use nom;
 
-pub use quick_xml::writer::Writer;
 pub use quick_xml::reader::Reader;
+pub use quick_xml::writer::Writer;
 
 /// general purpose error enumeration for possible causes of failure.
 #[derive(thiserror::Error, Debug)]

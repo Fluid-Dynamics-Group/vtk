@@ -1,10 +1,10 @@
 use crate::prelude::*;
 
+use quick_xml::events;
 use quick_xml::events::BytesEnd;
 use quick_xml::events::BytesStart;
 use quick_xml::events::BytesText;
 use quick_xml::events::Event;
-use quick_xml::events;
 use quick_xml::name::QName;
 
 use super::error::ParsedNameOrBytes;
@@ -14,7 +14,7 @@ use std::fmt;
 #[derive(From, Debug)]
 pub(crate) struct EventSummary {
     name: Option<ParsedNameOrBytes>,
-    e_type: &'static str
+    e_type: &'static str,
 }
 
 impl fmt::Display for EventSummary {
@@ -37,21 +37,21 @@ impl EventSummary {
     pub(crate) fn eof() -> Self {
         Self {
             name: None,
-            e_type: "eof"
+            e_type: "eof",
         }
     }
 
     pub(crate) fn start(bytes: &BytesStart<'_>) -> Self {
         Self {
             name: bytes.event_name(),
-            e_type: "start"
+            e_type: "start",
         }
     }
 
     pub(crate) fn end(bytes: &BytesEnd<'_>) -> Self {
         Self {
             name: bytes.event_name(),
-            e_type: "end"
+            e_type: "end",
         }
     }
 
@@ -60,7 +60,7 @@ impl EventSummary {
     pub(crate) fn text(_bytes: &BytesText<'_>) -> Self {
         Self {
             name: None,
-            e_type: "text"
+            e_type: "text",
         }
     }
 }
@@ -120,7 +120,7 @@ impl ElementName for events::BytesDecl<'_> {
     }
 }
 
-impl ElementName for Event<'_> { 
+impl ElementName for Event<'_> {
     fn event_name(&self) -> Option<ParsedNameOrBytes> {
         ElementName::byte_name(self).map(|name| ParsedNameOrBytes::from(name))
     }
@@ -136,7 +136,7 @@ impl ElementName for Event<'_> {
             Event::Decl(x) => x.byte_name(),
             Event::PI(x) => x.byte_name(),
             Event::DocType(x) => x.byte_name(),
-            Event::Eof => None
+            Event::Eof => None,
         }
     }
 }

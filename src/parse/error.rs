@@ -47,9 +47,7 @@ pub struct MalformedAttribute {
 }
 
 #[derive(From, Display, Debug)]
-#[display(
-    fmt = "unexpected element. Expected `{expected_name}`, got {actual_element}"
-)]
+#[display(fmt = "unexpected element. Expected `{expected_name}`, got {actual_element}")]
 pub struct UnexpectedElement {
     expected_name: String,
     actual_element: EventSummary,
@@ -59,7 +57,7 @@ impl UnexpectedElement {
     pub(crate) fn new<T: Into<String>>(expected_name: T, actual_element: EventSummary) -> Self {
         Self {
             expected_name: expected_name.into(),
-            actual_element
+            actual_element,
         }
     }
 }

@@ -3,8 +3,8 @@
 
 pub use crate::data::VtkData;
 pub use crate::traits::{
-    Array, DataArray, Domain, Encode, FromBuffer, Numeric, ParseArray, ParseMesh, ParseSpan,
-    Visitor, Span
+    Array, DataArray, Domain, Encode, FromBuffer, Numeric, ParseArray, ParseMesh, ParseSpan, Span,
+    Visitor,
 };
 
 pub(crate) use quick_xml::events::BytesEnd;
@@ -16,11 +16,11 @@ pub(crate) use quick_xml::writer::Writer;
 
 pub(crate) use crate::write_vtk::Precision;
 
-pub(crate) use crate::{Ascii, Base64, Binary};
 pub(crate) use crate::Error;
+pub(crate) use crate::{Ascii, Base64, Binary};
 pub(crate) use std::cell::{RefCell, RefMut};
-pub(crate) use std::io::Write;
 pub(crate) use std::io::BufRead;
+pub(crate) use std::io::Write;
 
 pub(crate) use crate::{parse, traits, write_vtk};
 

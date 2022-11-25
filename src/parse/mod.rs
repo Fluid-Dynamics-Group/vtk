@@ -3,13 +3,13 @@
 //! most of the time you will not need to interact with this file,
 //! instead derive `ParseDataArray`
 
-mod event_summary;
 mod error;
+mod event_summary;
 
-use event_summary::EventSummary;
-use event_summary::ElementName;
-pub use error::ParseError;
 pub use error::Mesh;
+pub use error::ParseError;
+use event_summary::ElementName;
+use event_summary::EventSummary;
 
 use crate::prelude::*;
 use crate::utils;
@@ -50,7 +50,9 @@ fn read_to_grid_header<R: BufRead>(
 ) -> Result<(), error::Header> {
     // find a VTKFile leading element
     loop {
-        let event = reader.read_event_into(buffer).map_err(error::MalformedXml::from)?;
+        let event = reader
+            .read_event_into(buffer)
+            .map_err(error::MalformedXml::from)?;
 
         dbg!(&event);
 
@@ -58,10 +60,7 @@ fn read_to_grid_header<R: BufRead>(
             if inner_start.name() != QName(b"VTKFile") {
                 let actual_event = EventSummary::new(&event);
 
-                let element_mismatch = error::UnexpectedElement::new(
-                    "VTKFile",
-                    actual_event
-                );
+                let element_mismatch = error::UnexpectedElement::new("VTKFile", actual_event);
                 return Err(error::Header::from(element_mismatch));
             }
 
@@ -80,24 +79,23 @@ fn read_to_grid_header<R: BufRead>(
                     check_attribute_value(attribute, "VTKFile", "byte_order", "LittleEndian")?;
                 }
             }
-        } 
+        }
 
         // catch an EOF if we are looping
         if let Event::Eof = event {
             let actual_event = EventSummary::eof();
 
-            let element_mismatch =
-                error::UnexpectedElement::new("VTKFile", actual_event);
+            let element_mismatch = error::UnexpectedElement::new("VTKFile", actual_event);
 
             return Err(error::Header::from(element_mismatch));
         }
 
         // sometimes there are headers for type of file, we just continue
         if let Event::Decl(_) = event {
-            continue
+            continue;
         }
 
-        break
+        break;
     }
 
     Ok(())
@@ -108,8 +106,11 @@ fn read_rectilinear_header<SPAN: ParseSpan, R: BufRead>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
 ) -> Result<SPAN, error::RectilinearHeader> {
-    let event =
-        read_starting_element_with_name::<error::RectilinearHeader, _>(reader, buffer, "RectilinearGrid")?;
+    let event = read_starting_element_with_name::<error::RectilinearHeader, _>(
+        reader,
+        buffer,
+        "RectilinearGrid",
+    )?;
 
     let extent_value =
         get_attribute_value::<error::RectilinearHeader>(&event, "WholeExtent", "RectilinearGrid")?;
@@ -121,7 +122,8 @@ fn read_to_coordinates<SPAN: ParseSpan, R: BufRead>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
 ) -> Result<SPAN, error::CoordinatesHeader> {
-    let piece = read_starting_element_with_name::<error::CoordinatesHeader, _>(reader, buffer, "Piece")?;
+    let piece =
+        read_starting_element_with_name::<error::CoordinatesHeader, _>(reader, buffer, "Piece")?;
 
     let extent_value = get_attribute_value::<error::CoordinatesHeader>(&piece, "Extent", "Piece")?;
     let extent_str = String::from_utf8(extent_value.value.to_vec()).unwrap();
@@ -129,8 +131,11 @@ fn read_to_coordinates<SPAN: ParseSpan, R: BufRead>(
 
     // then, we read the next element which should be the `Coordinates` element, which
     // indicates that we are about to start reading the grid elements
-    let _coordinates =
-        read_starting_element_with_name::<error::CoordinatesHeader, _>(reader, buffer, "Coordinates")?;
+    let _coordinates = read_starting_element_with_name::<error::CoordinatesHeader, _>(
+        reader,
+        buffer,
+        "Coordinates",
+    )?;
 
     Ok(extent)
 }
@@ -145,7 +150,8 @@ fn prepare_reading_point_data<R: BufRead>(
 
     println!("finished closing </Coordinates> element, now opening PointData element");
     // then, we need to open the element for PointData
-    let _ = read_starting_element_with_name::<error::PreparePointData, _>(reader, buffer, "PointData")?;
+    let _ =
+        read_starting_element_with_name::<error::PreparePointData, _>(reader, buffer, "PointData")?;
     println!("finished opening <PointData>");
 
     Ok(())
@@ -165,7 +171,9 @@ fn close_element_to_appended_data<R: BufRead>(
 
     loop {
         println!("new element");
-        let element = reader.read_event_into(buffer).map_err(error::MalformedXml::from)?;
+        let element = reader
+            .read_event_into(buffer)
+            .map_err(error::MalformedXml::from)?;
 
         let repr = EventSummary::new(&element);
         println!("element: {}", repr);
@@ -175,7 +183,7 @@ fn close_element_to_appended_data<R: BufRead>(
                 // we are opening a dataarray
                 if s.byte_name().as_ref().unwrap().as_ref() == b"DataArray" {
                     text_allowed = true;
-                    continue
+                    continue;
                 }
             }
             Event::Empty(s) => {
@@ -183,34 +191,42 @@ fn close_element_to_appended_data<R: BufRead>(
                 if s.byte_name().as_ref().unwrap().as_ref() == b"DataArray" {
                     // no text allowed, though
                     text_allowed = false;
-                    continue
+                    continue;
                 }
             }
             Event::End(s) => {
                 // we have hit the point data, exit now
                 if s.byte_name().as_ref().unwrap().as_ref() == b"PointData" {
-                    break
+                    break;
                 }
                 // we are closing a dataarray
-                else if s.byte_name().as_ref().unwrap().as_ref()== b"DataArray" {
+                else if s.byte_name().as_ref().unwrap().as_ref() == b"DataArray" {
                     text_allowed = false;
-                    continue
+                    continue;
                 }
             }
             Event::Text(s) => {
                 if text_allowed {
                     // we previously opened an element, now we can have text inside.
                     // this case may just be handled by the XML parser
-                    continue
+                    continue;
                 } else {
                     let actual = EventSummary::text(&s);
-                    return Err(error::UnexpectedElement::new("PointData,DataArray,/DataArray", actual).into());
+                    return Err(error::UnexpectedElement::new(
+                        "PointData,DataArray,/DataArray",
+                        actual,
+                    )
+                    .into());
                 }
             }
             _ => {
                 // we have hit something else,
                 let actual = EventSummary::new(&element);
-                return Err(error::UnexpectedElement::new("PointData,DataArray,/DataArray", actual).into());
+                return Err(error::UnexpectedElement::new(
+                    "PointData,DataArray,/DataArray",
+                    actual,
+                )
+                .into());
             }
         }
     }
@@ -229,11 +245,10 @@ fn read_appended_data<R: BufRead>(
     buffer: &mut Vec<u8>,
     reader_buffers: Vec<RefMut<'_, OffsetBuffer>>,
 ) -> Result<(), error::AppendedData> {
-
     // if there are no appended sections, we do not need to go on
     if reader_buffers.is_empty() {
         println!("skipping appended data section - no buffers to write to");
-        return Ok(())
+        return Ok(());
     }
 
     println!("starting read of appended data");
@@ -241,7 +256,8 @@ fn read_appended_data<R: BufRead>(
         read_starting_element_with_name::<error::AppendedData, _>(reader, buffer, "AppendedData")?;
     println!("finished queueing up to appended data section");
 
-    let encoding = get_attribute_value::<error::AppendedData>(&appended_data, "encoding", "AppendedData")?;
+    let encoding =
+        get_attribute_value::<error::AppendedData>(&appended_data, "encoding", "AppendedData")?;
 
     check_attribute_value(encoding, "AppendedData", "encoding", "raw")?;
 
@@ -258,7 +274,9 @@ fn read_starting_element_with_name<'a, E, R: BufRead>(
 where
     E: From<error::UnexpectedElement> + From<error::MalformedXml>,
 {
-    let element = reader.read_event_into(buffer).map_err(error::MalformedXml::from)?;
+    let element = reader
+        .read_event_into(buffer)
+        .map_err(error::MalformedXml::from)?;
 
     let event = if let Event::Start(event) = element {
         event
@@ -266,18 +284,14 @@ where
         dbg!(&element);
         let actual_event = EventSummary::new(&element);
 
-        let unexpected = error::UnexpectedElement::new(
-            expected_name,
-            actual_event
-        );
+        let unexpected = error::UnexpectedElement::new(expected_name, actual_event);
         return Err(E::from(unexpected));
     };
 
     // check that the name of the coordinates header is correct
     if event.name().as_ref() != expected_name.as_bytes() {
         let actual_event = EventSummary::start(&event);
-        let unexpected =
-            error::UnexpectedElement::new(expected_name, actual_event);
+        let unexpected = error::UnexpectedElement::new(expected_name, actual_event);
         return Err(E::from(unexpected));
     }
 
@@ -292,29 +306,26 @@ fn read_empty_or_starting_element<'a, E, R: BufRead>(
 where
     E: From<error::UnexpectedElement> + From<error::MalformedXml>,
 {
-    let element = reader.read_event_into(buffer).map_err(error::MalformedXml::from)?;
+    let element = reader
+        .read_event_into(buffer)
+        .map_err(error::MalformedXml::from)?;
 
     let actual_event = EventSummary::new(&element);
 
-    let (was_empty, event) = 
-        match element {
-            Event::Empty(empty) => (true, empty),
-            Event::Start(start) => (false, start),
-            _ => {
-                dbg!(&element);
-                let actual_event = EventSummary::new(&element);
-                let unexpected = error::UnexpectedElement::new(
-                    expected_name,
-                    actual_event
-                );
-                return Err(E::from(unexpected));
-            }
-        };
+    let (was_empty, event) = match element {
+        Event::Empty(empty) => (true, empty),
+        Event::Start(start) => (false, start),
+        _ => {
+            dbg!(&element);
+            let actual_event = EventSummary::new(&element);
+            let unexpected = error::UnexpectedElement::new(expected_name, actual_event);
+            return Err(E::from(unexpected));
+        }
+    };
 
     // check that the name of the coordinates header is correct
     if event.name().as_ref() != expected_name.as_bytes() {
-        let unexpected =
-            error::UnexpectedElement::new(expected_name, actual_event);
+        let unexpected = error::UnexpectedElement::new(expected_name, actual_event);
         return Err(E::from(unexpected));
     }
 
@@ -328,16 +339,15 @@ fn read_body_element<'a, E, R: BufRead>(
 where
     E: From<error::UnexpectedElement> + From<error::MalformedXml>,
 {
-    let element = reader.read_event_into(buffer).map_err(error::MalformedXml::from)?;
+    let element = reader
+        .read_event_into(buffer)
+        .map_err(error::MalformedXml::from)?;
 
     let event = if let Event::Text(event) = element {
         event
     } else {
         let actual_event = EventSummary::new(&element);
-        let unexpected = error::UnexpectedElement::new(
-            "body element",
-            actual_event
-        );
+        let unexpected = error::UnexpectedElement::new("body element", actual_event);
         return Err(E::from(unexpected));
     };
 
@@ -352,17 +362,16 @@ fn read_ending_element<'a, E, R: BufRead>(
 where
     E: From<error::UnexpectedElement> + From<error::MalformedXml>,
 {
-    let element = reader.read_event_into(buffer).map_err(error::MalformedXml::from)?;
+    let element = reader
+        .read_event_into(buffer)
+        .map_err(error::MalformedXml::from)?;
 
     let event = if let Event::End(event) = element {
         event
     } else {
         dbg!(&element);
         let actual_event = EventSummary::new(&element);
-        let unexpected = error::UnexpectedElement::new(
-            format!("/{expected_name}"),
-            actual_event
-        );
+        let unexpected = error::UnexpectedElement::new(format!("/{expected_name}"), actual_event);
         return Err(E::from(unexpected));
     };
 
@@ -370,8 +379,7 @@ where
     if event.name().as_ref() != expected_name.as_bytes() {
         dbg!(&event);
         let actual_event = EventSummary::end(&event);
-        let unexpected =
-            error::UnexpectedElement::new(expected_name, actual_event);
+        let unexpected = error::UnexpectedElement::new(expected_name, actual_event);
         return Err(E::from(unexpected));
     }
 
@@ -441,12 +449,12 @@ where
     reader.trim_text(true);
 
     let _ = read_to_grid_header(&mut reader, &mut buffer).map_err(ParseError::from)?;
-    
+
     dbg!("finished reading to grid header");
 
     // find the whole extent from the RectilinearGrid header
-    let spans = read_rectilinear_header::<SPAN, _>(&mut reader, &mut buffer)
-        .map_err(ParseError::from)?;
+    let spans =
+        read_rectilinear_header::<SPAN, _>(&mut reader, &mut buffer).map_err(ParseError::from)?;
 
     let _local_spans =
         read_to_coordinates::<SPAN, _>(&mut reader, &mut buffer).map_err(ParseError::from)?;
@@ -458,18 +466,16 @@ where
 
     dbg!("finished reading locations");
 
-    prepare_reading_point_data(&mut reader, &mut buffer)
-        .map_err(ParseError::from)?;
+    prepare_reading_point_data(&mut reader, &mut buffer).map_err(ParseError::from)?;
 
     println!("starting read for arrays: {}", line!());
 
-    let array_visitor = ArrayVisitor::read_headers(&spans, &mut reader, &mut buffer)
-        .map_err(ParseError::from)?;
+    let array_visitor =
+        ArrayVisitor::read_headers(&spans, &mut reader, &mut buffer).map_err(ParseError::from)?;
 
     println!("finished reading arrays: {}", line!());
 
-    close_element_to_appended_data(&mut reader, &mut buffer)
-        .map_err(ParseError::from)?;
+    close_element_to_appended_data(&mut reader, &mut buffer).map_err(ParseError::from)?;
 
     let mut reader_buffer = Vec::new();
     location_visitor.add_to_appended_reader(&mut reader_buffer);
@@ -491,7 +497,7 @@ pub fn parse_dataarray_or_lazy<'a, R: BufRead>(
     expected_name: &str,
     size_hint: usize,
 ) -> Result<PartialDataArray, Mesh> {
-    println!("parse_dataarray_or_lazy, {}",  line!());
+    println!("parse_dataarray_or_lazy, {}", line!());
 
     let (was_empty, header) = read_dataarray_header(reader, buffer, expected_name)?;
 
@@ -520,9 +526,9 @@ pub fn parse_dataarray_or_lazy<'a, R: BufRead>(
     };
 
     // if the element was not empty, then we need to close the element ourselves
-    if !was_empty{
+    if !was_empty {
         println!("reading /DataArray ending element since this dataarray was not empty");
-        // now we have to read the closing element for the dataarray 
+        // now we have to read the closing element for the dataarray
         // so we dont cause any trouble for future routines
         read_ending_element::<Mesh, _>(reader, buffer, "DataArray")?;
         println!("finished reading /DataArray ending element");
@@ -552,21 +558,21 @@ pub fn read_appended_array_buffers<R: BufRead>(
         loop {
             if let Some(current_offset_buffer) = iterator.next() {
                 // get the number of bytes to read based on the next element's offset
-                let offset_length = iterator
-                    .peek()
-                    .map(|offset_buffer| {
-                        let diff = offset_buffer.offset - current_offset_buffer.offset;
-                        diff as usize
-                    });
+                let offset_length = iterator.peek().map(|offset_buffer| {
+                    let diff = offset_buffer.offset - current_offset_buffer.offset;
+                    diff as usize
+                });
 
-                let binary_length = current_offset_buffer.components * current_offset_buffer.num_elements * std::mem::size_of::<f64>();
+                let binary_length = current_offset_buffer.components
+                    * current_offset_buffer.num_elements
+                    * std::mem::size_of::<f64>();
 
                 if let Some(calculated_offset_length) = offset_length {
                     assert_eq!(binary_length, calculated_offset_length);
                 }
 
                 crate::parse::parse_appended_binary(
-                    reader, 
+                    reader,
                     buffer,
                     binary_length,
                     &mut current_offset_buffer.buffer,
@@ -611,7 +617,8 @@ pub fn read_dataarray_header<'a, R: BufRead>(
     expected_name: &str,
 ) -> Result<(bool, DataArrayHeader), Mesh> {
     // read the header for the element, it should have the element name `DataArray`
-    let (was_empty, array_start) = read_empty_or_starting_element::<Mesh, _>(reader, buffer, "DataArray")?;
+    let (was_empty, array_start) =
+        read_empty_or_starting_element::<Mesh, _>(reader, buffer, "DataArray")?;
     dbg!(was_empty);
 
     let num_components =
@@ -625,9 +632,7 @@ pub fn read_dataarray_header<'a, R: BufRead>(
 
     let name = get_attribute_value::<Mesh>(&array_start, "Name", "DataArray")?;
 
-
     let format = get_attribute_value::<Mesh>(&array_start, "format", "DataArray")?;
-
 
     // TODO: better error handling on this
     assert_eq!(name.value, expected_name.as_bytes());
@@ -888,7 +893,7 @@ pub fn clean_garbage_from_reader<R: BufRead>(
     // previous parser used 16 bytes, why?
     //
     // 9 bytes of garbage to remove
-    // 1 byte for the `_` character, 
+    // 1 byte for the `_` character,
     // 8 filler bytes following that character
     let len = 9usize;
 
@@ -912,8 +917,9 @@ pub fn parse_appended_binary<'a, R: BufRead>(
     ensure_buffer_length(buffer, length);
 
     let inner = reader.get_mut();
-    inner.read_exact(&mut buffer.as_mut_slice()[0..length]).unwrap();
-
+    inner
+        .read_exact(&mut buffer.as_mut_slice()[0..length])
+        .unwrap();
 
     let mut idx = 0;
     let inc = 8;
@@ -922,7 +928,7 @@ pub fn parse_appended_binary<'a, R: BufRead>(
         if let Some(byte_slice) = buffer.get(idx..idx + inc) {
             let float = utils::bytes_to_float(byte_slice);
             parsed_bytes.push(float);
-        } 
+        }
 
         idx += inc;
     }
@@ -957,8 +963,28 @@ mod tests {
         let whole_extent = read_rectilinear_header::<Spans3D, _>(&mut reader, &mut buffer).unwrap();
         let local_extent = read_to_coordinates::<Spans3D, _>(&mut reader, &mut buffer).unwrap();
 
-        assert_eq!(whole_extent, Spans3D { x_start: 1, x_end: 220, y_start:1, y_end:200, z_start: 1, z_end: 1});
-        assert_eq!(local_extent, Spans3D { x_start: 1, x_end: 220, y_start:1, y_end:200, z_start: 1, z_end: 1});
+        assert_eq!(
+            whole_extent,
+            Spans3D {
+                x_start: 1,
+                x_end: 220,
+                y_start: 1,
+                y_end: 200,
+                z_start: 1,
+                z_end: 1
+            }
+        );
+        assert_eq!(
+            local_extent,
+            Spans3D {
+                x_start: 1,
+                x_end: 220,
+                y_start: 1,
+                y_end: 200,
+                z_start: 1,
+                z_end: 1
+            }
+        );
     }
 
     #[test]
@@ -985,7 +1011,7 @@ mod tests {
         reader.trim_text(true);
         let mut buffer = Vec::new();
 
-        let _local_extent : Spans3D = read_to_coordinates(&mut reader, &mut buffer).unwrap();
+        let _local_extent: Spans3D = read_to_coordinates(&mut reader, &mut buffer).unwrap();
         let locations =
             crate::mesh::Mesh3DVisitor::read_headers(&spans, &mut reader, &mut buffer).unwrap();
         let out = locations.finish(&spans);
@@ -1169,7 +1195,9 @@ mod tests {
 
         // close off the point data section
         let end_point_data = BytesEnd::new("PointData");
-        event_writer.write_event(Event::End(end_point_data)).unwrap();
+        event_writer
+            .write_event(Event::End(end_point_data))
+            .unwrap();
 
         // close off the piece
         let end_piece = BytesEnd::new("Piece");
@@ -1181,7 +1209,6 @@ mod tests {
 
         // write the data inside the appended section
         crate::write_vtk::appended_binary_header_start(&mut event_writer).unwrap();
-
 
         /*
             current xml at this point is this
@@ -1243,16 +1270,19 @@ mod tests {
 
         let _ = close_element_to_appended_data(&mut reader, &mut buffer).unwrap();
 
-        // open the AppendedData data element 
-        let _ =
-            read_starting_element_with_name::<error::AppendedData, _>(&mut reader, &mut buffer, "AppendedData")
-            .unwrap();
+        // open the AppendedData data element
+        let _ = read_starting_element_with_name::<error::AppendedData, _>(
+            &mut reader,
+            &mut buffer,
+            "AppendedData",
+        )
+        .unwrap();
 
         // remove the garbage bytes from the start of the VTK
         clean_garbage_from_reader(&mut reader, &mut buffer).unwrap();
 
         let len_1 = (header_2 - header_1) as usize;
-        let len_2 = 4*8usize;
+        let len_2 = 4 * 8usize;
 
         let mut data_1 = Vec::new();
         let mut data_2 = Vec::new();
