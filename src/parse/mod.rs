@@ -597,9 +597,10 @@ pub fn parse_dataarray_or_lazy<'a, R: BufRead>(
 
 /// cycle through buffers (and their offsets) and read the binary information from the
 /// <AppendedBinary> section in order
-pub fn read_appended_array_buffers(
+pub fn read_appended_array_buffers<R: BufRead>(
+    reader: &mut Reader<R>,
+    buffer: &mut Vec<u8>,
     mut buffers: Vec<RefMut<'_, OffsetBuffer>>,
-    bytes: &[u8],
 ) -> Result<(), error::AppendedData> {
     // if we have any binary data:
     if buffers.len() > 0 {
@@ -610,9 +611,7 @@ pub fn read_appended_array_buffers(
 
         let mut iterator = buffers.iter_mut().peekable();
 
-        // read the first `_` character, as well as the first 8 bytes of garbage
-        let (mut appended_data, _) =
-            take(16usize)(bytes).map_err(|_: NomErr| error::ParsingBinary::LeadingBytes)?;
+        clean_garbage_from_reader(reader, buffer);
 
         loop {
             if let Some(current_offset_buffer) = iterator.next() {
@@ -625,15 +624,14 @@ pub fn read_appended_array_buffers(
                     })
                     .unwrap_or(crate::parse::AppendedArrayLength::UntilEnd);
 
-                // uncomment the stuff below
-                todo!();
-                //let remaining_appended_data = crate::parse::parse_appended_binary(
-                //    appended_data,
-                //    reading_offset,
-                //    &mut current_offset_buffer.buffer,
-                //)?;
-                //
-                //appended_data = remaining_appended_data
+                let binary_length = current_offset_buffer.components * current_offset_buffer.num_elements * std::mem::size_of::<f64>();
+
+                let remaining_appended_data = crate::parse::parse_appended_binary(
+                    reader, 
+                    buffer,
+                    binary_length,
+                    &mut current_offset_buffer.buffer,
+                )?;
             } else {
                 // there are not more elements in the array - lets leave
                 break;
@@ -724,12 +722,6 @@ pub fn read_dataarray_header<'a, R: BufRead>(
     };
 
     Ok((was_empty, header))
-}
-
-fn take_until_consume<'a>(input: &'a [u8], until_str: &[u8]) -> IResult<&'a [u8], ()> {
-    let (non_consumed, _other) = take_until(until_str)(input)?;
-    let (consumed, _format_header) = tag(until_str)(non_consumed)?;
-    Ok((consumed, ()))
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -842,6 +834,7 @@ pub struct OffsetBuffer {
     pub offset: i64,
     pub buffer: Vec<f64>,
     pub components: usize,
+    pub num_elements: usize,
 }
 
 impl Eq for OffsetBuffer {}
@@ -934,43 +927,66 @@ pub enum AppendedArrayLength {
     UntilEnd,
 }
 
+fn initialize_elements(buffer: &mut Vec<u8>, length: usize) {
+    for _ in 0..length {
+        buffer.push(0);
+    }
+}
+
+fn ensure_buffer_length(buffer: &mut Vec<u8>, length: usize) {
+    if buffer.len() < length {
+        buffer.reserve(length - buffer.len());
+        initialize_elements(buffer, length - buffer.len())
+    }
+}
+
+pub fn clean_garbage_from_reader<R: BufRead>(
+    reader: &mut Reader<R>,
+    buffer: &mut Vec<u8>,
+) -> Result<(), error::AppendedData> {
+    // TODO:
+    // previous parser used 16 bytes, why?
+    //
+    // 9 bytes of garbage to remove
+    // 1 byte for the `_` character, 
+    // 8 filler bytes following that character
+    let len = 9usize;
+
+    // add extra 0 bytes to the buffer if required
+    ensure_buffer_length(buffer, len);
+
+    // pull the bytes manually from the internal reader
+    let inner = reader.get_mut();
+    inner.read_exact(&mut buffer[0..len]).unwrap();
+
+    Ok(())
+}
+
 /// read information from the appended data binary buffer
 pub fn parse_appended_binary<'a, R: BufRead>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
-    length: AppendedArrayLength,
+    length: usize,
     parsed_bytes: &mut Vec<f64>,
-) -> Result<&'a [u8], error::AppendedData> {
+) -> Result<(), error::AppendedData> {
 
-    let (rest, bytes) = match length {
-        AppendedArrayLength::Known(known_length) => {
-            dbg!("slicing  a length of ", known_length);
-            let (rest_of_appended, current_bytes_slice) =
-                take(known_length)(xml_bytes).map_err(|_: NomErr| error::ParsingBinary::BinaryToFloat)?;
-            (rest_of_appended, current_bytes_slice)
-        }
-        AppendedArrayLength::UntilEnd => {
-            // here, we know that the parsing library has already guaranteed the buffer
-            // is at its maximum length so we can simply feed an empty slice to the end
-            ([].as_ref(), xml_bytes)
-        }
-    };
+    let inner = reader.get_mut();
+    inner.read_exact(&mut buffer.as_mut_slice()[0..length]).unwrap();
+
+    ensure_buffer_length(buffer, length);
 
     let mut idx = 0;
     let inc = 8;
 
-    loop {
-        if let Some(byte_slice) = bytes.get(idx..idx + inc) {
+    while idx + inc < length {
+        if let Some(byte_slice) = buffer.get(idx..idx + inc) {
             let float = utils::bytes_to_float(byte_slice);
             parsed_bytes.push(float);
-        } else {
-            break;
-        }
-
+        } 
         idx += inc;
     }
 
-    Ok(rest)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1181,6 +1197,8 @@ mod tests {
         let values = [1.0f64, 2.0, 3.0, 4.0];
         let values2 = [5.0f64, 6.0, 7.0, 8.0];
 
+        dbg!(values[0].to_le_bytes());
+
         let mut output = Vec::new();
         let mut event_writer = crate::Writer::new_with_indent(&mut output, b'0', 4);
 
@@ -1237,25 +1255,25 @@ mod tests {
             <AppendedData encoding="raw">_
         */
 
-        //// need to write a 8 garbage bytes for things to work as expected - this
-        //// is becasue of how paraview expects things
-        //[100f64]
-        //    .as_ref()
-        //    .write_binary(&mut event_writer, false)
-        //    .unwrap();
+        // need to write a 8 garbage bytes for things to work as expected - this
+        // is becasue of how paraview expects things
+        [100f64]
+            .as_ref()
+            .write_binary(&mut event_writer, false)
+            .unwrap();
 
-        //values
-        //    .as_ref()
-        //    .write_binary(&mut event_writer, false)
-        //    .unwrap();
-        //values2
-        //    .as_ref()
-        //    .write_binary(&mut event_writer, true)
-        //    .unwrap();
+        values
+            .as_ref()
+            .write_binary(&mut event_writer, false)
+            .unwrap();
+        values2
+            .as_ref()
+            .write_binary(&mut event_writer, true)
+            .unwrap();
 
         crate::write_vtk::appended_binary_header_end(&mut event_writer).unwrap();
 
-        //let x = String::from_utf8(output).unwrap();
+        //let x = String::from_utf8_lossy(&output);
         //println!("{x}");
 
         /*
@@ -1289,24 +1307,20 @@ mod tests {
             read_starting_element_with_name::<error::AppendedData, _>(&mut reader, &mut buffer, "AppendedData")
             .unwrap();
 
-        // then, open up the body of the appendeddata section
-        let body_elem = read_body_element::<error::AppendedData, _>(&mut reader, &mut buffer)
-            .unwrap();
-        let bytes : &[u8] = body_elem.as_ref();
+        // remove the garbage bytes from the start of the VTK
+        clean_garbage_from_reader(&mut reader, &mut buffer).unwrap();
 
 
         let len_1 = AppendedArrayLength::Known((header_2 - header_1) as usize);
-        let len_2 = AppendedArrayLength::UntilEnd;
+        let len_2 = AppendedArrayLength::Known(4*8);
 
         let mut data_1 = Vec::new();
         let mut data_2 = Vec::new();
 
-        let rest = parse_appended_binary(bytes, len_1, &mut data_1).unwrap();
-        let _ = parse_appended_binary(rest, len_2, &mut data_2).unwrap();
+        parse_appended_binary(&mut reader, &mut buffer, len_1, &mut data_1).unwrap();
+        parse_appended_binary(&mut reader, &mut buffer, len_2, &mut data_2).unwrap();
 
         assert_eq!(values.as_ref(), data_1);
         assert_eq!(values2.as_ref(), data_2);
-
-        panic!()
     }
 }
