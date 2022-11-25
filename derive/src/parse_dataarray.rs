@@ -111,7 +111,7 @@ fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ide
                 #append_to_buffer
             }
 
-            fn finish(self, spans: &#span_type) -> Result<Self::Output, vtk::ParseError> {
+            fn finish(self, spans: &#span_type) -> Self::Output {
                 #finish
             }
         }
@@ -208,7 +208,7 @@ fn visitor_finish(output_ident: &syn::Ident, fields: &[ValidatedField]) -> proc_
 
     quote!(
         #out 
-        Ok(#output_ident { #comma_sep_fields} )
+        #output_ident { #comma_sep_fields}
     )
 }
 

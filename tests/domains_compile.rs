@@ -5,7 +5,6 @@ use vtk::prelude::*;
 use vtk::Binary;
 use vtk::Mesh2D;
 use vtk::Mesh3D;
-use vtk::ParseError;
 use vtk::Rectilinear2D;
 use vtk::Rectilinear3D;
 use vtk::Spans2D;

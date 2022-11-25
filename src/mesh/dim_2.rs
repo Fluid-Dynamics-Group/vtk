@@ -282,11 +282,11 @@ impl Visitor<Spans2D> for Mesh2DVisitor {
         self.z_locations.append_to_reader_list(buffer);
     }
 
-    fn finish(self, _spans: &Spans2D) -> Result<Self::Output, ParseError> {
+    fn finish(self, _spans: &Spans2D) -> Self::Output {
         let x_locations = self.x_locations.into_buffer();
         let y_locations = self.y_locations.into_buffer();
         //let z_locations = self.z_locations.into_buffer();
 
-        Ok(Mesh2D::new(x_locations, y_locations))
+        Mesh2D::new(x_locations, y_locations)
     }
 }

@@ -1,13 +1,11 @@
 use crate::prelude::*;
 
-use quick_xml::events::attributes::Attribute;
 use quick_xml::events::BytesEnd;
 use quick_xml::events::BytesStart;
 use quick_xml::events::BytesText;
 use quick_xml::events::Event;
 use quick_xml::events;
 use quick_xml::name::QName;
-use quick_xml::reader::Reader;
 
 use super::error::ParsedNameOrBytes;
 
@@ -57,7 +55,9 @@ impl EventSummary {
         }
     }
 
-    pub(crate) fn text(bytes: &BytesText<'_>) -> Self {
+    // argument is only here to ensure the wrong method
+    // cannot be called
+    pub(crate) fn text(_bytes: &BytesText<'_>) -> Self {
         Self {
             name: None,
             e_type: "text"
@@ -141,7 +141,7 @@ impl ElementName for Event<'_> {
     }
 }
 
-fn event_type(event: &Event) -> &'static str {
+pub fn event_type(event: &Event) -> &'static str {
     match event {
         Event::Start(_) => "start",
         Event::End(_) => "end",

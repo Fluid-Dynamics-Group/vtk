@@ -8,78 +8,22 @@ mod error;
 
 use event_summary::EventSummary;
 use event_summary::ElementName;
-pub use error::NeoParseError;
+pub use error::ParseError;
 pub use error::Mesh;
 
 use crate::prelude::*;
 use crate::utils;
-use nom::bytes::complete::{tag, take, take_till, take_until};
+//use nom::bytes::complete::{tag, take, take_till, take_until};
 
-use std::fs::File;
 use std::io::BufRead;
-use std::io::BufReader;
-use std::io::Read;
-use std::fmt;
 
 use quick_xml::events::attributes::Attribute;
 use quick_xml::events::BytesEnd;
 use quick_xml::events::BytesStart;
 use quick_xml::events::BytesText;
 use quick_xml::events::Event;
-use quick_xml::events;
 use quick_xml::name::QName;
 use quick_xml::reader::Reader;
-
-type NomErr<'a> = nom::Err<nom::error::Error<&'a [u8]>>;
-
-/// An error caused from parsing the vtk files
-#[derive(Debug, thiserror::Error)]
-pub struct ParseError {
-    nom_reason: Vec<u8>,
-    nom_code: nom::error::ErrorKind,
-    extra_info: &'static str,
-}
-
-impl ParseError {
-    pub fn from_nom(x: NomErr, extra_info: &'static str) -> Self {
-        let error = match x {
-            nom::Err::Incomplete(_) => unreachable!(),
-            nom::Err::Error(e) => e,
-            nom::Err::Failure(e) => e,
-        };
-        Self {
-            nom_reason: error.input.to_vec(),
-            nom_code: error.code,
-            extra_info,
-        }
-    }
-}
-impl<'a> From<NomErr<'a>> for ParseError {
-    fn from(x: NomErr<'a>) -> Self {
-        ParseError::from_nom(x, "Caused by From Impl")
-    }
-}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match String::from_utf8(self.nom_reason.clone()) {
-            Ok(string_representation) => {
-                write!(
-                    f,
-                    "reason:{} \tnom_reason:{} \t errorcode:{:?}",
-                    self.extra_info, string_representation, self.nom_code
-                )
-            }
-            Err(_) => {
-                write!(
-                    f,
-                    "reason:{} \t <nom reason omitted> \t errorcode:{:?} (could not convert nom bytes to string- fallback)",
-                    self.extra_info, self.nom_code
-                )
-            }
-        }
-    }
-}
 
 /// read in and parse an entire vtk file for a given path
 pub fn read_and_parse<GEOMETRY, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
@@ -496,45 +440,45 @@ where
     // ignore whitespace in the reader
     reader.trim_text(true);
 
-    let _ = read_to_grid_header(&mut reader, &mut buffer).map_err(NeoParseError::from)?;
+    let _ = read_to_grid_header(&mut reader, &mut buffer).map_err(ParseError::from)?;
     
     dbg!("finished reading to grid header");
 
     // find the whole extent from the RectilinearGrid header
     let spans = read_rectilinear_header::<SPAN, _>(&mut reader, &mut buffer)
-        .map_err(NeoParseError::from)?;
+        .map_err(ParseError::from)?;
 
-    let local_spans =
-        read_to_coordinates::<SPAN, _>(&mut reader, &mut buffer).map_err(NeoParseError::from)?;
+    let _local_spans =
+        read_to_coordinates::<SPAN, _>(&mut reader, &mut buffer).map_err(ParseError::from)?;
 
     dbg!("reading locations");
 
     let location_visitor =
-        MeshVisitor::read_headers(&spans, &mut reader, &mut buffer).map_err(NeoParseError::from)?;
+        MeshVisitor::read_headers(&spans, &mut reader, &mut buffer).map_err(ParseError::from)?;
 
     dbg!("finished reading locations");
 
     prepare_reading_point_data(&mut reader, &mut buffer)
-        .map_err(NeoParseError::from)?;
+        .map_err(ParseError::from)?;
 
     println!("starting read for arrays: {}", line!());
 
     let array_visitor = ArrayVisitor::read_headers(&spans, &mut reader, &mut buffer)
-        .map_err(NeoParseError::from)?;
+        .map_err(ParseError::from)?;
 
     println!("finished reading arrays: {}", line!());
 
     close_element_to_appended_data(&mut reader, &mut buffer)
-        .map_err(NeoParseError::from)?;
+        .map_err(ParseError::from)?;
 
     let mut reader_buffer = Vec::new();
     location_visitor.add_to_appended_reader(&mut reader_buffer);
     array_visitor.add_to_appended_reader(&mut reader_buffer);
 
-    read_appended_data(&mut reader, &mut buffer, reader_buffer).map_err(NeoParseError::from)?;
+    read_appended_data(&mut reader, &mut buffer, reader_buffer).map_err(ParseError::from)?;
 
-    let data: D = array_visitor.finish(&spans)?;
-    let mesh: MESH = location_visitor.finish(&spans)?;
+    let data: D = array_visitor.finish(&spans);
+    let mesh: MESH = location_visitor.finish(&spans);
     let domain = DOMAIN::from((mesh, spans));
 
     Ok(VtkData { domain, data })
@@ -1044,7 +988,7 @@ mod tests {
         let _local_extent : Spans3D = read_to_coordinates(&mut reader, &mut buffer).unwrap();
         let locations =
             crate::mesh::Mesh3DVisitor::read_headers(&spans, &mut reader, &mut buffer).unwrap();
-        let out = locations.finish(&spans).unwrap();
+        let out = locations.finish(&spans);
 
         prepare_reading_point_data(&mut reader, &mut buffer).unwrap();
 

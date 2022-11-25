@@ -309,12 +309,12 @@ impl Visitor<Spans3D> for Mesh3DVisitor {
         self.z_locations.append_to_reader_list(buffer);
     }
 
-    fn finish(self, _spans: &Spans3D) -> Result<Self::Output, ParseError> {
+    fn finish(self, _spans: &Spans3D) -> Self::Output {
         let x_locations = self.x_locations.into_buffer();
         let y_locations = self.y_locations.into_buffer();
         let z_locations = self.z_locations.into_buffer();
 
-        Ok(Mesh3D::new(x_locations, y_locations, z_locations))
+        Mesh3D::new(x_locations, y_locations, z_locations)
     }
 }
 
@@ -348,7 +348,7 @@ impl<T> Visitor<T> for ArrayContainerVisitor {
         unimplemented!()
     }
 
-    fn finish(self, spans: &T) -> Result<Self::Output, ParseError> {
+    fn finish(self, spans: &T) -> Self::Output {
         unimplemented!()
     }
 }

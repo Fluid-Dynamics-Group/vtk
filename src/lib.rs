@@ -28,13 +28,13 @@ pub use write_vtk::write_vtk;
 pub use write_vtk::{write_appended_dataarray_header, write_inline_dataarray, Encoding};
 
 pub use parse::read_and_parse as read_vtk;
-pub use parse::ParseError;
+//pub use parse::ParseError;
 
 #[cfg(feature = "derive")]
 pub use vtk_derive::{DataArray, ParseArray};
 
 pub use ndarray;
-pub use nom;
+//pub use nom;
 
 pub use quick_xml::writer::Writer;
 pub use quick_xml::reader::Reader;
@@ -44,12 +44,8 @@ pub use quick_xml::reader::Reader;
 pub enum Error {
     #[error("An io error occured: `{0}`")]
     Io(#[from] std::io::Error),
-    //#[error("The xml data inputted was malformed: `{0}`")]
-    //Xml(#[from] quick_xml::Error),
-    #[error("Error when parsing the xml data: `{0}`")]
-    Nom(#[from] parse::ParseError),
-    #[error("asdf")]
-    ParseNeo(#[from] parse::NeoParseError),
+    #[error("Error while parsing VTK xml")]
+    Parse(#[from] parse::ParseError),
     #[error("Could not convert file to uf8 encoding: `{0}`")]
     Utf8(#[from] std::string::FromUtf8Error),
     #[error("Could not write XML data to file: `{0}`")]
@@ -122,11 +118,11 @@ mod helpers {
         ) {
             self.u.append_to_reader_list(buffer);
         }
-        fn finish(self, spans: &vtk::Spans3D) -> Result<Self::Output, vtk::ParseError> {
+        fn finish(self, spans: &vtk::Spans3D) -> Self::Output {
             let comp = self.u.components();
             let u = self.u.into_buffer();
             let u = vtk::FromBuffer::from_buffer(u, &spans, comp);
-            Ok(SpanData { u })
+            SpanData { u }
         }
     }
 

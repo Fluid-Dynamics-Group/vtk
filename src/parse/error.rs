@@ -2,30 +2,23 @@ use crate::prelude::*;
 
 use super::event_summary::EventSummary;
 
-use quick_xml::events::attributes::Attribute;
-use quick_xml::events::BytesEnd;
-use quick_xml::events::BytesStart;
-use quick_xml::events::BytesText;
-use quick_xml::events::Event;
-use quick_xml::events;
 use quick_xml::name::QName;
-use quick_xml::reader::Reader;
 
 #[derive(Debug, thiserror::Error, From)]
-pub enum NeoParseError {
-    #[error("Error parsing vtk file before coordinate section: {0}")]
+pub enum ParseError {
+    #[error("parsing header of VTK document")]
     Header(Header),
-    #[error("Error parsing vtk file before coordinate section: {0}")]
+    #[error("parsing <RectilinearGrid> element, and its associated WholeExtent attribute: `{0}`")]
     RectilinearHeader(RectilinearHeader),
-    #[error("Error parsing vtk file before coordinate section: {0}")]
+    #[error("parsing <Piece> and <Coordinates> elements before reading grid location data: `{0}`")]
     CoordinatesHeader(CoordinatesHeader),
-    #[error("Error parsing vtk file before coordinate section: {0}")]
+    #[error("parsing <DataArray> elements within the coordinate or data point regions: `{0}`")]
     Mesh(Mesh),
-    #[error("Error parsing vtk file before coordinate section: {0}")]
+    #[error("parsing elements between <Coordinate> data and <PointData>: `{0}`")]
     PreparePointData(PreparePointData),
-    #[error("Error parsing vtk file before coordinate section: {0}")]
+    #[error("parsing closing elements of the document before <AppendedData>: `{0}`")]
     CloseElements(CloseElements),
-    #[error("Error parsing vtk file before coordinate section: {0}")]
+    #[error("parsing <AppendedData> section: `{0}`")]
     AppendedData(AppendedData),
 }
 
@@ -130,13 +123,9 @@ pub enum RectilinearHeader {
     #[error("{0}")]
     MalformedXml(MalformedXml),
     #[error("{0}")]
-    MalformedAttribute(MalformedAttribute),
-    #[error("{0}")]
     MissingAttribute(MissingAttribute),
     #[error("{0}")]
     UnexpectedElement(UnexpectedElement),
-    #[error("{0}")]
-    UnexpectedAttributeValue(UnexpectedAttributeValue),
 }
 
 #[derive(Debug, thiserror::Error, From)]
@@ -144,13 +133,9 @@ pub enum CoordinatesHeader {
     #[error("{0}")]
     MalformedXml(MalformedXml),
     #[error("{0}")]
-    MalformedAttribute(MalformedAttribute),
-    #[error("{0}")]
     MissingAttribute(MissingAttribute),
     #[error("{0}")]
     UnexpectedElement(UnexpectedElement),
-    #[error("{0}")]
-    UnexpectedAttributeValue(UnexpectedAttributeValue),
 }
 
 #[derive(Debug, thiserror::Error, From)]
@@ -158,15 +143,9 @@ pub enum Mesh {
     #[error("{0}")]
     MalformedXml(MalformedXml),
     #[error("{0}")]
-    MalformedAttribute(MalformedAttribute),
-    #[error("{0}")]
     MissingAttribute(MissingAttribute),
     #[error("{0}")]
     UnexpectedElement(UnexpectedElement),
-    #[error("{0}")]
-    UnexpectedAttributeValue(UnexpectedAttributeValue),
-    #[error("{0}")]
-    InlineAsciiArray(InlineAsciiArray),
 }
 
 #[derive(Debug, thiserror::Error, From)]
@@ -174,15 +153,7 @@ pub enum PreparePointData {
     #[error("{0}")]
     MalformedXml(MalformedXml),
     #[error("{0}")]
-    MalformedAttribute(MalformedAttribute),
-    #[error("{0}")]
-    MissingAttribute(MissingAttribute),
-    #[error("{0}")]
     UnexpectedElement(UnexpectedElement),
-    #[error("{0}")]
-    UnexpectedAttributeValue(UnexpectedAttributeValue),
-    #[error("{0}")]
-    InlineAsciiArray(InlineAsciiArray),
 }
 
 #[derive(Debug, thiserror::Error, From)]
@@ -190,15 +161,7 @@ pub enum CloseElements {
     #[error("{0}")]
     MalformedXml(MalformedXml),
     #[error("{0}")]
-    MalformedAttribute(MalformedAttribute),
-    #[error("{0}")]
-    MissingAttribute(MissingAttribute),
-    #[error("{0}")]
     UnexpectedElement(UnexpectedElement),
-    #[error("{0}")]
-    UnexpectedAttributeValue(UnexpectedAttributeValue),
-    #[error("{0}")]
-    InlineAsciiArray(InlineAsciiArray),
 }
 
 #[derive(Debug, thiserror::Error, From)]
@@ -206,15 +169,11 @@ pub enum AppendedData {
     #[error("{0}")]
     MalformedXml(MalformedXml),
     #[error("{0}")]
-    MalformedAttribute(MalformedAttribute),
-    #[error("{0}")]
     MissingAttribute(MissingAttribute),
     #[error("{0}")]
     UnexpectedElement(UnexpectedElement),
     #[error("{0}")]
     UnexpectedAttributeValue(UnexpectedAttributeValue),
-    #[error("{0}")]
-    InlineAsciiArray(InlineAsciiArray),
     #[error("{0}")]
     ParsingBinary(ParsingBinary),
 }

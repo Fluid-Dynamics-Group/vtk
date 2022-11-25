@@ -8,8 +8,6 @@
 
 use crate::parse;
 use crate::Error;
-use crate::ParseError;
-use nom::IResult;
 use std::cell::RefMut;
 use std::io::BufRead;
 use std::io::Write;
@@ -288,7 +286,7 @@ where
 
     /// After all the binary data has been read, the `finish` function finalizes any last-minute
     /// changes before returning the full information of the type we have been parsing towards.
-    fn finish(self, spans: &Spans) -> Result<Self::Output, ParseError>;
+    fn finish(self, spans: &Spans) -> Self::Output;
 }
 
 pub trait Span {
