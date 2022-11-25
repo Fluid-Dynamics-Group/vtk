@@ -4,7 +4,7 @@
 pub use crate::data::VtkData;
 pub use crate::traits::{
     Array, DataArray, Domain, Encode, FromBuffer, Numeric, ParseArray, ParseMesh, ParseSpan,
-    Visitor,
+    Visitor, Span
 };
 
 pub(crate) use quick_xml::events::BytesEnd;

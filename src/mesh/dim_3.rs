@@ -182,6 +182,12 @@ impl ParseSpan for Spans3D {
     }
 }
 
+impl Span for Spans3D {
+    fn num_elements(&self) -> usize {
+        self.x_len() * self.y_len() * self.z_len()
+    }
+}
+
 impl<NUM> Domain<Binary> for Rectilinear3D<NUM, Binary>
 where
     NUM: Numeric,

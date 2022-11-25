@@ -112,7 +112,7 @@ mod helpers {
             buffer: &mut Vec<u8>,
         ) -> Result<Self, crate::parse::Mesh> {
             let u = vtk::parse::parse_dataarray_or_lazy(reader, buffer, "u", 0)?;
-            let u = vtk::parse::PartialDataArrayBuffered::new(u, 0);
+            let u = vtk::parse::PartialDataArrayBuffered::new(u, 0, spans.num_elements());
             let visitor = SpanDataVisitor { u };
             Ok(visitor)
         }

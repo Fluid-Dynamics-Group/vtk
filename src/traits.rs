@@ -288,6 +288,10 @@ where
     fn finish(self, spans: &Spans) -> Result<Self::Output, ParseError>;
 }
 
+pub trait Span {
+    fn num_elements(&self) -> usize;
+}
+
 /// Helper trait to provide type information on a dataarray
 ///
 /// This trait should almost certainly be derived. See the documentation on the [`Visitor`]

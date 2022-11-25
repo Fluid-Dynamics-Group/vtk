@@ -155,6 +155,12 @@ impl ParseSpan for Spans2D {
     }
 }
 
+impl Span for Spans2D {
+    fn num_elements(&self) -> usize {
+        self.x_len() * self.y_len() * 1
+    }
+}
+
 impl<NUM> Domain<Binary> for Rectilinear2D<NUM, Binary>
 where
     NUM: Numeric,

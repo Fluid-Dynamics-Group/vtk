@@ -132,8 +132,9 @@ fn visitor_read_headers(visitor_name: &syn::Ident, fields: &[ValidatedField]) ->
         // TODO: fix this size estimation somehow?
         out = quote!(
             #out
-            let #fieldname = vtk::parse::parse_dataarray_or_lazy(reader, buffer, #lit, 0)?;
-            let #fieldname = vtk::parse::PartialDataArrayBuffered::new(#fieldname, 0);
+            let length = vtk::Span::num_elements(spans);
+            let #fieldname = vtk::parse::parse_dataarray_or_lazy(reader, buffer, #lit, length)?;
+            let #fieldname = vtk::parse::PartialDataArrayBuffered::new(#fieldname, length);
         );
     }
 

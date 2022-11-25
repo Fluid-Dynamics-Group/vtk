@@ -309,7 +309,7 @@ fn read_appended_data<R: BufRead>(
     //let string_ver = String::from_utf8(bytes.as_ref()).unwrap();
     //println!("string version: \n{string_ver}");
 
-    read_appended_array_buffers(reader_buffers, bytes.as_ref())?;
+    read_appended_array_buffers(reader, buffer, reader_buffers)?;
 
     Ok(())
 }
@@ -781,7 +781,7 @@ pub enum PartialDataArrayBuffered {
 
 impl<'a> PartialDataArrayBuffered {
     /// Construct a buffer associated with appended binary
-    pub fn new(partial: PartialDataArray, size_hint: usize) -> Self {
+    pub fn new(partial: PartialDataArray, num_elements: usize) -> Self {
         match partial {
             PartialDataArray::Parsed { buffer, components } => {
                 PartialDataArrayBuffered::Parsed { buffer, components }
@@ -789,8 +789,9 @@ impl<'a> PartialDataArrayBuffered {
             PartialDataArray::AppendedBinary { offset, components } => {
                 PartialDataArrayBuffered::AppendedBinary(RefCell::new(OffsetBuffer {
                     offset,
-                    buffer: Vec::with_capacity(size_hint),
+                    buffer: Vec::with_capacity(num_elements * components),
                     components,
+                    num_elements,
                 }))
             }
         }
@@ -978,7 +979,7 @@ pub fn parse_appended_binary<'a, R: BufRead>(
     let mut idx = 0;
     let inc = 8;
 
-    while idx + inc < length {
+    while idx + inc <= length {
         if let Some(byte_slice) = buffer.get(idx..idx + inc) {
             let float = utils::bytes_to_float(byte_slice);
             parsed_bytes.push(float);
@@ -1310,9 +1311,8 @@ mod tests {
         // remove the garbage bytes from the start of the VTK
         clean_garbage_from_reader(&mut reader, &mut buffer).unwrap();
 
-
-        let len_1 = AppendedArrayLength::Known((header_2 - header_1) as usize);
-        let len_2 = AppendedArrayLength::Known(4*8);
+        let len_1 = (header_2 - header_1) as usize;
+        let len_2 = 4*8usize;
 
         let mut data_1 = Vec::new();
         let mut data_2 = Vec::new();
