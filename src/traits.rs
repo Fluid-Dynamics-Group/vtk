@@ -354,7 +354,7 @@ mod testgen {
 }
 
 /// A trait to abstract over [`f64`] and [`f32`] container data types
-pub trait Numeric: std::cmp::PartialEq<Self> + ryu::Float + Sized {
+pub trait Numeric: std::cmp::PartialEq<Self> + ryu::Float + Sized  + std::str::FromStr {
     const SIZE: usize = std::mem::size_of::<Self>();
     const ZERO: Self;
     const SMALL: Self;

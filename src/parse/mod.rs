@@ -791,12 +791,17 @@ impl Eq for OffsetBuffer {}
 ///
 /// ensure that before calling this function you have verified
 /// that the data is base64 encoded with a call to `read_dataarray_header`
-fn parse_ascii_inner_dataarray<'a, R: BufRead>(
+fn parse_ascii_inner_dataarray<'a, R, NUM>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
     size_hint: usize,
     array_name: &str,
-) -> Result<Vec<f64>, Mesh> {
+) -> Result<Vec<NUM>, Mesh> 
+where 
+    R: BufRead,
+    NUM: std::str::FromStr,
+    <NUM as std::str::FromStr>::Err : std::fmt::Debug
+{
     let event = read_body_element::<Mesh, _>(reader, buffer)?;
     let xml_bytes = event.into_inner();
 
@@ -822,12 +827,14 @@ fn parse_ascii_inner_dataarray<'a, R: BufRead>(
 ///
 /// ensure that before calling this function you have verified
 /// that the data is base64 encoded with a call to `read_dataarray_header`
-fn parse_base64_inner_dataarray<'a, R: BufRead>(
+fn parse_base64_inner_dataarray<'a, R, NUM>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
     size_hint: usize,
     expected_name: &str,
-) -> Result<Vec<f64>, Mesh> {
+) -> Result<Vec<NUM>, Mesh>
+where R: BufRead,
+      NUM: Numeric {
     let event = read_body_element::<Mesh, _>(reader, buffer)?;
 
     let base64_encoded_bytes = event.into_inner();
@@ -850,15 +857,7 @@ fn parse_base64_inner_dataarray<'a, R: BufRead>(
                 break;
             }
 
-            let mut const_slice = [0; 8];
-            // copy in the slice to a fixed size array
-            // could use unsafe here if we really wanted to
-            byte_slice
-                .iter()
-                .enumerate()
-                .for_each(|(slice_index, value)| const_slice[slice_index] = *value);
-
-            let float = f64::from_le_bytes(const_slice);
+            let float = NUM::bytes_to_float(byte_slice);
             out.push(float);
         } else {
             break;
@@ -868,11 +867,6 @@ fn parse_base64_inner_dataarray<'a, R: BufRead>(
     }
 
     Ok(out)
-}
-
-pub enum AppendedArrayLength {
-    Known(usize),
-    UntilEnd,
 }
 
 fn initialize_elements(buffer: &mut Vec<u8>, length: usize) {
