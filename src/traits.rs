@@ -56,7 +56,7 @@ use crate::prelude::*;
 ///     fn write_appended_dataarrays<W: Write>(
 ///         &self,
 ///         writer: &mut Writer<W>,
-///     ) -> Result<(), crate::Error> {
+///     ) -> Result<(), vtk::Error> {
 ///         Ok(())
 ///     }
 /// }
@@ -243,11 +243,11 @@ pub trait ParseMesh {
 ///     ) {
 ///         self.u.append_to_reader_list(buffer);
 ///     }
-///     fn finish(self, spans: &vtk::Spans3D) -> Result<Self::Output, vtk::ParseError> {
+///     fn finish(self, spans: &vtk::Spans3D) -> Self::Output {
 ///         let comp = self.u.components();
 ///         let u = self.u.into_buffer();
 ///         let u = vtk::FromBuffer::from_buffer(u, &spans, comp);
-///         Ok(SpanData { u })
+///         SpanData { u }
 ///     }
 /// }
 /// ```

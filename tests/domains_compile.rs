@@ -1,4 +1,3 @@
-use nom::IResult;
 use std::cell::RefMut;
 use vtk::parse;
 use vtk::prelude::*;
@@ -57,8 +56,8 @@ impl<T> Visitor<T> for ArrayContainerVisitor {
     ) {
     }
 
-    fn finish(self, _: &T) -> Result<Self::Output, ParseError> {
-        Ok(ArrayContainer)
+    fn finish(self, _: &T) -> Self::Output {
+        ArrayContainer
     }
 }
 
