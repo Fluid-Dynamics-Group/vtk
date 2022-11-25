@@ -7,6 +7,7 @@ mod event_summary;
 mod error;
 
 use event_summary::EventSummary;
+use event_summary::ElementName;
 pub use error::NeoParseError;
 pub use error::Mesh;
 
@@ -210,8 +211,57 @@ fn close_element_to_appended_data<R: BufRead>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
 ) -> Result<(), error::CloseElements> {
+    println!("reading through to find </PointData> now");
+
     // first, we should have a closing element for PointData
-    let _ = read_ending_element::<error::CloseElements, _>(reader, buffer, "PointData")?;
+    // however, we may have some unread <DataArray> elements that are still remaining
+    // in the <PointData> section. These are allowed, so we just read through the VTK until
+    // we find </PointData>
+    let mut text_allowed = false;
+
+    loop {
+        let element = reader.read_event_into(buffer).map_err(error::MalformedXml::from)?;
+
+        let repr = EventSummary::new(&element);
+        println!("element: {}", repr);
+
+        match element {
+            Event::Start(s) => {
+                // we are opening a dataarray
+                if s.byte_name().as_ref().unwrap().as_ref() == b"DataArray" {
+                    text_allowed = true;
+                    continue
+                }
+            }
+            Event::End(s) => {
+                // we have hit the point data, exit now
+                if s.byte_name().as_ref().unwrap().as_ref() == b"PointData" {
+                    break
+                } 
+                // we are closing a dataarray
+                else if s.byte_name().as_ref().unwrap().as_ref()== b"DataArray" {
+                    text_allowed = false;
+                    continue
+                }
+            }
+            Event::Text(s) => {
+                if text_allowed {
+                    // we previously opened an element, now we can have text inside.
+                    // this case may just be handled by the XML parser
+                    continue
+                } else {
+                    let actual = EventSummary::text(&s);
+                    return Err(error::UnexpectedElement::new("PointData,DataArray,/DataArray", actual).into());
+                }
+            }
+            _ => {
+                // we have hit something else,
+                let actual = EventSummary::new(&element);
+                return Err(error::UnexpectedElement::new("PointData,DataArray,/DataArray", actual).into());
+            }
+        }
+    }
+
     // then, we should have a </Piece>
     let _ = read_ending_element::<error::CloseElements, _>(reader, buffer, "Piece")?;
     // then, we should have a </RectilinearGrid>
@@ -279,7 +329,7 @@ where
 
     // check that the name of the coordinates header is correct
     if event.name().as_ref() != expected_name.as_bytes() {
-        let actual_event = EventSummary::start(event);
+        let actual_event = EventSummary::start(&event);
         let unexpected =
             error::UnexpectedElement::new(expected_name, actual_event);
         return Err(E::from(unexpected));
@@ -373,7 +423,7 @@ where
     // check that the name of the coordinates header is correct
     if event.name().as_ref() != expected_name.as_bytes() {
         dbg!(&event);
-        let actual_event = EventSummary::end(event);
+        let actual_event = EventSummary::end(&event);
         let unexpected =
             error::UnexpectedElement::new(expected_name, actual_event);
         return Err(E::from(unexpected));
@@ -486,19 +536,6 @@ where
     let domain = DOMAIN::from((mesh, spans));
 
     Ok(VtkData { domain, data })
-}
-
-#[allow(dead_code)]
-fn print_n_chars(i: &[u8], chars: usize) {
-    if i.len() > chars {
-        let slice = i.get(0..chars).unwrap();
-        match std::str::from_utf8(slice) {
-            Ok(string_slice) => println!("{}", string_slice),
-            Err(_e) => println!("-- could not parse bytes as string"),
-        }
-    } else {
-        println!("ommitting print since string is too short")
-    }
 }
 
 /// Parse a data array (if its inline) or return the offset in the appended section

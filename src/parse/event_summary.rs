@@ -43,28 +43,40 @@ impl EventSummary {
         }
     }
 
-    pub(crate) fn start(bytes: BytesStart<'_>) -> Self {
+    pub(crate) fn start(bytes: &BytesStart<'_>) -> Self {
         Self {
             name: bytes.event_name(),
             e_type: "start"
         }
     }
 
-    pub(crate) fn end(bytes: BytesEnd<'_>) -> Self {
+    pub(crate) fn end(bytes: &BytesEnd<'_>) -> Self {
         Self {
             name: bytes.event_name(),
             e_type: "end"
+        }
+    }
+
+    pub(crate) fn text(bytes: &BytesText<'_>) -> Self {
+        Self {
+            name: None,
+            e_type: "text"
         }
     }
 }
 
 pub(crate) trait ElementName {
     fn event_name(&self) -> Option<ParsedNameOrBytes>;
+    fn byte_name(&self) -> Option<QName<'_>>;
 }
 
 impl ElementName for BytesStart<'_> {
     fn event_name(&self) -> Option<ParsedNameOrBytes> {
         Some(ParsedNameOrBytes::from(self.name()))
+    }
+
+    fn byte_name(&self) -> Option<QName<'_>> {
+        self.name().into()
     }
 }
 
@@ -72,10 +84,18 @@ impl ElementName for BytesEnd<'_> {
     fn event_name(&self) -> Option<ParsedNameOrBytes> {
         Some(ParsedNameOrBytes::from(self.name()))
     }
+
+    fn byte_name(&self) -> Option<QName<'_>> {
+        self.name().into()
+    }
 }
 
 impl ElementName for BytesText<'_> {
     fn event_name(&self) -> Option<ParsedNameOrBytes> {
+        None
+    }
+
+    fn byte_name(&self) -> Option<QName<'_>> {
         None
     }
 }
@@ -84,26 +104,38 @@ impl ElementName for events::BytesCData<'_> {
     fn event_name(&self) -> Option<ParsedNameOrBytes> {
         None
     }
+
+    fn byte_name(&self) -> Option<QName<'_>> {
+        None
+    }
 }
 
 impl ElementName for events::BytesDecl<'_> {
     fn event_name(&self) -> Option<ParsedNameOrBytes> {
         None
     }
+
+    fn byte_name(&self) -> Option<QName<'_>> {
+        None
+    }
 }
 
 impl ElementName for Event<'_> { 
     fn event_name(&self) -> Option<ParsedNameOrBytes> {
+        ElementName::byte_name(self).map(|name| ParsedNameOrBytes::from(name))
+    }
+
+    fn byte_name(&self) -> Option<QName<'_>> {
         match &self {
-            Event::Start(s) => s.event_name(),
-            Event::End(e) => e.event_name(),
-            Event::Empty(s) => s.event_name(),
-            Event::Text(x) => x.event_name(),
-            Event::Comment(x) => x.event_name(),
-            Event::CData(x) => x.event_name(),
-            Event::Decl(x) => x.event_name(),
-            Event::PI(x) => x.event_name(),
-            Event::DocType(x) => x.event_name(),
+            Event::Start(s) => s.byte_name(),
+            Event::End(e) => e.byte_name(),
+            Event::Empty(s) => s.byte_name(),
+            Event::Text(x) => x.byte_name(),
+            Event::Comment(x) => x.byte_name(),
+            Event::CData(x) => x.byte_name(),
+            Event::Decl(x) => x.byte_name(),
+            Event::PI(x) => x.byte_name(),
+            Event::DocType(x) => x.byte_name(),
             Event::Eof => None
         }
     }
