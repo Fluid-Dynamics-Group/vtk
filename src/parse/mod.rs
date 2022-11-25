@@ -546,6 +546,9 @@ pub fn read_appended_array_buffers<R: BufRead>(
 ) -> Result<(), error::AppendedData> {
     // if we have any binary data:
     if buffers.len() > 0 {
+
+        let inner = reader.get_mut();
+
         //we have some data to read - first organize all of the data by the offsets
         buffers.sort_unstable_by_key(|x| x.offset);
 
@@ -553,7 +556,7 @@ pub fn read_appended_array_buffers<R: BufRead>(
 
         let mut iterator = buffers.iter_mut().peekable();
 
-        clean_garbage_from_reader(reader, buffer)?;
+        clean_garbage_from_reader(inner, buffer)?;
 
         loop {
             if let Some(current_offset_buffer) = iterator.next() {
@@ -572,7 +575,7 @@ pub fn read_appended_array_buffers<R: BufRead>(
                 }
 
                 crate::parse::parse_appended_binary(
-                    reader,
+                    inner,
                     buffer,
                     binary_length,
                     &mut current_offset_buffer.buffer,
@@ -886,7 +889,7 @@ fn ensure_buffer_length(buffer: &mut Vec<u8>, length: usize) {
 }
 
 pub fn clean_garbage_from_reader<R: BufRead>(
-    reader: &mut Reader<R>,
+    reader: &mut R,
     buffer: &mut Vec<u8>,
 ) -> Result<(), error::AppendedData> {
     // TODO:
@@ -901,32 +904,30 @@ pub fn clean_garbage_from_reader<R: BufRead>(
     ensure_buffer_length(buffer, len);
 
     // pull the bytes manually from the internal reader
-    let inner = reader.get_mut();
-    inner.read_exact(&mut buffer[0..len]).unwrap();
+    reader.read_exact(&mut buffer[0..len]).unwrap();
 
     Ok(())
 }
 
 /// read information from the appended data binary buffer
-pub fn parse_appended_binary<'a, R: BufRead>(
-    reader: &mut Reader<R>,
+pub fn parse_appended_binary<'a, R: BufRead, NUM: Numeric>(
+    reader: &mut R,
     buffer: &mut Vec<u8>,
     length: usize,
-    parsed_bytes: &mut Vec<f64>,
+    parsed_bytes: &mut Vec<NUM>,
 ) -> Result<(), error::AppendedData> {
     ensure_buffer_length(buffer, length);
 
-    let inner = reader.get_mut();
-    inner
+    reader
         .read_exact(&mut buffer.as_mut_slice()[0..length])
         .unwrap();
 
     let mut idx = 0;
-    let inc = 8;
+    let inc = NUM::SIZE;
 
     while idx + inc <= length {
         if let Some(byte_slice) = buffer.get(idx..idx + inc) {
-            let float = utils::bytes_to_float(byte_slice);
+            let float = NUM::bytes_to_float(byte_slice);
             parsed_bytes.push(float);
         }
 
@@ -1278,8 +1279,10 @@ mod tests {
         )
         .unwrap();
 
+        let inner_reader = reader.get_mut();
+
         // remove the garbage bytes from the start of the VTK
-        clean_garbage_from_reader(&mut reader, &mut buffer).unwrap();
+        clean_garbage_from_reader(inner_reader, &mut buffer).unwrap();
 
         let len_1 = (header_2 - header_1) as usize;
         let len_2 = 4 * 8usize;
@@ -1287,10 +1290,52 @@ mod tests {
         let mut data_1 = Vec::new();
         let mut data_2 = Vec::new();
 
-        parse_appended_binary(&mut reader, &mut buffer, len_1, &mut data_1).unwrap();
-        parse_appended_binary(&mut reader, &mut buffer, len_2, &mut data_2).unwrap();
+        parse_appended_binary(inner_reader, &mut buffer, len_1, &mut data_1).unwrap();
+        parse_appended_binary(inner_reader, &mut buffer, len_2, &mut data_2).unwrap();
 
         assert_eq!(values.as_ref(), data_1);
         assert_eq!(values2.as_ref(), data_2);
+    }
+
+    #[test]
+    fn parse_simple_f32() {
+        let mut output = Vec::new();
+        let mut buffer= Vec::new();
+        let mut parsed_output : Vec<f32> = Vec::new();
+
+        let mut writer = Writer::new(&mut output);
+
+        let values = [1.0f32, 2.0, 3.0, 4.0];
+        // write the values to the buffer
+        values.as_ref().write_binary(&mut writer, false).unwrap();
+
+        println!("length of bytes in reader is {}", output.len());
+
+        let mut reader = std::io::Cursor::new(output);
+
+        // now, parse the values out
+        parse_appended_binary(&mut reader, &mut buffer, values.len() * f32::SIZE, &mut parsed_output).unwrap();
+        assert_eq!(parsed_output, values);
+    }
+
+    #[test]
+    fn parse_simple_f64() {
+        let mut output = Vec::new();
+        let mut buffer= Vec::new();
+        let mut parsed_output : Vec<f64>= Vec::new();
+
+        let mut writer = Writer::new(&mut output);
+
+        let values = [1.0f64, 2.0, 3.0, 4.0];
+        // write the values to the buffer
+        values.as_ref().write_binary(&mut writer, false).unwrap();
+
+        println!("length of bytes in reader is {}", output.len());
+
+        let mut reader = std::io::Cursor::new(output);
+
+        // now, parse the values out
+        parse_appended_binary(&mut reader, &mut buffer, values.len() * f64::SIZE, &mut parsed_output).unwrap();
+        assert_eq!(parsed_output, values);
     }
 }

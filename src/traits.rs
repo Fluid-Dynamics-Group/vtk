@@ -364,6 +364,8 @@ pub trait Numeric: std::cmp::PartialEq<Self> + ryu::Float + Sized {
     fn write_le_bytes<W: Write>(&self, byte_list: &mut W) -> Result<(), std::io::Error>;
 
     fn as_precision() -> crate::write_vtk::Precision;
+
+    fn bytes_to_float(bytes: &[u8]) -> Self; 
 }
 
 impl Numeric for f32 {
@@ -381,6 +383,15 @@ impl Numeric for f32 {
     fn as_precision() -> crate::write_vtk::Precision {
         crate::write_vtk::Precision::Float32
     }
+
+    fn bytes_to_float(bytes: &[u8]) -> Self {
+        let mut arr = [0; 4];
+        bytes
+            .into_iter()
+            .enumerate()
+            .for_each(|(idx, value)| arr[idx] = *value);
+        f32::from_le_bytes(arr)
+    }
 }
 
 impl Numeric for f64 {
@@ -397,5 +408,14 @@ impl Numeric for f64 {
 
     fn as_precision() -> crate::write_vtk::Precision {
         crate::write_vtk::Precision::Float64
+    }
+
+    fn bytes_to_float(bytes: &[u8]) -> Self {
+        let mut arr = [0; 8];
+        bytes
+            .into_iter()
+            .enumerate()
+            .for_each(|(idx, value)| arr[idx] = *value);
+        f64::from_le_bytes(arr)
     }
 }
