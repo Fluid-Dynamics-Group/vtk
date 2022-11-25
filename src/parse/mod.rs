@@ -220,6 +220,7 @@ fn close_element_to_appended_data<R: BufRead>(
     let mut text_allowed = false;
 
     loop {
+        println!("new element");
         let element = reader.read_event_into(buffer).map_err(error::MalformedXml::from)?;
 
         let repr = EventSummary::new(&element);
@@ -233,11 +234,19 @@ fn close_element_to_appended_data<R: BufRead>(
                     continue
                 }
             }
+            Event::Empty(s) => {
+                // we are opening a dataarray, but there is no inline data
+                if s.byte_name().as_ref().unwrap().as_ref() == b"DataArray" {
+                    // no text allowed, though
+                    text_allowed = false;
+                    continue
+                }
+            }
             Event::End(s) => {
                 // we have hit the point data, exit now
                 if s.byte_name().as_ref().unwrap().as_ref() == b"PointData" {
                     break
-                } 
+                }
                 // we are closing a dataarray
                 else if s.byte_name().as_ref().unwrap().as_ref()== b"DataArray" {
                     text_allowed = false;
@@ -264,6 +273,7 @@ fn close_element_to_appended_data<R: BufRead>(
 
     // then, we should have a </Piece>
     let _ = read_ending_element::<error::CloseElements, _>(reader, buffer, "Piece")?;
+
     // then, we should have a </RectilinearGrid>
     let _ = read_ending_element::<error::CloseElements, _>(reader, buffer, "RectilinearGrid")?;
 
@@ -615,13 +625,15 @@ pub fn read_appended_array_buffers(
                     })
                     .unwrap_or(crate::parse::AppendedArrayLength::UntilEnd);
 
-                let remaining_appended_data = crate::parse::parse_appended_binary(
-                    appended_data,
-                    reading_offset,
-                    &mut current_offset_buffer.buffer,
-                )?;
-
-                appended_data = remaining_appended_data
+                // uncomment the stuff below
+                todo!();
+                //let remaining_appended_data = crate::parse::parse_appended_binary(
+                //    appended_data,
+                //    reading_offset,
+                //    &mut current_offset_buffer.buffer,
+                //)?;
+                //
+                //appended_data = remaining_appended_data
             } else {
                 // there are not more elements in the array - lets leave
                 break;
@@ -917,29 +929,19 @@ fn parse_base64_inner_dataarray<'a, R: BufRead>(
     Ok(out)
 }
 
-/// skip to the appended data section so that we can read in the binary
-///
-/// Call this function after reading all of the information from the inline data arrays
-pub fn setup_appended_read<'a>(xml_bytes: &[u8]) -> IResult<&[u8], ()> {
-    // TODO: make this function return the type of encoding used in the appended section
-    let (appended_data_section, _) = take_until_consume(xml_bytes, b"AppendedData")?;
-    let (appended_start, _encoding_information) = take_until_consume(appended_data_section, b">_")?;
-    let (appended_start_no_garbage, _) = take(8usize)(appended_start)?;
-    Ok((appended_start_no_garbage, ()))
-}
-
 pub enum AppendedArrayLength {
     Known(usize),
     UntilEnd,
 }
 
 /// read information from the appended data binary buffer
-pub fn parse_appended_binary<'a>(
-    xml_bytes: &'a [u8],
+pub fn parse_appended_binary<'a, R: BufRead>(
+    reader: &mut Reader<R>,
+    buffer: &mut Vec<u8>,
     length: AppendedArrayLength,
     parsed_bytes: &mut Vec<f64>,
 ) -> Result<&'a [u8], error::AppendedData> {
-    dbg!(xml_bytes.len());
+
     let (rest, bytes) = match length {
         AppendedArrayLength::Known(known_length) => {
             dbg!("slicing  a length of ", known_length);
@@ -1180,7 +1182,7 @@ mod tests {
         let values2 = [5.0f64, 6.0, 7.0, 8.0];
 
         let mut output = Vec::new();
-        let mut event_writer = crate::Writer::new(&mut output);
+        let mut event_writer = crate::Writer::new_with_indent(&mut output, b'0', 4);
 
         let offset_1 = -8;
         let offset_2 = -8 + (4 * 8);
@@ -1202,33 +1204,75 @@ mod tests {
         )
         .unwrap();
 
+        //
+        // we have to write some boilerplate so that the schema parses correctly
+        //
+
+        // close off the point data section
+        let end_point_data = BytesEnd::new("PointData");
+        event_writer.write_event(Event::End(end_point_data)).unwrap();
+
+        // close off the piece
+        let end_piece = BytesEnd::new("Piece");
+        event_writer.write_event(Event::End(end_piece)).unwrap();
+
+        // close off the RectilinearGrid element
+        let end_grid = BytesEnd::new("RectilinearGrid");
+        event_writer.write_event(Event::End(end_grid)).unwrap();
+
         // write the data inside the appended section
         crate::write_vtk::appended_binary_header_start(&mut event_writer).unwrap();
 
-        // need to write a single garbage byte for things to work as expected - this
-        // is becasue of how paraview expects things
-        [100f64]
-            .as_ref()
-            .write_binary(&mut event_writer, false)
-            .unwrap();
 
-        values
-            .as_ref()
-            .write_binary(&mut event_writer, false)
-            .unwrap();
-        values2
-            .as_ref()
-            .write_binary(&mut event_writer, true)
-            .unwrap();
+        /*
+            current xml at this point is this
+
+            <DataArray type="Float64" NumberOfComponents="1" Name="X" format="appended" offset="-8">
+            </DataArray>
+            <DataArray type="Float64" NumberOfComponents="1" Name="Y" format="appended" offset="24">
+            </DataArray>
+            </PointData>
+            </Piece>
+            </RectilinearGrid>
+            <AppendedData encoding="raw">_
+        */
+
+        //// need to write a 8 garbage bytes for things to work as expected - this
+        //// is becasue of how paraview expects things
+        //[100f64]
+        //    .as_ref()
+        //    .write_binary(&mut event_writer, false)
+        //    .unwrap();
+
+        //values
+        //    .as_ref()
+        //    .write_binary(&mut event_writer, false)
+        //    .unwrap();
+        //values2
+        //    .as_ref()
+        //    .write_binary(&mut event_writer, true)
+        //    .unwrap();
 
         crate::write_vtk::appended_binary_header_end(&mut event_writer).unwrap();
 
-        // now we can start parsing the data
-        let string_representation = String::from_utf8(output).unwrap();
-        println!(":: xml data - {} ", string_representation);
+        //let x = String::from_utf8(output).unwrap();
+        //println!("{x}");
 
-        let mut reader = Reader::from_str(&string_representation);
+        /*
+                        <DataArray type="Float64" NumberOfComponents="1" Name="X" format="appended" offset="-8">
+                            </DataArray>
+                        <DataArray type="Float64" NumberOfComponents="1" Name="Y" format="appended" offset="24">
+                            </DataArray>
+                    </PointData>
+                </Piece>
+            </RectilinearGrid>
+            <AppendedData encoding="raw">_BUNCH OF BINARY STUFF HERE</AppendedData>
+        */
+
+        let cursor = std::io::Cursor::new(output);
+        let mut reader = Reader::from_reader(cursor);
         reader.trim_text(true);
+        reader.check_end_names(false);
         let mut buffer = Vec::new();
 
         // write data array headers
@@ -1238,28 +1282,31 @@ mod tests {
         let header_1 = parsed_header_1.unwrap_appended();
         let header_2 = parsed_header_2.unwrap_appended();
 
+        let _ = close_element_to_appended_data(&mut reader, &mut buffer).unwrap();
+
+        // open the AppendedData data element 
+        let _ =
+            read_starting_element_with_name::<error::AppendedData, _>(&mut reader, &mut buffer, "AppendedData")
+            .unwrap();
+
+        // then, open up the body of the appendeddata section
+        let body_elem = read_body_element::<error::AppendedData, _>(&mut reader, &mut buffer)
+            .unwrap();
+        let bytes : &[u8] = body_elem.as_ref();
+
+
         let len_1 = AppendedArrayLength::Known((header_2 - header_1) as usize);
         let len_2 = AppendedArrayLength::UntilEnd;
 
+        let mut data_1 = Vec::new();
+        let mut data_2 = Vec::new();
+
+        let rest = parse_appended_binary(bytes, len_1, &mut data_1).unwrap();
+        let _ = parse_appended_binary(rest, len_2, &mut data_2).unwrap();
+
+        assert_eq!(values.as_ref(), data_1);
+        assert_eq!(values2.as_ref(), data_2);
+
         panic!()
-
-        //let (rest, _) = setup_appended_read(rest).unwrap();
-
-        //println!(
-        //    ":: xml data after queued movement- {} ",
-        //    string_representation
-        //);
-
-        //let mut data_1 = Vec::new();
-        //let mut data_2 = Vec::new();
-
-        //let (rest, _) = parse_appended_binary(rest, len_1, &mut data_1).unwrap();
-
-        //let string_representation = String::from_utf8_lossy(&rest);
-        //println!("between parses - {}", string_representation);
-        //let (_rest, _) = parse_appended_binary(rest, len_2, &mut data_2).unwrap();
-
-        //assert_eq!(values.as_ref(), data_1);
-        //assert_eq!(values2.as_ref(), data_2);
     }
 }
