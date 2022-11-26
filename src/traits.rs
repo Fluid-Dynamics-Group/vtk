@@ -268,6 +268,7 @@ where
 {
     /// The type that will be output from the visitor once parsing is complete
     type Output;
+    type Num;
 
     /// The implementing type is constructed with the `read_headers` function.
     fn read_headers<R: BufRead>(
@@ -281,7 +282,7 @@ where
     /// appended binary section of the vtk file.
     fn add_to_appended_reader<'a, 'b>(
         &'a self,
-        buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>,
+        buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer<Self::Num>>>,
     );
 
     /// After all the binary data has been read, the `finish` function finalizes any last-minute
@@ -346,7 +347,7 @@ mod testgen {
     use crate as vtk;
 
     #[derive(vtk::DataArray, vtk::ParseArray)]
-    #[vtk_parse(spans = "vtk::Spans3D")]
+    #[vtk_parse(spans = "vtk::Spans3D", precision = "f64")]
     #[vtk_write(encoding = "binary")]
     pub struct Info {
         a: Vec<f64>,

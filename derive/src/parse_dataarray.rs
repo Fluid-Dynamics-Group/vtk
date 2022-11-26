@@ -9,6 +9,9 @@ use darling::{ast, FromDeriveInput, FromField, FromMeta};
 #[derive(FromMeta, Debug)]
 struct SpanInfo(syn::Path);
 
+#[derive(FromMeta, Debug, Clone)]
+struct NumericInfo(syn::Type);
+
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(vtk_parse), supports(struct_any))]
 struct InputReceiver{
@@ -21,7 +24,15 @@ struct InputReceiver{
     // only work on structs
     data: ast::Data<(), FieldReceiver>,
 
-    spans: SpanInfo
+    spans: SpanInfo,
+
+    // TODO: find a way to get the f64 / f32 from the
+    // inside of the type without this field. Currently,
+    // we cant out if ndarray::Array4<f32> is a f32 because
+    // in the general case it could be some type alias
+    // type Array = ndarray::Array4<f32>, and the type
+    // of each field is simply `Array`
+    precision: NumericInfo
 }
 
 #[derive(Debug, FromField)]
@@ -49,15 +60,15 @@ struct Visitor {
     tokens: proc_macro2::TokenStream
 }
 
-fn create_visitor(original_struct: &syn::Ident, fields: &[ValidatedField], span_type: &syn::Path) -> Visitor {
+fn create_visitor(original_struct: &syn::Ident, fields: &[ValidatedField], span_type: &syn::Path, precision: &syn::Type) -> Visitor {
     // first find out what we are naming the struct
     let mut visitor_name = original_struct.to_string();
     visitor_name.push_str("Visitor");
     let ident = syn::Ident::new(&visitor_name, original_struct.span());
 
     
-    let trait_impl = create_visitor_trait_impl(&ident, original_struct, fields, span_type);
-    let struct_def = create_visitor_struct_definition(&ident, fields);
+    let trait_impl = create_visitor_trait_impl(&ident, original_struct, fields, span_type, precision);
+    let struct_def = create_visitor_struct_definition(&ident, fields, precision);
     let tokens = quote!(
         #struct_def
 
@@ -66,7 +77,7 @@ fn create_visitor(original_struct: &syn::Ident, fields: &[ValidatedField], span_
     Visitor { tokens, name: ident }
 }
 
-fn create_visitor_struct_definition(visitor_name: &syn::Ident, fields: &[ValidatedField]) -> proc_macro2::TokenStream {
+fn create_visitor_struct_definition(visitor_name: &syn::Ident, fields: &[ValidatedField], precision: &syn::Type) -> proc_macro2::TokenStream {
     let mut out = quote!();
 
     for field in fields {
@@ -74,7 +85,7 @@ fn create_visitor_struct_definition(visitor_name: &syn::Ident, fields: &[Validat
 
         out = quote!(
             #out
-            #field_name: vtk::parse::PartialDataArrayBuffered,
+            #field_name: vtk::parse::PartialDataArrayBuffered<#precision>,
         );
     }
 
@@ -86,7 +97,7 @@ fn create_visitor_struct_definition(visitor_name: &syn::Ident, fields: &[Validat
     )
 }
 
-fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ident, fields: &[ValidatedField], span_type: &syn::Path) -> proc_macro2::TokenStream {
+fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ident, fields: &[ValidatedField], span_type: &syn::Path, precision: &syn::Type) -> proc_macro2::TokenStream {
     let read_headers = visitor_read_headers(visitor_name, fields);
     let append_to_buffer = visitor_buffer_append(fields);
     let finish = visitor_finish(original_name, fields);
@@ -95,6 +106,7 @@ fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ide
     let out = quote!(
         impl vtk::Visitor<#span_type> for #visitor_name {
             type Output = #original_name;
+            type Num = #precision;
 
             fn read_headers<R: std::io::BufRead>(
                 spans: &#span_type,
@@ -106,7 +118,7 @@ fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ide
 
             fn add_to_appended_reader<'a, 'b>(
                 &'a self,
-                buffer: &'b mut Vec<std::cell::RefMut<'a, vtk::parse::OffsetBuffer>>,
+                buffer: &'b mut Vec<std::cell::RefMut<'a, vtk::parse::OffsetBuffer<Self::Num>>>,
             ) {
                 #append_to_buffer
             }
@@ -221,6 +233,7 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
         ref generics,
         data,
         ref spans,
+        ref precision,
         ..
     } = receiver;
 
@@ -245,7 +258,7 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
     let fields = fields?;
 
 
-    let Visitor { name: visitor_name, tokens: visitor_tokens}  = create_visitor(&ident, &fields, &spans.0);
+    let Visitor { name: visitor_name, tokens: visitor_tokens}  = create_visitor(&ident, &fields, &spans.0, &precision.0);
 
     let out = quote!(
         #visitor_tokens

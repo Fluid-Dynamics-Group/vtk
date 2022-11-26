@@ -12,8 +12,6 @@ use event_summary::ElementName;
 use event_summary::EventSummary;
 
 use crate::prelude::*;
-use crate::utils;
-//use nom::bytes::complete::{tag, take, take_till, take_until};
 
 use std::io::BufRead;
 
@@ -26,16 +24,17 @@ use quick_xml::name::QName;
 use quick_xml::reader::Reader;
 
 /// read in and parse an entire vtk file for a given path
-pub fn read_and_parse<GEOMETRY, SPAN, D, MESH, ArrayVisitor, MeshVisitor>(
+pub fn read_and_parse<GEOMETRY, SPAN, D, MESH, ArrayVisitor, MeshVisitor, NUM>(
     path: &std::path::Path,
 ) -> Result<VtkData<GEOMETRY, D>, Error>
 where
     D: ParseArray<Visitor = ArrayVisitor>,
-    ArrayVisitor: Visitor<SPAN, Output = D>,
+    ArrayVisitor: Visitor<SPAN, Output = D, Num = NUM>,
     MESH: ParseMesh<Visitor = MeshVisitor>,
-    MeshVisitor: Visitor<SPAN, Output = MESH>,
+    MeshVisitor: Visitor<SPAN, Output = MESH, Num = NUM>,
     SPAN: ParseSpan,
     GEOMETRY: From<(MESH, SPAN)>,
+    NUM: Numeric
 {
     let file = std::fs::File::open(path)?;
     let buf_reader = std::io::BufReader::new(file);
@@ -240,11 +239,12 @@ fn close_element_to_appended_data<R: BufRead>(
     Ok(())
 }
 
-fn read_appended_data<R: BufRead>(
+fn read_appended_data<R: BufRead, NUM>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
-    reader_buffers: Vec<RefMut<'_, OffsetBuffer>>,
-) -> Result<(), error::AppendedData> {
+    reader_buffers: Vec<RefMut<'_, OffsetBuffer<NUM>>>,
+) -> Result<(), error::AppendedData> 
+where NUM: Numeric {
     // if there are no appended sections, we do not need to go on
     if reader_buffers.is_empty() {
         println!("skipping appended data section - no buffers to write to");
@@ -432,16 +432,18 @@ fn check_attribute_value<'a>(
 }
 
 #[doc(hidden)]
-pub fn parse_xml_document<DOMAIN, SPAN, D, MESH, ArrayVisitor, MeshVisitor, R: BufRead>(
+pub fn parse_xml_document<DOMAIN, SPAN, D, MESH, ArrayVisitor, MeshVisitor, R, NUM>(
     mut reader: Reader<R>,
 ) -> Result<VtkData<DOMAIN, D>, Error>
 where
     D: ParseArray<Visitor = ArrayVisitor>,
-    ArrayVisitor: Visitor<SPAN, Output = D>,
+    ArrayVisitor: Visitor<SPAN, Output = D, Num = NUM>,
     MESH: ParseMesh<Visitor = MeshVisitor>,
-    MeshVisitor: Visitor<SPAN, Output = MESH>,
+    MeshVisitor: Visitor<SPAN, Output = MESH, Num = NUM>,
     SPAN: ParseSpan,
     DOMAIN: From<(MESH, SPAN)>,
+    R: BufRead,
+    NUM: Numeric
 {
     let mut buffer = Vec::new();
 
@@ -491,12 +493,16 @@ where
 }
 
 /// Parse a data array (if its inline) or return the offset in the appended section
-pub fn parse_dataarray_or_lazy<'a, R: BufRead>(
+pub fn parse_dataarray_or_lazy<'a, R, NUM>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
     expected_name: &str,
     size_hint: usize,
-) -> Result<PartialDataArray, Mesh> {
+) -> Result<PartialDataArray<NUM>, Mesh> 
+where R: BufRead,
+    NUM: Numeric,
+    <NUM as std::str::FromStr>::Err : std::fmt::Debug
+    {
     println!("parse_dataarray_or_lazy, {}", line!());
 
     let (was_empty, header) = read_dataarray_header(reader, buffer, expected_name)?;
@@ -539,11 +545,14 @@ pub fn parse_dataarray_or_lazy<'a, R: BufRead>(
 
 /// cycle through buffers (and their offsets) and read the binary information from the
 /// <AppendedBinary> section in order
-pub fn read_appended_array_buffers<R: BufRead>(
+pub fn read_appended_array_buffers<R, NUM>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
-    mut buffers: Vec<RefMut<'_, OffsetBuffer>>,
-) -> Result<(), error::AppendedData> {
+    mut buffers: Vec<RefMut<'_, OffsetBuffer<NUM>>>,
+) -> Result<(), error::AppendedData> 
+where NUM: Numeric,
+      R: BufRead 
+{
     // if we have any binary data:
     if buffers.len() > 0 {
 
@@ -686,14 +695,14 @@ pub enum DataArrayHeader {
 #[derive(Debug)]
 /// Describes if the data for this array has already been parsed (regardless of format), or its offset
 /// in the `AppendedData` section
-pub enum PartialDataArray {
-    Parsed { buffer: Vec<f64>, components: usize },
+pub enum PartialDataArray<NUM> {
+    Parsed { buffer: Vec<NUM>, components: usize },
     AppendedBinary { offset: i64, components: usize },
 }
 
-impl PartialDataArray {
+impl <NUM> PartialDataArray<NUM> {
     /// unwrap the data as `PartailDataArray::Parsed` or panic
-    pub fn unwrap_parsed(self) -> Vec<f64> {
+    pub fn unwrap_parsed(self) -> Vec<NUM> {
         match self {
             Self::Parsed { buffer, .. } => buffer,
             _ => panic!("called unwrap_parsed on a PartialDataArray::AppendedBinary"),
@@ -721,14 +730,14 @@ impl PartialDataArray {
 /// data to be placed for the `AppendedBinary` section.
 ///
 /// Useful for implementing `traits::ParseDataArray`
-pub enum PartialDataArrayBuffered {
-    Parsed { buffer: Vec<f64>, components: usize },
-    AppendedBinary(RefCell<OffsetBuffer>),
+pub enum PartialDataArrayBuffered<NUM> {
+    Parsed { buffer: Vec<NUM>, components: usize },
+    AppendedBinary(RefCell<OffsetBuffer<NUM>>),
 }
 
-impl<'a> PartialDataArrayBuffered {
+impl<'a, NUM> PartialDataArrayBuffered<NUM> {
     /// Construct a buffer associated with appended binary
-    pub fn new(partial: PartialDataArray, num_elements: usize) -> Self {
+    pub fn new(partial: PartialDataArray<NUM>, num_elements: usize) -> Self {
         match partial {
             PartialDataArray::Parsed { buffer, components } => {
                 PartialDataArrayBuffered::Parsed { buffer, components }
@@ -746,7 +755,7 @@ impl<'a> PartialDataArrayBuffered {
 
     /// Pull the data buffer from from each
     /// of the variants
-    pub fn into_buffer(self) -> Vec<f64> {
+    pub fn into_buffer(self) -> Vec<NUM> {
         match self {
             Self::Parsed { buffer, .. } => buffer,
             Self::AppendedBinary(offset_buffer) => offset_buffer.into_inner().buffer,
@@ -763,7 +772,7 @@ impl<'a> PartialDataArrayBuffered {
 
     /// helper function to put the array in a vector so that we can read all the binary data in
     /// order
-    pub fn append_to_reader_list<'c, 'b>(&'c self, buffer: &'b mut Vec<RefMut<'c, OffsetBuffer>>) {
+    pub fn append_to_reader_list<'c, 'b>(&'c self, buffer: &'b mut Vec<RefMut<'c, OffsetBuffer<NUM>>>) {
         match self {
             PartialDataArrayBuffered::AppendedBinary(offset_buffer) => {
                 buffer.push(offset_buffer.borrow_mut())
@@ -778,14 +787,14 @@ impl<'a> PartialDataArrayBuffered {
 #[derive(PartialEq, PartialOrd)]
 /// Helper struct describing the offset that the data should be read at
 /// and the buffer that will be used to read in the information
-pub struct OffsetBuffer {
+pub struct OffsetBuffer<NUM> {
     pub offset: i64,
-    pub buffer: Vec<f64>,
+    pub buffer: Vec<NUM>,
     pub components: usize,
     pub num_elements: usize,
 }
 
-impl Eq for OffsetBuffer {}
+impl <NUM> Eq for OffsetBuffer<NUM> where NUM: Numeric {}
 
 /// parse the values for a single inline ascii encoded array
 ///

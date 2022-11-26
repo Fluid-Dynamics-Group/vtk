@@ -237,19 +237,23 @@ where
     }
 }
 
-impl<T> ParseMesh for Mesh2D<f64, T> {
-    type Visitor = Mesh2DVisitor;
+impl<T, NUM> ParseMesh for Mesh2D<NUM, T> {
+    type Visitor = Mesh2DVisitor<NUM>;
 }
 
 #[doc(hidden)]
-pub struct Mesh2DVisitor {
-    x_locations: parse::PartialDataArrayBuffered,
-    y_locations: parse::PartialDataArrayBuffered,
-    z_locations: parse::PartialDataArrayBuffered,
+pub struct Mesh2DVisitor<NUM> {
+    x_locations: parse::PartialDataArrayBuffered<NUM>,
+    y_locations: parse::PartialDataArrayBuffered<NUM>,
+    z_locations: parse::PartialDataArrayBuffered<NUM>,
 }
 
-impl Visitor<Spans2D> for Mesh2DVisitor {
-    type Output = Mesh2D<f64, Binary>;
+impl <NUM> Visitor<Spans2D> for Mesh2DVisitor<NUM> 
+where NUM: Numeric,
+    <NUM as std::str::FromStr>::Err : std::fmt::Debug
+{
+    type Output = Mesh2D<NUM, Binary>;
+    type Num = NUM;
 
     fn read_headers<R: BufRead>(
         spans: &Spans2D,
@@ -275,7 +279,7 @@ impl Visitor<Spans2D> for Mesh2DVisitor {
 
     fn add_to_appended_reader<'a, 'b>(
         &'a self,
-        buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>,
+        buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer<Self::Num>>>,
     ) {
         self.x_locations.append_to_reader_list(buffer);
         self.y_locations.append_to_reader_list(buffer);
