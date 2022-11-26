@@ -222,11 +222,13 @@ pub trait ParseMesh {
 /// }
 ///
 /// pub struct SpanDataVisitor {
-///     u: vtk::parse::PartialDataArrayBuffered,
+///     u: vtk::parse::PartialDataArrayBuffered<f64>,
 /// }
 ///
 /// impl vtk::Visitor<vtk::Spans3D> for SpanDataVisitor {
 ///     type Output = SpanData;
+///     type Num = f64;
+///
 ///     fn read_headers<R: std::io::BufRead>(
 ///         spans: &vtk::Spans3D,
 ///         reader: &mut vtk::Reader<R>,
@@ -239,7 +241,7 @@ pub trait ParseMesh {
 ///     }
 ///     fn add_to_appended_reader<'a, 'b>(
 ///         &'a self,
-///         buffer: &'b mut Vec<std::cell::RefMut<'a, vtk::parse::OffsetBuffer>>,
+///         buffer: &'b mut Vec<std::cell::RefMut<'a, vtk::parse::OffsetBuffer<Self::Num>>>,
 ///     ) {
 ///         self.u.append_to_reader_list(buffer);
 ///     }
@@ -256,7 +258,7 @@ pub trait ParseMesh {
 ///
 /// ```
 /// #[derive(Debug, Clone, Default, PartialEq, vtk::ParseArray)]
-/// #[vtk_parse(spans="vtk::Spans3D")]
+/// #[vtk_parse(spans="vtk::Spans3D", precision="f64")]
 /// pub struct SpanData {
 ///     pub u: Vec<f64>,
 /// }
@@ -307,7 +309,7 @@ pub trait Span {
 /// ```
 /// #[derive(Debug, Clone, Default, PartialEq, vtk::ParseArray)]
 /// // we have 3D data so it makes sense to use `Spans3D` here.
-/// #[vtk_parse(spans="vtk::Spans3D")]
+/// #[vtk_parse(spans="vtk::Spans3D", precision = "f64")]
 /// pub struct SpanData {
 ///     pub velocity: vtk::Vector3D<f64>,
 ///     pub pressure: vtk::Scalar3D<f64>,

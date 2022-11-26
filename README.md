@@ -94,11 +94,14 @@ struct VelocityField {
 }
 ```
 
-For deriving `ParseArray` you **must** specify what spans you are parsing:
+For deriving `ParseArray` you **must** specify what spans you are parsing (`spans` attribute), as well 
+as the precision of the data in your struct (`precision` attribute). For parsing, all numeric types 
+must be the same, including the numeric types in the mesh information. This means that if you have a file
+with `f64` grid information, all of the arrays of data must *also* be `f64`.
 
 ```rust
 #[derive(vtk::ParseArray)]
-#[vtk_parse(spans="vtk::Spans3D")]
+#[vtk_parse(spans = "vtk::Spans3D", precision = "f64")]
 pub struct VelocityField {
     a: Vec<f64>,
     b: vtk::Vector3D<f64>,
@@ -111,7 +114,7 @@ If you specify the wrong spans there will be a compiler error:
 ```rust,ignore
 #[derive(vtk::ParseArray)]
 // specified 2d geometry with 3d arrays in the struct
-#[vtk_parse(spans="vtk::Spans2D")]
+#[vtk_parse(spans="vtk::Spans2D", precision = "f64")]
 pub struct VelocityField {
     a: Vec<f64>,
     b: vtk::Vector3D<f64>,

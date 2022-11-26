@@ -7,7 +7,7 @@ mod field3d {
     use vtk::Spans3D;
 
     #[derive(vtk::DataArray, vtk::ParseArray, Debug, Clone)]
-    #[vtk_parse(spans = "vtk::Spans3D")]
+    #[vtk_parse(spans = "vtk::Spans3D", precision = "f64")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
         array: vtk::Vector3D<f64>,
@@ -82,7 +82,7 @@ mod field2d {
     use vtk::Spans2D;
 
     #[derive(vtk::DataArray, vtk::ParseArray, Debug, Clone)]
-    #[vtk_parse(spans = "vtk::Spans2D")]
+    #[vtk_parse(spans = "vtk::Spans2D", precision="f64")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
         array: vtk::Vector2D<f64>,
@@ -165,7 +165,7 @@ mod scalar_3d {
     use vtk::Spans3D;
 
     #[derive(vtk::DataArray, vtk::ParseArray, Debug, Clone)]
-    #[vtk_parse(spans = "vtk::Spans3D")]
+    #[vtk_parse(spans = "vtk::Spans3D", precision = "f64")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
         array: vtk::Scalar3D<f64>,
@@ -246,7 +246,7 @@ mod scalar_2d {
     use vtk::Spans2D;
 
     #[derive(vtk::DataArray, vtk::ParseArray, Debug, Clone)]
-    #[vtk_parse(spans = "vtk::Spans2D")]
+    #[vtk_parse(spans = "vtk::Spans2D", precision = "f64")]
     #[vtk_write(encoding = "binary")]
     pub struct SimpleArray {
         array: vtk::Scalar2D<f64>,

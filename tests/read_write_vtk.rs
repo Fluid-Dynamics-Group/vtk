@@ -6,7 +6,7 @@ mod inner {
 
     #[derive(vtk::DataArray, Clone, Debug, vtk::ParseArray)]
     #[vtk_write(encoding = "binary")]
-    #[vtk_parse(spans = "vtk::Spans3D")]
+    #[vtk_parse(spans = "vtk::Spans3D", precision="f64")]
     pub struct Binary {
         rho: Vec<f64>,
         u: Vec<f64>,
@@ -16,7 +16,7 @@ mod inner {
 
     #[derive(vtk::DataArray, Clone, vtk::ParseArray)]
     #[vtk_write(encoding = "base64")]
-    #[vtk_parse(spans = "vtk::Spans3D")]
+    #[vtk_parse(spans = "vtk::Spans3D", precision="f64")]
     pub struct Base64 {
         rho: Vec<f64>,
         u: Vec<f64>,
@@ -151,7 +151,7 @@ mod inner {
     }
 
     #[derive(vtk::DataArray, vtk::ParseArray, Clone, PartialEq, Debug)]
-    #[vtk_parse(spans = "vtk::Spans2D")]
+    #[vtk_parse(spans = "vtk::Spans2D", precision = "f64")]
     /// Information available from a span-wise average of the flowfield
     pub struct SpanVtkInformation2D {
         pub(crate) rho: vtk::Scalar2D<f64>,
@@ -198,7 +198,7 @@ mod inner {
     }
 
     #[derive(vtk::DataArray, vtk::ParseArray, Clone, PartialEq, Debug)]
-    #[vtk_parse(spans = "vtk::Spans3D")]
+    #[vtk_parse(spans = "vtk::Spans3D", precision = "f64")]
     /// Information available from a span-wise average of the flowfield
     pub struct SpanVtkInformation3D {
         pub(crate) rho: vtk::Scalar3D<f64>,

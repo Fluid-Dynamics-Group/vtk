@@ -336,6 +336,7 @@ impl ParseArray for ArrayContainer {
 #[cfg(test)]
 impl<T> Visitor<T> for ArrayContainerVisitor {
     type Output = ArrayContainer;
+    type Num = f64;
 
     fn read_headers<R: BufRead>(
         spans: &T,
@@ -347,7 +348,7 @@ impl<T> Visitor<T> for ArrayContainerVisitor {
 
     fn add_to_appended_reader<'a, 'b>(
         &'a self,
-        buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>,
+        buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer<f64>>>,
     ) {
         unimplemented!()
     }

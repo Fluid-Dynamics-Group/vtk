@@ -41,6 +41,7 @@ impl DataArray<vtk::Ascii> for ArrayContainer {
 #[cfg(test)]
 impl<T> Visitor<T> for ArrayContainerVisitor {
     type Output = ArrayContainer;
+    type Num = f64;
 
     fn read_headers<R: std::io::BufRead>(
         _spans: &T,
@@ -52,7 +53,7 @@ impl<T> Visitor<T> for ArrayContainerVisitor {
 
     fn add_to_appended_reader<'a, 'b>(
         &'a self,
-        _buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer>>,
+        _buffer: &'b mut Vec<RefMut<'a, parse::OffsetBuffer<f64>>>,
     ) {
     }
 

@@ -1017,7 +1017,7 @@ mod tests {
 
         let _local_extent: Spans3D = read_to_coordinates(&mut reader, &mut buffer).unwrap();
         let locations =
-            crate::mesh::Mesh3DVisitor::read_headers(&spans, &mut reader, &mut buffer).unwrap();
+            crate::mesh::Mesh3DVisitor::<f64>::read_headers(&spans, &mut reader, &mut buffer).unwrap();
         let out = locations.finish(&spans);
 
         prepare_reading_point_data(&mut reader, &mut buffer).unwrap();
@@ -1038,7 +1038,7 @@ mod tests {
         reader.trim_text(true);
         let mut buffer = Vec::new();
 
-        let out = parse_dataarray_or_lazy(&mut reader, &mut buffer, "X", 4);
+        let out = parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4);
         dbg!(&out);
         let out = out.unwrap();
         let expected = 4;
@@ -1067,7 +1067,7 @@ mod tests {
     fn full_vtk_binary() {
         use crate as vtk;
         #[derive(vtk::DataArray, vtk::ParseArray, Debug)]
-        #[vtk_parse(spans = "vtk::Spans3D")]
+        #[vtk_parse(spans = "vtk::Spans3D", precision="f64")]
         pub struct SpanDataBinary {
             u: Vec<f64>,
             v: Vec<f64>,
@@ -1138,7 +1138,7 @@ mod tests {
 
     #[test]
     fn base_64_encoded_array() {
-        let values = [1.0, 2.0, 3.0, 4.0];
+        let values = [1.0f64, 2.0, 3.0, 4.0];
         let mut output = Vec::new();
         let mut event_writer = crate::Writer::new(&mut output);
         crate::write_inline_dataarray(
@@ -1154,7 +1154,7 @@ mod tests {
         reader.trim_text(true);
         let mut buffer = Vec::new();
 
-        let parsed_result = parse_dataarray_or_lazy(&mut reader, &mut buffer, "X", 4);
+        let parsed_result = parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4);
 
         dbg!(&parsed_result);
 
@@ -1266,8 +1266,8 @@ mod tests {
         let mut buffer = Vec::new();
 
         // write data array headers
-        let parsed_header_1 = parse_dataarray_or_lazy(&mut reader, &mut buffer, "X", 4).unwrap();
-        let parsed_header_2 = parse_dataarray_or_lazy(&mut reader, &mut buffer, "Y", 4).unwrap();
+        let parsed_header_1 = parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4).unwrap();
+        let parsed_header_2 = parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "Y", 4).unwrap();
 
         let header_1 = parsed_header_1.unwrap_appended();
         let header_2 = parsed_header_2.unwrap_appended();

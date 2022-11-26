@@ -97,11 +97,13 @@ mod helpers {
     }
 
     pub struct SpanDataVisitor {
-        u: vtk::parse::PartialDataArrayBuffered,
+        u: vtk::parse::PartialDataArrayBuffered<f64>,
     }
 
     impl vtk::Visitor<vtk::Spans3D> for SpanDataVisitor {
         type Output = SpanData;
+        type Num = f64;
+
         fn read_headers<R: BufRead>(
             spans: &vtk::Spans3D,
             reader: &mut Reader<R>,
@@ -114,7 +116,7 @@ mod helpers {
         }
         fn add_to_appended_reader<'a, 'b>(
             &'a self,
-            buffer: &'b mut Vec<std::cell::RefMut<'a, vtk::parse::OffsetBuffer>>,
+            buffer: &'b mut Vec<std::cell::RefMut<'a, vtk::parse::OffsetBuffer<f64>>>,
         ) {
             self.u.append_to_reader_list(buffer);
         }
