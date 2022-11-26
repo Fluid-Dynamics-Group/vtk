@@ -248,9 +248,10 @@ pub struct Mesh2DVisitor<NUM> {
     z_locations: parse::PartialDataArrayBuffered<NUM>,
 }
 
-impl <NUM> Visitor<Spans2D> for Mesh2DVisitor<NUM> 
-where NUM: Numeric,
-    <NUM as std::str::FromStr>::Err : std::fmt::Debug
+impl<NUM> Visitor<Spans2D> for Mesh2DVisitor<NUM>
+where
+    NUM: Numeric,
+    <NUM as std::str::FromStr>::Err: std::fmt::Debug,
 {
     type Output = Mesh2D<NUM, Binary>;
     type Num = NUM;

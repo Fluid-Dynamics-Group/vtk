@@ -275,9 +275,10 @@ pub struct Mesh3DVisitor<NUM> {
     z_locations: parse::PartialDataArrayBuffered<NUM>,
 }
 
-impl <NUM> Visitor<Spans3D> for Mesh3DVisitor<NUM> 
-where NUM: Numeric,
-    <NUM as std::str::FromStr>::Err : std::fmt::Debug
+impl<NUM> Visitor<Spans3D> for Mesh3DVisitor<NUM>
+where
+    NUM: Numeric,
+    <NUM as std::str::FromStr>::Err: std::fmt::Debug,
 {
     type Output = Mesh3D<NUM, Binary>;
     type Num = NUM;

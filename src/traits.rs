@@ -357,7 +357,7 @@ mod testgen {
 }
 
 /// A trait to abstract over [`f64`] and [`f32`] container data types
-pub trait Numeric: std::cmp::PartialEq<Self> + ryu::Float + Sized  + std::str::FromStr {
+pub trait Numeric: std::cmp::PartialEq<Self> + ryu::Float + Sized + std::str::FromStr {
     const SIZE: usize = std::mem::size_of::<Self>();
     const ZERO: Self;
     const SMALL: Self;
@@ -368,7 +368,7 @@ pub trait Numeric: std::cmp::PartialEq<Self> + ryu::Float + Sized  + std::str::F
 
     fn as_precision() -> crate::write_vtk::Precision;
 
-    fn bytes_to_float(bytes: &[u8]) -> Self; 
+    fn bytes_to_float(bytes: &[u8]) -> Self;
 }
 
 impl Numeric for f32 {

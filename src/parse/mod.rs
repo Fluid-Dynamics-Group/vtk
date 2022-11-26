@@ -34,7 +34,7 @@ where
     MeshVisitor: Visitor<SPAN, Output = MESH, Num = NUM>,
     SPAN: ParseSpan,
     GEOMETRY: From<(MESH, SPAN)>,
-    NUM: Numeric
+    NUM: Numeric,
 {
     let file = std::fs::File::open(path)?;
     let buf_reader = std::io::BufReader::new(file);
@@ -243,8 +243,10 @@ fn read_appended_data<R: BufRead, NUM>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
     reader_buffers: Vec<RefMut<'_, OffsetBuffer<NUM>>>,
-) -> Result<(), error::AppendedData> 
-where NUM: Numeric {
+) -> Result<(), error::AppendedData>
+where
+    NUM: Numeric,
+{
     // if there are no appended sections, we do not need to go on
     if reader_buffers.is_empty() {
         println!("skipping appended data section - no buffers to write to");
@@ -443,7 +445,7 @@ where
     SPAN: ParseSpan,
     DOMAIN: From<(MESH, SPAN)>,
     R: BufRead,
-    NUM: Numeric
+    NUM: Numeric,
 {
     let mut buffer = Vec::new();
 
@@ -498,11 +500,12 @@ pub fn parse_dataarray_or_lazy<'a, R, NUM>(
     buffer: &mut Vec<u8>,
     expected_name: &str,
     size_hint: usize,
-) -> Result<PartialDataArray<NUM>, Mesh> 
-where R: BufRead,
+) -> Result<PartialDataArray<NUM>, Mesh>
+where
+    R: BufRead,
     NUM: Numeric,
-    <NUM as std::str::FromStr>::Err : std::fmt::Debug
-    {
+    <NUM as std::str::FromStr>::Err: std::fmt::Debug,
+{
     println!("parse_dataarray_or_lazy, {}", line!());
 
     let (was_empty, header) = read_dataarray_header(reader, buffer, expected_name)?;
@@ -549,13 +552,13 @@ pub fn read_appended_array_buffers<R, NUM>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
     mut buffers: Vec<RefMut<'_, OffsetBuffer<NUM>>>,
-) -> Result<(), error::AppendedData> 
-where NUM: Numeric,
-      R: BufRead 
+) -> Result<(), error::AppendedData>
+where
+    NUM: Numeric,
+    R: BufRead,
 {
     // if we have any binary data:
     if buffers.len() > 0 {
-
         let inner = reader.get_mut();
 
         //we have some data to read - first organize all of the data by the offsets
@@ -700,7 +703,7 @@ pub enum PartialDataArray<NUM> {
     AppendedBinary { offset: i64, components: usize },
 }
 
-impl <NUM> PartialDataArray<NUM> {
+impl<NUM> PartialDataArray<NUM> {
     /// unwrap the data as `PartailDataArray::Parsed` or panic
     pub fn unwrap_parsed(self) -> Vec<NUM> {
         match self {
@@ -772,7 +775,10 @@ impl<'a, NUM> PartialDataArrayBuffered<NUM> {
 
     /// helper function to put the array in a vector so that we can read all the binary data in
     /// order
-    pub fn append_to_reader_list<'c, 'b>(&'c self, buffer: &'b mut Vec<RefMut<'c, OffsetBuffer<NUM>>>) {
+    pub fn append_to_reader_list<'c, 'b>(
+        &'c self,
+        buffer: &'b mut Vec<RefMut<'c, OffsetBuffer<NUM>>>,
+    ) {
         match self {
             PartialDataArrayBuffered::AppendedBinary(offset_buffer) => {
                 buffer.push(offset_buffer.borrow_mut())
@@ -794,7 +800,7 @@ pub struct OffsetBuffer<NUM> {
     pub num_elements: usize,
 }
 
-impl <NUM> Eq for OffsetBuffer<NUM> where NUM: Numeric {}
+impl<NUM> Eq for OffsetBuffer<NUM> where NUM: Numeric {}
 
 /// parse the values for a single inline ascii encoded array
 ///
@@ -805,11 +811,11 @@ fn parse_ascii_inner_dataarray<'a, R, NUM>(
     buffer: &mut Vec<u8>,
     size_hint: usize,
     array_name: &str,
-) -> Result<Vec<NUM>, Mesh> 
-where 
+) -> Result<Vec<NUM>, Mesh>
+where
     R: BufRead,
     NUM: std::str::FromStr,
-    <NUM as std::str::FromStr>::Err : std::fmt::Debug
+    <NUM as std::str::FromStr>::Err: std::fmt::Debug,
 {
     let event = read_body_element::<Mesh, _>(reader, buffer)?;
     let xml_bytes = event.into_inner();
@@ -842,8 +848,10 @@ fn parse_base64_inner_dataarray<'a, R, NUM>(
     size_hint: usize,
     expected_name: &str,
 ) -> Result<Vec<NUM>, Mesh>
-where R: BufRead,
-      NUM: Numeric {
+where
+    R: BufRead,
+    NUM: Numeric,
+{
     let event = read_body_element::<Mesh, _>(reader, buffer)?;
 
     let base64_encoded_bytes = event.into_inner();
@@ -1017,7 +1025,8 @@ mod tests {
 
         let _local_extent: Spans3D = read_to_coordinates(&mut reader, &mut buffer).unwrap();
         let locations =
-            crate::mesh::Mesh3DVisitor::<f64>::read_headers(&spans, &mut reader, &mut buffer).unwrap();
+            crate::mesh::Mesh3DVisitor::<f64>::read_headers(&spans, &mut reader, &mut buffer)
+                .unwrap();
         let out = locations.finish(&spans);
 
         prepare_reading_point_data(&mut reader, &mut buffer).unwrap();
@@ -1067,7 +1076,7 @@ mod tests {
     fn full_vtk_binary() {
         use crate as vtk;
         #[derive(vtk::DataArray, vtk::ParseArray, Debug)]
-        #[vtk_parse(spans = "vtk::Spans3D", precision="f64")]
+        #[vtk_parse(spans = "vtk::Spans3D", precision = "f64")]
         pub struct SpanDataBinary {
             u: Vec<f64>,
             v: Vec<f64>,
@@ -1266,8 +1275,10 @@ mod tests {
         let mut buffer = Vec::new();
 
         // write data array headers
-        let parsed_header_1 = parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4).unwrap();
-        let parsed_header_2 = parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "Y", 4).unwrap();
+        let parsed_header_1 =
+            parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4).unwrap();
+        let parsed_header_2 =
+            parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "Y", 4).unwrap();
 
         let header_1 = parsed_header_1.unwrap_appended();
         let header_2 = parsed_header_2.unwrap_appended();
@@ -1303,8 +1314,8 @@ mod tests {
     #[test]
     fn parse_simple_f32() {
         let mut output = Vec::new();
-        let mut buffer= Vec::new();
-        let mut parsed_output : Vec<f32> = Vec::new();
+        let mut buffer = Vec::new();
+        let mut parsed_output: Vec<f32> = Vec::new();
 
         let mut writer = Writer::new(&mut output);
 
@@ -1317,15 +1328,21 @@ mod tests {
         let mut reader = std::io::Cursor::new(output);
 
         // now, parse the values out
-        parse_appended_binary(&mut reader, &mut buffer, values.len() * f32::SIZE, &mut parsed_output).unwrap();
+        parse_appended_binary(
+            &mut reader,
+            &mut buffer,
+            values.len() * f32::SIZE,
+            &mut parsed_output,
+        )
+        .unwrap();
         assert_eq!(parsed_output, values);
     }
 
     #[test]
     fn parse_simple_f64() {
         let mut output = Vec::new();
-        let mut buffer= Vec::new();
-        let mut parsed_output : Vec<f64>= Vec::new();
+        let mut buffer = Vec::new();
+        let mut parsed_output: Vec<f64> = Vec::new();
 
         let mut writer = Writer::new(&mut output);
 
@@ -1338,7 +1355,13 @@ mod tests {
         let mut reader = std::io::Cursor::new(output);
 
         // now, parse the values out
-        parse_appended_binary(&mut reader, &mut buffer, values.len() * f64::SIZE, &mut parsed_output).unwrap();
+        parse_appended_binary(
+            &mut reader,
+            &mut buffer,
+            values.len() * f64::SIZE,
+            &mut parsed_output,
+        )
+        .unwrap();
         assert_eq!(parsed_output, values);
     }
 }

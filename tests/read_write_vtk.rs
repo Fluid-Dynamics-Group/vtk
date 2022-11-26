@@ -6,7 +6,7 @@ mod inner {
 
     #[derive(vtk::DataArray, Clone, Debug, vtk::ParseArray)]
     #[vtk_write(encoding = "binary")]
-    #[vtk_parse(spans = "vtk::Spans3D", precision="f64")]
+    #[vtk_parse(spans = "vtk::Spans3D", precision = "f64")]
     pub struct Binary {
         rho: Vec<f64>,
         u: Vec<f64>,
@@ -16,7 +16,7 @@ mod inner {
 
     #[derive(vtk::DataArray, Clone, vtk::ParseArray)]
     #[vtk_write(encoding = "base64")]
-    #[vtk_parse(spans = "vtk::Spans3D", precision="f64")]
+    #[vtk_parse(spans = "vtk::Spans3D", precision = "f64")]
     pub struct Base64 {
         rho: Vec<f64>,
         u: Vec<f64>,
