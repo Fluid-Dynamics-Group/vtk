@@ -262,6 +262,7 @@ where
         buffer: &mut Vec<u8>,
     ) -> Result<Self, crate::parse::Mesh> {
         let prec = <NUM as Numeric>::as_precision();
+
         let x = parse::parse_dataarray_or_lazy(reader, buffer, "X", spans.x_len(), prec)?;
         let y = parse::parse_dataarray_or_lazy(reader, buffer, "Y", spans.y_len(), prec)?;
         let z = parse::parse_dataarray_or_lazy(reader, buffer, "Z", 1, prec)?;

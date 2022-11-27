@@ -215,6 +215,7 @@ pub trait ParseMesh {
 /// ```
 /// // provides `.num_elements()` method for `Spans3D`
 /// use vtk::Span;
+/// use vtk::Numeric;
 ///
 /// #[derive(Debug, Clone, Default, PartialEq)]
 /// pub struct SpanData {
@@ -234,7 +235,7 @@ pub trait ParseMesh {
 ///         reader: &mut vtk::Reader<R>,
 ///         buffer: &mut Vec<u8>,
 ///     ) -> Result<Self, vtk::parse::Mesh> {
-///         let u = vtk::parse::parse_dataarray_or_lazy(reader, buffer, "u", 0)?;
+///         let u = vtk::parse::parse_dataarray_or_lazy(reader, buffer, "u", 0, f64::as_precision())?;
 ///         let u = vtk::parse::PartialDataArrayBuffered::new(u, spans.num_elements());
 ///         let visitor = SpanDataVisitor { u };
 ///         Ok(visitor)

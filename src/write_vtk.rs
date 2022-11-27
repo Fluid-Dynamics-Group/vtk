@@ -141,14 +141,14 @@ impl Encoding {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Precision {
     Float64,
     Float32,
 }
 
 impl Precision {
-    fn to_str(&self) -> &'static str {
+    pub(crate) fn to_str(&self) -> &'static str {
         match &self {
             Self::Float64 => "Float64",
             Self::Float32 => "Float32",

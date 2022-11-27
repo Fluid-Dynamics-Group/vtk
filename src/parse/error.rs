@@ -144,6 +144,12 @@ pub enum Mesh {
     MissingAttribute(MissingAttribute),
     #[error("{0}")]
     UnexpectedElement(UnexpectedElement),
+    #[error("{0}")]
+    UnexpectedPrecision(UnexpectedPrecision),
+    #[error("{0}")]
+    DataArrayName(DataArrayName),
+    #[error("{0}")]
+    DataArrayFormat(DataArrayFormat),
 }
 
 #[derive(Debug, thiserror::Error, From)]
@@ -188,4 +194,26 @@ pub enum ParsingBinary {
 #[display(fmt = "Failed to parse inline ascii array `{array_name}` in DataArray element")]
 pub struct InlineAsciiArray {
     array_name: String,
+}
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "Unexpected value of precision on dataarray `{array_name}`. Expected `{}`, found `{actual_precision}`", "expected_precision.to_str()")]
+pub struct UnexpectedPrecision {
+    array_name: String,
+    expected_precision: Precision,
+    actual_precision: ParsedNameOrBytes
+}
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "Unexpected name for dataarray. Expected `{expected_name}`, found `{actual_name}`. Out of order parsing has not yet been implemented")]
+pub struct DataArrayName {
+    actual_name: ParsedNameOrBytes,
+    expected_name: String,
+}
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "Unknown / unconformant array format for `{expected_name}`. Format provided `{actual_format}` is not appended/binary/ascii")]
+pub struct DataArrayFormat {
+    expected_name: String,
+    actual_format: ParsedNameOrBytes
 }

@@ -529,45 +529,42 @@ where
     NUM: Numeric,
     R: BufRead,
 {
-    // if we have any binary data:
-    if buffers.len() > 0 {
-        let inner = reader.get_mut();
+    let inner = reader.get_mut();
 
-        //we have some data to read - first organize all of the data by the offsets
-        buffers.sort_unstable_by_key(|x| x.offset);
+    //we have some data to read - first organize all of the data by the offsets
+    buffers.sort_unstable_by_key(|x| x.offset);
 
-        dbg!("there are {} buffers", buffers.len());
+    dbg!("there are {} buffers", buffers.len());
 
-        let mut iterator = buffers.iter_mut().peekable();
+    let mut iterator = buffers.iter_mut().peekable();
 
-        clean_garbage_from_reader(inner, buffer)?;
+    clean_garbage_from_reader(inner, buffer)?;
 
-        loop {
-            if let Some(current_offset_buffer) = iterator.next() {
-                // get the number of bytes to read based on the next element's offset
-                let offset_length = iterator.peek().map(|offset_buffer| {
-                    let diff = offset_buffer.offset - current_offset_buffer.offset;
-                    diff as usize
-                });
+    loop {
+        if let Some(current_offset_buffer) = iterator.next() {
+            // get the number of bytes to read based on the next element's offset
+            let offset_length = iterator.peek().map(|offset_buffer| {
+                let diff = offset_buffer.offset - current_offset_buffer.offset;
+                diff as usize
+            });
 
-                let binary_length = current_offset_buffer.components
-                    * current_offset_buffer.num_elements
-                    * std::mem::size_of::<f64>();
+            let binary_length = current_offset_buffer.components
+                * current_offset_buffer.num_elements
+                * std::mem::size_of::<f64>();
 
-                if let Some(calculated_offset_length) = offset_length {
-                    assert_eq!(binary_length, calculated_offset_length);
-                }
-
-                crate::parse::parse_appended_binary(
-                    inner,
-                    buffer,
-                    binary_length,
-                    &mut current_offset_buffer.buffer,
-                )?;
-            } else {
-                // there are not more elements in the array - lets leave
-                break;
+            if let Some(calculated_offset_length) = offset_length {
+                assert_eq!(binary_length, calculated_offset_length);
             }
+
+            crate::parse::parse_appended_binary(
+                inner,
+                buffer,
+                binary_length,
+                &mut current_offset_buffer.buffer,
+            )?;
+        } else {
+            // there are not more elements in the array - lets leave
+            break;
         }
     }
 
@@ -602,7 +599,7 @@ pub fn read_dataarray_header<'a, R: BufRead>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
     expected_name: &str,
-    precision: Precision,
+    expected_precision: Precision,
 ) -> Result<(bool, DataArrayHeader), Mesh> {
     // read the header for the element, it should have the element name `DataArray`
     let (was_empty, array_start) =
@@ -617,14 +614,35 @@ pub fn read_dataarray_header<'a, R: BufRead>(
         .parse()
         .unwrap();
 
-    let name = get_attribute_value::<Mesh>(&array_start, "Name", "DataArray")?;
-
     let format = get_attribute_value::<Mesh>(&array_start, "format", "DataArray")?;
 
-    let precision = get_attribute_value::<Mesh>(&array_start, "type", "DataArray")?;
+    //
+    // fetch the name from the attribute, and ensure it matches with the name 
+    // that we expected from the user
+    //
 
-    // TODO: better error handling on this
-    assert_eq!(name.value, expected_name.as_bytes());
+    let name = get_attribute_value::<Mesh>(&array_start, "Name", "DataArray")?;
+
+    if name.value.as_ref() != expected_name.as_bytes() {
+        let actual_name = error::ParsedNameOrBytes::from(name.value);
+
+        let e = error::DataArrayName::new(actual_name, expected_name.into());
+        return Err(Mesh::from(e));
+    }
+
+    //
+    // fetch the precision from the attribute, and ensure it matches with the precision 
+    // that we expected from the user
+    //
+
+    let actual_precision = get_attribute_value::<Mesh>(&array_start, "type", "DataArray")?;
+
+    if actual_precision.value.as_ref() != expected_precision.to_str().as_bytes() {
+        let actual_precision = error::ParsedNameOrBytes::from(actual_precision.value);
+
+        let e = error::UnexpectedPrecision::new(expected_name.to_string(), expected_precision, actual_precision);
+        return Err(Mesh::from(e));
+    }
 
     let header = match format.value.as_ref() {
         b"appended" => {
@@ -649,8 +667,11 @@ pub fn read_dataarray_header<'a, R: BufRead>(
             DataArrayHeader::InlineAscii { components }
         }
         _ => {
-            // TODO: find a better way to make errors here
-            todo!()
+            // the format is unknown
+            let format = error::ParsedNameOrBytes::from(format.value);
+
+            let e = error::DataArrayFormat::new(expected_name.to_string(), format);
+            return Err(Mesh::from(e));
         }
     };
 
@@ -1013,7 +1034,7 @@ mod tests {
     #[test]
     fn single_location() {
         let input = r#"
-                <DataArray type="Float64" NumberOfComponents="1" Name="X" format="ascii">
+                <DataArray type="Float32" NumberOfComponents="1" Name="X" format="ascii">
                     .0000000000E+00 .3981797497E-01 .7963594994E-01 .1194539249E+00
                 </DataArray>
             "#;
@@ -1021,7 +1042,7 @@ mod tests {
         reader.trim_text(true);
         let mut buffer = Vec::new();
 
-        let out = parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4);
+        let out = parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4, Precision::Float32);
         dbg!(&out);
         let out = out.unwrap();
         let expected = 4;
@@ -1082,6 +1103,36 @@ mod tests {
     }
 
     #[test]
+    fn wrong_named_header() {
+        let header = r#"<DataArray type="Float64" NumberOfComponents="1" Name="my_array" format="ascii">"#;
+
+        let mut reader = Reader::from_str(header);
+        reader.trim_text(true);
+        let mut buffer = Vec::new();
+
+        let out = read_dataarray_header(&mut reader, &mut buffer, "another_name", Precision::Float64);
+        dbg!(&out);
+
+        assert!(out.is_err());
+    }
+
+    #[test]
+    fn wrong_header_type() {
+        // provide a 64 bit header
+        let header = r#"<DataArray type="Float64" NumberOfComponents="1" Name="my_array" format="ascii">"#;
+
+        let mut reader = Reader::from_str(header);
+        reader.trim_text(true);
+        let mut buffer = Vec::new();
+
+        // read for a 32 bit header
+        let out = read_dataarray_header(&mut reader, &mut buffer, "another_name", Precision::Float32);
+        dbg!(&out);
+
+        assert!(out.is_err());
+    }
+
+    #[test]
     fn base64_array_header() {
         let header =
             r#"<DataArray type="Float32" NumberOfComponents="1" Name="X" format="binary">"#;
@@ -1132,13 +1183,12 @@ mod tests {
         )
         .unwrap();
 
-        let string = String::from_utf8(output).unwrap();
-        let mut reader = Reader::from_str(&string);
+        let cursor = std::io::Cursor::new(output);
+        let mut reader = Reader::from_reader(cursor);
         reader.trim_text(true);
         let mut buffer = Vec::new();
 
-        let parsed_result = parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4);
-
+        let parsed_result = parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4, f64::as_precision());
         dbg!(&parsed_result);
 
         let out = parsed_result.unwrap();
@@ -1250,9 +1300,9 @@ mod tests {
 
         // write data array headers
         let parsed_header_1 =
-            parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4).unwrap();
+            parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "X", 4, Precision::Float64).unwrap();
         let parsed_header_2 =
-            parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "Y", 4).unwrap();
+            parse_dataarray_or_lazy::<_, f64>(&mut reader, &mut buffer, "Y", 4, Precision::Float64).unwrap();
 
         let header_1 = parsed_header_1.unwrap_appended();
         let header_2 = parsed_header_2.unwrap_appended();
