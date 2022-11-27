@@ -150,6 +150,12 @@ pub enum Mesh {
     DataArrayName(DataArrayName),
     #[error("{0}")]
     DataArrayFormat(DataArrayFormat),
+    #[error("{0}")]
+    Base64Decode(Base64Decode),
+    #[error("{0}")]
+    AsciiUTF8(AsciiUTF8),
+    #[error("{0}")]
+    UnparsableNumber(UnparsableNumber),
 }
 
 #[derive(Debug, thiserror::Error, From)]
@@ -182,12 +188,12 @@ pub enum AppendedData {
     ParsingBinary(ParsingBinary),
 }
 
-#[derive(Debug, thiserror::Error, From)]
+#[derive(Debug, thiserror::Error)]
 pub enum ParsingBinary {
-    #[error("removing the leading 16 bytes from the <AppendedData> element caused an error")]
-    LeadingBytes,
-    #[error("Failed to slices data array from appended binary bytes. Appended binary section may be too short")]
-    BinaryToFloat,
+    #[error("Failed to read first leading bytes of <AppendedData> element: `{0}`")]
+    LeadingBytes(FailedRead),
+    #[error("Failed to read binary in appended section: `{0}`")]
+    BinaryToFloat(FailedRead),
 }
 
 #[derive(From, Display, Debug, Constructor)]
@@ -216,4 +222,31 @@ pub struct DataArrayName {
 pub struct DataArrayFormat {
     expected_name: String,
     actual_format: ParsedNameOrBytes
+}
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "tried to read {read_length} bytes, got io error {reason}")]
+pub struct FailedRead {
+    reason: std::io::Error,
+    read_length: usize
+}
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "failed to decode base64 data for array `{array_name}`, {reason}")]
+pub struct Base64Decode {
+    array_name: String,
+    reason: base64::DecodeError,
+}
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "ascii array `{array_name}` data was not encoded as UTF-8")]
+pub struct AsciiUTF8 {
+    array_name: String,
+}
+
+#[derive(From, Display, Debug, Constructor)]
+#[display(fmt = "ascii array `{array_name}` data element `{number}` was not able to be parsed as a number")]
+pub struct UnparsableNumber {
+    array_name: String,
+    number: String
 }

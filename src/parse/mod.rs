@@ -816,19 +816,21 @@ where
     let xml_bytes = event.into_inner();
 
     // TODO: better error handling here
-    let location_data_string = std::str::from_utf8(&xml_bytes).unwrap();
+    let body_string = std::str::from_utf8(&xml_bytes)
+        .map_err(|_| error::AsciiUTF8::new(array_name.into()))?;
 
     let mut out = Vec::with_capacity(size_hint);
 
-    location_data_string
+    let iter = body_string
         .trim_end()
-        .split_ascii_whitespace()
-        .for_each(|x| {
-            let num = x
-                .parse()
-                .expect(&format!("ascii number {} could not be parsed as such", x));
-            out.push(num);
-        });
+        .split_ascii_whitespace();
+
+    for num_str in iter {
+        let num = num_str
+            .parse()
+            .map_err(|_| error::UnparsableNumber::new(array_name.into(), num_str.into()))?;
+        out.push(num);
+    }
 
     Ok(out)
 }
@@ -853,7 +855,8 @@ where
     let mut out = Vec::with_capacity(size_hint);
 
     let numerical_bytes =
-        base64::decode(&base64_encoded_bytes).expect("could not decode base64 data array bytes");
+        base64::decode(&base64_encoded_bytes)
+        .map_err(|e| error::Base64Decode::new(expected_name.to_string(), e))?;
 
     // normally we start with idx = 0, but since paraview expects the first 8 bytes
     // to be garbage information we need to skip the first 8 bytes before actually
@@ -910,7 +913,10 @@ pub fn clean_garbage_from_reader<R: BufRead>(
     ensure_buffer_length(buffer, len);
 
     // pull the bytes manually from the internal reader
-    reader.read_exact(&mut buffer[0..len]).unwrap();
+    if let Err(e) = reader.read_exact(&mut buffer[0..len]) {
+        let err = error::FailedRead::new(e, len);
+        return Err(error::ParsingBinary::LeadingBytes(err).into())
+    }
 
     Ok(())
 }
@@ -924,9 +930,10 @@ pub fn parse_appended_binary<'a, R: BufRead, NUM: Numeric>(
 ) -> Result<(), error::AppendedData> {
     ensure_buffer_length(buffer, length);
 
-    reader
-        .read_exact(&mut buffer.as_mut_slice()[0..length])
-        .unwrap();
+    if let Err(e) = reader.read_exact(&mut buffer.as_mut_slice()[0..length]) {
+        let err = error::FailedRead::new(e, length);
+        return Err(error::ParsingBinary::BinaryToFloat(err).into())
+    }
 
     let mut idx = 0;
     let inc = NUM::SIZE;
@@ -1104,12 +1111,14 @@ mod tests {
 
     #[test]
     fn wrong_named_header() {
+        // give an array with the name `my_array`
         let header = r#"<DataArray type="Float64" NumberOfComponents="1" Name="my_array" format="ascii">"#;
 
         let mut reader = Reader::from_str(header);
         reader.trim_text(true);
         let mut buffer = Vec::new();
 
+        // try to read an array with the name `another_name`
         let out = read_dataarray_header(&mut reader, &mut buffer, "another_name", Precision::Float64);
         dbg!(&out);
 
