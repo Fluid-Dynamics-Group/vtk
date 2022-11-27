@@ -141,6 +141,7 @@ impl Encoding {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Precision {
     Float64,
     Float32,

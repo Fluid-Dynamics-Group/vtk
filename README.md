@@ -146,6 +146,29 @@ error: proc-macro derive panicked
   = help: message: called `Result::unwrap()` on an `Err` value: Error { kind: MissingField("spans"), locations: [], span: None }
 ```
 
+If you specify the wrong precision (`precision="f32"` for the above example), you would see several
+errors of the form
+
+```bash
+error[E0308]: mismatched types
+   --> src/lib.rs:106:5
+    |
+4   | #[derive(vtk::ParseArray)]
+    |          --------------- arguments to this function are incorrect
+...
+7   |     a: Vec<f64>,
+    |     ^ expected `f64`, found `f32`
+    |
+    = note: expected struct `Vec<f64>`
+               found struct `Vec<f32>`
+note: associated function defined here
+   --> /home/brooks/github/fluids/vtk/src/traits.rs:164:8
+    |
+164 |     fn from_buffer(buffer: Vec<f64>, spans: &SPAN, components: usize) -> Self;
+    |        ^^^^^^^^^^^
+
+```
+
 
 If you are reading data from a file, then you 
 

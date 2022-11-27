@@ -143,15 +143,12 @@ fn prepare_reading_point_data<R: BufRead>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
 ) -> Result<(), error::PreparePointData> {
-    println!("closing </Coordinates> element");
     // first, we should have a closing element for Coordinates
     let _ = read_ending_element::<error::PreparePointData, _>(reader, buffer, "Coordinates")?;
 
-    println!("finished closing </Coordinates> element, now opening PointData element");
     // then, we need to open the element for PointData
     let _ =
         read_starting_element_with_name::<error::PreparePointData, _>(reader, buffer, "PointData")?;
-    println!("finished opening <PointData>");
 
     Ok(())
 }
@@ -160,7 +157,6 @@ fn close_element_to_appended_data<R: BufRead>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
 ) -> Result<(), error::CloseElements> {
-    println!("reading through to find </PointData> now");
 
     // first, we should have a closing element for PointData
     // however, we may have some unread <DataArray> elements that are still remaining
@@ -169,13 +165,9 @@ fn close_element_to_appended_data<R: BufRead>(
     let mut text_allowed = false;
 
     loop {
-        println!("new element");
         let element = reader
             .read_event_into(buffer)
             .map_err(error::MalformedXml::from)?;
-
-        let repr = EventSummary::new(&element);
-        println!("element: {}", repr);
 
         match element {
             Event::Start(s) => {
@@ -249,14 +241,11 @@ where
 {
     // if there are no appended sections, we do not need to go on
     if reader_buffers.is_empty() {
-        println!("skipping appended data section - no buffers to write to");
         return Ok(());
     }
 
-    println!("starting read of appended data");
     let appended_data =
         read_starting_element_with_name::<error::AppendedData, _>(reader, buffer, "AppendedData")?;
-    println!("finished queueing up to appended data section");
 
     let encoding =
         get_attribute_value::<error::AppendedData>(&appended_data, "encoding", "AppendedData")?;
@@ -283,7 +272,6 @@ where
     let event = if let Event::Start(event) = element {
         event
     } else {
-        dbg!(&element);
         let actual_event = EventSummary::new(&element);
 
         let unexpected = error::UnexpectedElement::new(expected_name, actual_event);
@@ -318,7 +306,6 @@ where
         Event::Empty(empty) => (true, empty),
         Event::Start(start) => (false, start),
         _ => {
-            dbg!(&element);
             let actual_event = EventSummary::new(&element);
             let unexpected = error::UnexpectedElement::new(expected_name, actual_event);
             return Err(E::from(unexpected));
@@ -371,7 +358,6 @@ where
     let event = if let Event::End(event) = element {
         event
     } else {
-        dbg!(&element);
         let actual_event = EventSummary::new(&element);
         let unexpected = error::UnexpectedElement::new(format!("/{expected_name}"), actual_event);
         return Err(E::from(unexpected));
@@ -379,7 +365,6 @@ where
 
     // check that the name of the coordinates header is correct
     if event.name().as_ref() != expected_name.as_bytes() {
-        dbg!(&event);
         let actual_event = EventSummary::end(&event);
         let unexpected = error::UnexpectedElement::new(expected_name, actual_event);
         return Err(E::from(unexpected));
@@ -454,8 +439,6 @@ where
 
     let _ = read_to_grid_header(&mut reader, &mut buffer).map_err(ParseError::from)?;
 
-    dbg!("finished reading to grid header");
-
     // find the whole extent from the RectilinearGrid header
     let spans =
         read_rectilinear_header::<SPAN, _>(&mut reader, &mut buffer).map_err(ParseError::from)?;
@@ -463,21 +446,13 @@ where
     let _local_spans =
         read_to_coordinates::<SPAN, _>(&mut reader, &mut buffer).map_err(ParseError::from)?;
 
-    dbg!("reading locations");
-
     let location_visitor =
         MeshVisitor::read_headers(&spans, &mut reader, &mut buffer).map_err(ParseError::from)?;
 
-    dbg!("finished reading locations");
-
     prepare_reading_point_data(&mut reader, &mut buffer).map_err(ParseError::from)?;
-
-    println!("starting read for arrays: {}", line!());
 
     let array_visitor =
         ArrayVisitor::read_headers(&spans, &mut reader, &mut buffer).map_err(ParseError::from)?;
-
-    println!("finished reading arrays: {}", line!());
 
     close_element_to_appended_data(&mut reader, &mut buffer).map_err(ParseError::from)?;
 
@@ -500,15 +475,14 @@ pub fn parse_dataarray_or_lazy<'a, R, NUM>(
     buffer: &mut Vec<u8>,
     expected_name: &str,
     size_hint: usize,
+    precision: Precision
 ) -> Result<PartialDataArray<NUM>, Mesh>
 where
     R: BufRead,
     NUM: Numeric,
     <NUM as std::str::FromStr>::Err: std::fmt::Debug,
 {
-    println!("parse_dataarray_or_lazy, {}", line!());
-
-    let (was_empty, header) = read_dataarray_header(reader, buffer, expected_name)?;
+    let (was_empty, header) = read_dataarray_header(reader, buffer, expected_name, precision)?;
 
     let lazy_array = match header {
         DataArrayHeader::AppendedBinary { offset, components } => {
@@ -536,11 +510,9 @@ where
 
     // if the element was not empty, then we need to close the element ourselves
     if !was_empty {
-        println!("reading /DataArray ending element since this dataarray was not empty");
         // now we have to read the closing element for the dataarray
         // so we dont cause any trouble for future routines
         read_ending_element::<Mesh, _>(reader, buffer, "DataArray")?;
-        println!("finished reading /DataArray ending element");
     }
 
     Ok(lazy_array)
@@ -605,15 +577,17 @@ where
 /// read through a DataArray header and consume up to the ending `>` character of the
 /// header.
 ///
-/// ### `xml_bytes`
+/// ### `reader`
 ///
-/// is the string slice that starts with the after the data array header information. This
-/// is most easily accomplished by a call to `read_dataarray_header`. This bytes slice
-/// may contain more information after the dataarray, which is returned from this function.
+/// [`quick_xml::Reader`] struct that has properly parsed the XML up to this point
+///
+/// ### `buffer`
+///
+/// a general purpose byte vector
 ///
 /// ### `expected_data`
 ///
-/// byte string of the expected `Name` attribute for this `DataArray`
+/// byte string `Name` attribute for this `DataArray`
 ///
 /// ## Returns
 ///
@@ -624,17 +598,15 @@ where
 /// ```ignore
 /// <DataArray name="name here" format="format here" offset="offset, if appended format"> ...
 /// ```
-///
-/// also assumes NumberOfComponents=1 and type=Float64
 pub fn read_dataarray_header<'a, R: BufRead>(
     reader: &mut Reader<R>,
     buffer: &mut Vec<u8>,
     expected_name: &str,
+    precision: Precision,
 ) -> Result<(bool, DataArrayHeader), Mesh> {
     // read the header for the element, it should have the element name `DataArray`
     let (was_empty, array_start) =
         read_empty_or_starting_element::<Mesh, _>(reader, buffer, "DataArray")?;
-    dbg!(was_empty);
 
     let num_components =
         get_attribute_value::<Mesh>(&array_start, "NumberOfComponents", "DataArray")?;
@@ -648,6 +620,8 @@ pub fn read_dataarray_header<'a, R: BufRead>(
     let name = get_attribute_value::<Mesh>(&array_start, "Name", "DataArray")?;
 
     let format = get_attribute_value::<Mesh>(&array_start, "format", "DataArray")?;
+
+    let precision = get_attribute_value::<Mesh>(&array_start, "type", "DataArray")?;
 
     // TODO: better error handling on this
     assert_eq!(name.value, expected_name.as_bytes());
@@ -1099,7 +1073,7 @@ mod tests {
         reader.trim_text(true);
         let mut buffer = Vec::new();
 
-        let out = read_dataarray_header(&mut reader, &mut buffer, "X");
+        let out = read_dataarray_header(&mut reader, &mut buffer, "X", Precision::Float64);
         dbg!(&out);
 
         let array_type = out.unwrap().1;
@@ -1110,12 +1084,12 @@ mod tests {
     #[test]
     fn base64_array_header() {
         let header =
-            r#"<DataArray type="Float64" NumberOfComponents="1" Name="X" format="binary">"#;
+            r#"<DataArray type="Float32" NumberOfComponents="1" Name="X" format="binary">"#;
         let mut reader = Reader::from_str(header);
         reader.trim_text(true);
         let mut buffer = Vec::new();
 
-        let out = read_dataarray_header(&mut reader, &mut buffer, "X");
+        let out = read_dataarray_header(&mut reader, &mut buffer, "X", Precision::Float32);
         dbg!(&out);
 
         let array_type = out.unwrap().1;
@@ -1131,7 +1105,7 @@ mod tests {
         reader.trim_text(true);
         let mut buffer = Vec::new();
 
-        let out = read_dataarray_header(&mut reader, &mut buffer, "X");
+        let out = read_dataarray_header(&mut reader, &mut buffer, "X", Precision::Float64);
         dbg!(&out);
 
         let array_type = out.unwrap().1;

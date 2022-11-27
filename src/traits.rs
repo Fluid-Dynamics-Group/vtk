@@ -292,6 +292,7 @@ where
     fn finish(self, spans: &Spans) -> Self::Output;
 }
 
+/// Generically gives access to information on a span
 pub trait Span {
     fn num_elements(&self) -> usize;
 }

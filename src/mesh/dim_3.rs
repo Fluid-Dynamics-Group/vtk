@@ -288,9 +288,11 @@ where
         reader: &mut Reader<R>,
         buffer: &mut Vec<u8>,
     ) -> Result<Self, crate::parse::Mesh> {
-        let x = parse::parse_dataarray_or_lazy(reader, buffer, "X", spans.x_len())?;
-        let y = parse::parse_dataarray_or_lazy(reader, buffer, "Y", spans.y_len())?;
-        let z = parse::parse_dataarray_or_lazy(reader, buffer, "Z", spans.z_len())?;
+        let prec = <NUM as Numeric>::as_precision();
+
+        let x = parse::parse_dataarray_or_lazy(reader, buffer, "X", spans.x_len(), prec)?;
+        let y = parse::parse_dataarray_or_lazy(reader, buffer, "Y", spans.y_len(), prec)?;
+        let z = parse::parse_dataarray_or_lazy(reader, buffer, "Z", spans.z_len(), prec)?;
 
         let x_locations = parse::PartialDataArrayBuffered::new(x, spans.x_len());
         let y_locations = parse::PartialDataArrayBuffered::new(y, spans.y_len());

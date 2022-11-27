@@ -98,7 +98,7 @@ fn create_visitor_struct_definition(visitor_name: &syn::Ident, fields: &[Validat
 }
 
 fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ident, fields: &[ValidatedField], span_type: &syn::Path, precision: &syn::Type) -> proc_macro2::TokenStream {
-    let read_headers = visitor_read_headers(visitor_name, fields);
+    let read_headers = visitor_read_headers(visitor_name, fields, precision);
     let append_to_buffer = visitor_buffer_append(fields);
     let finish = visitor_finish(original_name, fields);
 
@@ -133,7 +133,7 @@ fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ide
 }
 
 /// builds the body of `Visitor::read_headers`
-fn visitor_read_headers(visitor_name: &syn::Ident, fields: &[ValidatedField]) -> proc_macro2::TokenStream {
+fn visitor_read_headers(visitor_name: &syn::Ident, fields: &[ValidatedField], precision: &syn::Type) -> proc_macro2::TokenStream {
     let mut out = quote!();
 
     for field in fields {
@@ -145,7 +145,7 @@ fn visitor_read_headers(visitor_name: &syn::Ident, fields: &[ValidatedField]) ->
         out = quote!(
             #out
             let length = vtk::Span::num_elements(spans);
-            let #fieldname = vtk::parse::parse_dataarray_or_lazy(reader, buffer, #lit, length)?;
+            let #fieldname = vtk::parse::parse_dataarray_or_lazy(reader, buffer, #lit, length, <#precision as vtk::Numeric>::as_precision())?;
             let #fieldname = vtk::parse::PartialDataArrayBuffered::new(#fieldname, length);
         );
     }
