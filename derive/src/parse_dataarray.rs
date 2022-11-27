@@ -14,11 +14,11 @@ struct NumericInfo(syn::Type);
 
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(vtk_parse), supports(struct_any))]
-struct InputReceiver{
+struct InputReceiver {
     /// The struct ident.
     ident: syn::Ident,
 
-    /// The type's generics. 
+    /// The type's generics.
     generics: syn::Generics,
 
     // only work on structs
@@ -32,7 +32,7 @@ struct InputReceiver{
     // in the general case it could be some type alias
     // type Array = ndarray::Array4<f32>, and the type
     // of each field is simply `Array`
-    precision: NumericInfo
+    precision: NumericInfo,
 }
 
 #[derive(Debug, FromField)]
@@ -52,32 +52,44 @@ struct ValidatedField {
     ident: syn::Ident,
 
     #[allow(dead_code)]
-    ty: syn::Type
+    ty: syn::Type,
 }
 
 struct Visitor {
     name: syn::Ident,
-    tokens: proc_macro2::TokenStream
+    tokens: proc_macro2::TokenStream,
 }
 
-fn create_visitor(original_struct: &syn::Ident, fields: &[ValidatedField], span_type: &syn::Path, precision: &syn::Type) -> Visitor {
+fn create_visitor(
+    original_struct: &syn::Ident,
+    fields: &[ValidatedField],
+    span_type: &syn::Path,
+    precision: &syn::Type,
+) -> Visitor {
     // first find out what we are naming the struct
     let mut visitor_name = original_struct.to_string();
     visitor_name.push_str("Visitor");
     let ident = syn::Ident::new(&visitor_name, original_struct.span());
 
-    
-    let trait_impl = create_visitor_trait_impl(&ident, original_struct, fields, span_type, precision);
+    let trait_impl =
+        create_visitor_trait_impl(&ident, original_struct, fields, span_type, precision);
     let struct_def = create_visitor_struct_definition(&ident, fields, precision);
     let tokens = quote!(
         #struct_def
 
         #trait_impl
     );
-    Visitor { tokens, name: ident }
+    Visitor {
+        tokens,
+        name: ident,
+    }
 }
 
-fn create_visitor_struct_definition(visitor_name: &syn::Ident, fields: &[ValidatedField], precision: &syn::Type) -> proc_macro2::TokenStream {
+fn create_visitor_struct_definition(
+    visitor_name: &syn::Ident,
+    fields: &[ValidatedField],
+    precision: &syn::Type,
+) -> proc_macro2::TokenStream {
     let mut out = quote!();
 
     for field in fields {
@@ -97,12 +109,17 @@ fn create_visitor_struct_definition(visitor_name: &syn::Ident, fields: &[Validat
     )
 }
 
-fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ident, fields: &[ValidatedField], span_type: &syn::Path, precision: &syn::Type) -> proc_macro2::TokenStream {
+fn create_visitor_trait_impl(
+    visitor_name: &syn::Ident,
+    original_name: &syn::Ident,
+    fields: &[ValidatedField],
+    span_type: &syn::Path,
+    precision: &syn::Type,
+) -> proc_macro2::TokenStream {
     let read_headers = visitor_read_headers(visitor_name, fields, precision);
     let append_to_buffer = visitor_buffer_append(fields);
     let finish = visitor_finish(original_name, fields);
 
- 
     let out = quote!(
         impl vtk::Visitor<#span_type> for #visitor_name {
             type Output = #original_name;
@@ -133,11 +150,14 @@ fn create_visitor_trait_impl(visitor_name: &syn::Ident, original_name: &syn::Ide
 }
 
 /// builds the body of `Visitor::read_headers`
-fn visitor_read_headers(visitor_name: &syn::Ident, fields: &[ValidatedField], precision: &syn::Type) -> proc_macro2::TokenStream {
+fn visitor_read_headers(
+    visitor_name: &syn::Ident,
+    fields: &[ValidatedField],
+    precision: &syn::Type,
+) -> proc_macro2::TokenStream {
     let mut out = quote!();
 
     for field in fields {
-
         let fieldname = &field.ident;
         let lit = syn::LitStr::new(&fieldname.to_string(), fieldname.span());
 
@@ -170,8 +190,7 @@ fn visitor_read_headers(visitor_name: &syn::Ident, fields: &[ValidatedField], pr
 
 /// places all the fields in a comma separated list
 fn make_fields_comma_separated(fields: &[ValidatedField]) -> proc_macro2::TokenStream {
-    
-    let mut out= quote!();
+    let mut out = quote!();
 
     for field in fields {
         let fieldname = &field.ident;
@@ -202,7 +221,10 @@ fn visitor_buffer_append(fields: &[ValidatedField]) -> proc_macro2::TokenStream 
 }
 
 /// builds the body of `Visitor::finish`
-fn visitor_finish(output_ident: &syn::Ident, fields: &[ValidatedField]) -> proc_macro2::TokenStream {
+fn visitor_finish(
+    output_ident: &syn::Ident,
+    fields: &[ValidatedField],
+) -> proc_macro2::TokenStream {
     let mut out = quote!();
 
     for field in fields {
@@ -219,13 +241,12 @@ fn visitor_finish(output_ident: &syn::Ident, fields: &[ValidatedField]) -> proc_
     let comma_sep_fields = make_fields_comma_separated(fields);
 
     quote!(
-        #out 
+        #out
         #output_ident { #comma_sep_fields}
     )
 }
 
 pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
-
     let receiver = InputReceiver::from_derive_input(&input).unwrap();
 
     let InputReceiver {
@@ -241,24 +262,31 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
 
     check_no_references(&generics.params)?;
 
-    let fields : Result<Vec<_>> = data
+    let fields: Result<Vec<_>> = data
         .take_struct()
         .expect("Should never be enum")
         .fields
         .into_iter()
         .map(|field: FieldReceiver| {
             if let Some(ident) = &field.ident {
-                Ok(ValidatedField { ident: ident.clone(), ty: field.ty })
+                Ok(ValidatedField {
+                    ident: ident.clone(),
+                    ty: field.ty,
+                })
             } else {
-                Err(syn::Error::new(field.ty.span(), "does not handle tuple struct"))
+                Err(syn::Error::new(
+                    field.ty.span(),
+                    "does not handle tuple struct",
+                ))
             }
-            
         })
         .collect();
     let fields = fields?;
 
-
-    let Visitor { name: visitor_name, tokens: visitor_tokens}  = create_visitor(&ident, &fields, &spans.0, &precision.0);
+    let Visitor {
+        name: visitor_name,
+        tokens: visitor_tokens,
+    } = create_visitor(&ident, &fields, &spans.0, &precision.0);
 
     let out = quote!(
         #visitor_tokens
@@ -272,7 +300,9 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
 }
 
 /// verify that there are no lifetimes in the type signature that we want
-fn check_no_references(types: &syn::punctuated::Punctuated<syn::GenericParam, syn::token::Comma>) -> Result<()> {
+fn check_no_references(
+    types: &syn::punctuated::Punctuated<syn::GenericParam, syn::token::Comma>,
+) -> Result<()> {
     types.into_iter()
         .try_for_each(|ty| 
             match ty {
@@ -280,7 +310,6 @@ fn check_no_references(types: &syn::punctuated::Punctuated<syn::GenericParam, sy
                 _ => Ok(())
             }
         )?;
-    
 
     Ok(())
 }

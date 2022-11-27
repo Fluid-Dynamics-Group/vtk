@@ -65,7 +65,6 @@ struct MyFieldReceiver {
 }
 
 fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::TokenStream> {
-
     let mut array_headers = quote!();
     let mut appended_body = quote!();
 
@@ -95,7 +94,7 @@ fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::
         let field_name = &field.ident.as_ref().unwrap();
 
         // check to see if this is the last iteration of the loop
-        let new_write = if idx == fields.len() -1 {
+        let new_write = if idx == fields.len() - 1 {
             // there are no more arrays to write, we are last
             quote!(vtk::Array::write_binary(&self.#field_name, writer, true)?;)
         } else {
@@ -120,20 +119,20 @@ fn appended_encoding_body(fields: Vec<&MyFieldReceiver>) -> Result<proc_macro2::
         Ok(())
     );
 
-    Ok(assemble_trait(
-        array_headers,
-        appended_body,
-    ))
+    Ok(assemble_trait(array_headers, appended_body))
 }
 
-fn inline_encoding(fields: Vec<&MyFieldReceiver>, encoding: Encoding) -> Result<proc_macro2::TokenStream> {
+fn inline_encoding(
+    fields: Vec<&MyFieldReceiver>,
+    encoding: Encoding,
+) -> Result<proc_macro2::TokenStream> {
     let mut array_headers = quote!();
     let appended_body = quote!(Ok(()));
 
     let vtk_encoding = match encoding {
         Encoding::Ascii => quote!(vtk::Encoding::Ascii),
-        Encoding::Base64=> quote!(vtk::Encoding::Base64),
-        _ => unreachable!()
+        Encoding::Base64 => quote!(vtk::Encoding::Base64),
+        _ => unreachable!(),
     };
 
     for field in &fields {
@@ -154,10 +153,7 @@ fn inline_encoding(fields: Vec<&MyFieldReceiver>, encoding: Encoding) -> Result<
         Ok(())
     );
 
-    Ok(assemble_trait(
-        array_headers,
-        appended_body,
-    ))
+    Ok(assemble_trait(array_headers, appended_body))
 }
 
 fn assemble_trait(
@@ -198,11 +194,10 @@ pub fn derive(input: syn::DeriveInput) -> Result<TokenStream> {
         .expect("Should never be enum")
         .fields;
 
-    let trait_body = 
-        match encoding {
-            Encoding::Ascii | Encoding::Base64 => inline_encoding(fields, encoding)?,
-            Encoding::Binary => appended_encoding_body(fields)?
-        };
+    let trait_body = match encoding {
+        Encoding::Ascii | Encoding::Base64 => inline_encoding(fields, encoding)?,
+        Encoding::Binary => appended_encoding_body(fields)?,
+    };
 
     let encoding_type = receiver.encoding.to_type();
 
